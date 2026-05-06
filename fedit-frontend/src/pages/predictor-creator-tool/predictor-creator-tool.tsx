@@ -1,6 +1,7 @@
 import HomeGrafanaIcon from 'assets/images/home/grafana.svg';
 import HomeKatibIcon from 'assets/images/home/katib.svg';
 import HomeKserveIcon from 'assets/images/home/kserve.svg';
+import HomeLabelingIcon from 'assets/images/home/labeling.svg';
 import HomeMlflowIcon from 'assets/images/home/mlflow.svg';
 import HomeNifiIcon from 'assets/images/home/nifi.svg';
 import HomePipelineIcon from 'assets/images/home/pipeline.svg';
@@ -132,6 +133,13 @@ const services: Service[] = [
     path: '/volume',
     kubeflowApp: '/volumes/',
     needsNamespace: true,
+  },
+  {
+    name: 'Label Studio',
+    description: '학습 데이터 라벨링, 주석 프로젝트, 데이터셋 검수',
+    icon: HomeLabelingIcon,
+    path: '/label-studio',
+    url: '/label-studio/',
   },
   {
     name: 'Grafana 모니터링',

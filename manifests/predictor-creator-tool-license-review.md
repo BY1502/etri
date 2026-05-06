@@ -27,6 +27,7 @@
 | KServe 엔드포인트 | KServe Models Web App / InferenceService 관리 | Apache-2.0 | 허용 | 유지 가능 |
 | 텐서보드 | TensorBoard / Kubeflow TensorBoards | Apache-2.0 | 허용 | 유지 가능 |
 | 볼륨 | Kubeflow Volumes Web App | Apache-2.0 | 허용 | 유지 가능 |
+| Label Studio | 데이터 라벨링 / 어노테이션 | Apache-2.0 | 허용 | 유지 가능 |
 | Grafana 모니터링 | Grafana OSS | AGPLv3 / AGPL-3.0-only | 비허용 | 제거 또는 MIT/Apache-2.0 대체 UI 필요 |
 | Apache NiFi | Apache NiFi | Apache-2.0 | 허용 | 유지 가능 |
 
@@ -44,8 +45,9 @@
 | KServe 엔드포인트 | `predictor-creator-tool.tsx:112` |
 | 텐서보드 | `predictor-creator-tool.tsx:120` |
 | 볼륨 | `predictor-creator-tool.tsx:128` |
-| Grafana 모니터링 | `predictor-creator-tool.tsx:136` |
-| Apache NiFi | `predictor-creator-tool.tsx:143` |
+| Label Studio | `predictor-creator-tool.tsx` |
+| Grafana 모니터링 | `predictor-creator-tool.tsx` |
+| Apache NiFi | `predictor-creator-tool.tsx` |
 
 ## Prediction Manager 의존성 이슈
 
@@ -105,4 +107,6 @@ MIT/Apache-2.0만 허용할 경우 AutoML은 다음처럼 정리하는 방향이
 - TensorBoard GitHub: https://github.com/tensorflow/tensorboard
 - Optuna GitHub: https://github.com/optuna/optuna
 - Optuna PyPI: https://pypi.org/project/optuna/
+- Label Studio GitHub: https://github.com/HumanSignal/label-studio
+- Label Studio PyPI: https://pypi.org/project/label-studio/
 - Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0.html
