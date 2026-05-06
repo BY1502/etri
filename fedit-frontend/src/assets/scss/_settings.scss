@@ -1,0 +1,156 @@
+.settings {
+  padding: 16px;
+  box-sizing: border-box;
+  background-color: var(--bg);
+  @include RESPONSIVE;
+  section {
+    display: flex;
+    height: calc(100% - 48px);
+    article {
+      max-width: 600px;
+      width: 100%;
+      height: 100%;
+      &:not(:last-child) {
+        border-right: 1px solid var(--gray);
+      }
+      padding-right: 16px;
+      margin-right: 16px;
+    }
+  }
+}
+
+.license {
+  padding: 16px;
+  box-sizing: border-box;
+  background-color: var(--bg);
+  @include RESPONSIVE;
+  .license-table {
+    td,
+    th {
+      border: 1px solid var(--gray);
+      vertical-align: middle;
+      padding: 8px;
+      word-break: keep-all;
+    }
+    th {
+      font-weight: 700;
+      color: var(--font-sub);
+      background-color: var(--sky);
+    }
+    .number {
+      text-align: right;
+    }
+  }
+}
+
+.user-info {
+  height: 100%;
+  overflow: auto;
+  .warning {
+    color: var(--red);
+    font-size: 1.1rem;
+    text-align: right;
+  }
+  .warning-message-box {
+    margin: 0;
+  }
+  > div {
+    margin-bottom: 32px;
+    h6 {
+      @include LABEL;
+      line-height: 16px;
+    }
+    .info-button {
+      text-align: right;
+      margin-top: 8px;
+      .base-button {
+        background-color: var(--sky);
+        padding: 4px 8px;
+        border-radius: 2px;
+        font-weight: 700;
+        font-size: 1rem;
+      }
+    }
+  }
+  ul {
+    width: 100%;
+    border: 1px solid var(--gray);
+    box-sizing: border-box;
+    li {
+      width: 100%;
+      display: flex;
+      box-sizing: border-box;
+      &:not(:last-child) {
+        border-bottom: 1px solid var(--gray);
+      }
+      div {
+        padding: 0 8px;
+        line-height: 30px;
+        width: 100%;
+        box-sizing: border-box;
+        color: var(--font);
+        &.info-item-label {
+          width: 40%;
+          background-color: var(--sky);
+          border-right: 1px solid var(--gray);
+          font-weight: 700;
+        }
+        &.info-item-value {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+      }
+    }
+  }
+  .user-auth-history {
+    margin-top: 8px;
+    ul {
+      position: relative;
+      max-height: 300px;
+      overflow: auto;
+      li {
+        border-bottom: 1px solid var(--gray);
+        box-sizing: border-box;
+        p {
+          width: 100%;
+          text-align: center;
+          line-height: 31px;
+          font-size: 1rem;
+          &:not(:last-child) {
+            border-right: 1px solid var(--gray);
+          }
+        }
+        &:first-child {
+          background-color: var(--sky);
+          position: sticky;
+          top: 0;
+          left: 0;
+        }
+        &:last-child {
+          border: none;
+        }
+      }
+    }
+  }
+  .auth-changer {
+    display: flex;
+    margin-top: 24px;
+    align-items: center;
+    justify-content: space-between;
+    img {
+      width: 24px;
+      height: 24px;
+      margin: 16px 12px 0 12px;
+    }
+    fieldset {
+      margin: 0;
+      input {
+        box-sizing: border-box;
+        border: 1px solid var(--gray);
+        height: 32px;
+        padding: 0 30px 0 8px;
+      }
+    }
+  }
+}

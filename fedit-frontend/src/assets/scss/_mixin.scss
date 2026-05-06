@@ -1,0 +1,15 @@
+@mixin ASIDE-RECTANGLE-ANCHOR {
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--blue);
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  margin-top: 16px;
+  &:hover {
+    filter: hue-rotate(5deg) brightness(90%) contrast(120%);
+  }
+}

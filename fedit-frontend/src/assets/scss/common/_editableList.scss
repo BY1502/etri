@@ -1,0 +1,54 @@
+.editable-list-wrapper {
+  margin-bottom: 24px;
+  fieldset {
+    display: flex;
+    align-items: flex-end;
+    margin-bottom: 8px;
+    label {
+      @include LABEL;
+      flex: 1;
+      display: block;
+      color: var(--font-sub);
+      margin-right: 4px;
+    }
+    input {
+      @include FONT_REGULAR;
+      display: block;
+      width: 100%;
+      color: var(--font);
+      box-sizing: border-box;
+      border: 1px solid var(--gray);
+      background-color: var(--bg);
+      padding: 0 8px;
+      height: 32px;
+    }
+    button {
+      width: 23px;
+      height: 32px;
+      &:last-child {
+        margin-right: 4px;
+      }
+    }
+  }
+  ul {
+    @include FONT_REGULAR;
+    height: 136px;
+    color: var(--font);
+    border: 1px solid var(--gray);
+    background-color: var(--bg);
+    box-sizing: border-box;
+    overflow: auto;
+    .list-item-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      color: var(--font);
+      padding: 10px;
+
+      &.active,
+      &:hover {
+        background-color: var(--sky);
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "en": {
+    "allEntityStatistics": "Entity Statistics",
+    "success": "Success",
+    "fail": "Fail",
+    "total": "Total",
+    "dataModelStatistics": "Data model Statistics",
+    "dataModelSourceStatistics": "Data model Provider Statistics",
+    "modelType": "Model type",
+    "source": "Source",
+    "noData": "No Data"
+  },
+  "kr": {
+    "allEntityStatistics": "전체 Entity 수집 현황",
+    "success": "수집 성공",
+    "fail": "수집 실패",
+    "total": "합계",
+    "dataModelStatistics": "데이터 모델 별 수집 현황",
+    "dataModelSourceStatistics": "수집처 별 수집 현황",
+    "modelType": "모델 타입",
+    "source": "수집처",
+    "noData": "선택한 데이터가 없습니다."
+  }
+}

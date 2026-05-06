@@ -1,0 +1,19 @@
+.entity {
+  height: 100%;
+  background-color: var(--bg);
+  display: flex;
+  color: white;
+  h2 {
+    @include TITLE;
+    line-height: 24px;
+    margin-bottom: 12px;
+  }
+}
+
+@import './entity/entityList';
+@import './entity/entityDetail';
+@import './entity/entityTabList';
+@import './entity/attributeInfo';
+@import './entity/entityTree';
+@import './entity/entityTable';
+@import './entity/entityContextList';

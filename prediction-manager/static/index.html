@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>예측매니저</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="pm-navbar">
+        <div class="pm-brand">
+            <div class="pm-brand-icon">P</div>
+            <div>
+                <div class="pm-brand-title">예측매니저</div>
+                <div class="pm-brand-sub">Prediction Manager</div>
+            </div>
+        </div>
+        <div class="pm-nav">
+            <a href="#/home" data-page="home" class="active">HOME</a>
+            <a href="#/images" data-page="images">IMAGES</a>
+            <a href="#/containers" data-page="containers">CONTAINERS</a>
+        </div>
+    </nav>
+
+    <div class="pm-content" id="app"></div>
+
+    <script src="static/js/api.js"></script>
+    <script src="static/js/pages/home.js"></script>
+    <script src="static/js/pages/images.js"></script>
+    <script src="static/js/pages/containers.js"></script>
+    <script src="static/js/pages/admin.js"></script>
+    <script src="static/js/pages/automl.js"></script>
+    <script src="static/js/pages/models.js"></script>
+    <script src="static/js/app.js"></script>
+</body>
+</html>

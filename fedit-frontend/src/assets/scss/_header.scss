@@ -1,0 +1,110 @@
+.header {
+  color: var(--font);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--gray);
+  box-sizing: border-box;
+  padding: 0 16px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  z-index: 100;
+  .nav-left {
+    height: 100%;
+    display: flex;
+    .header-logo {
+      opacity: 0.5;
+      height: 100%;
+      line-height: 52px;
+      img {
+        width: 120px;
+        padding: 8px 8px 8px 0;
+        vertical-align: middle;
+      }
+    }
+    #nav {
+      display: flex;
+      margin-left: 64px;
+      height: 53px;
+      overflow: hidden;
+      transition: 0.4s ease;
+      .nav-items {
+        &.active {
+          h6 {
+            // color: var(--font);
+          }
+          li {
+            border-left: 1px solid var(--gray);
+            padding-left: 16px;
+            margin-left: 15px;
+          }
+          img {
+            // opacity: 1;
+          }
+        }
+        h6 {
+          @include TITLE;
+          font-weight: 700;
+          line-height: 24px;
+          padding: 0 8px;
+          border-radius: 2px;
+          margin: 13px 0;
+          margin-right: 48px;
+          padding-top: 2px;
+          cursor: default;
+          transition: 0.2s ease;
+          color: var(--font-sub);
+          img {
+            width: 16px;
+            vertical-align: middle;
+            margin-right: 8px;
+            margin-bottom: 2px;
+            opacity: 0.7;
+          }
+        }
+        li {
+          border-left: 1px solid transparent;
+          padding-left: 16px;
+          margin-left: 15px;
+          a {
+            // transition: 0.2s ease;
+            display: block;
+            @include FONT_REGULAR;
+            padding: 8px 0;
+            color: var(--font-sub);
+            &:hover,
+            &.active {
+              color: var(--font);
+              @include TITLE;
+            }
+          }
+        }
+      }
+      &:hover {
+        height: 260px;
+        h6 {
+          margin-right: 64px;
+        }
+      }
+    }
+  }
+  .nav-right {
+    height: 54px;
+    button {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      opacity: 0.5;
+      padding: 0 16px;
+      margin-right: -16px;
+      img {
+        width: 24px;
+        height: 24px;
+      }
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+}

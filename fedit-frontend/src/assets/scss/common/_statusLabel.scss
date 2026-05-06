@@ -1,0 +1,25 @@
+#status-label {
+  @include BOLD_LABEL;
+  color: #fff;
+  line-height: 16px;
+  border-radius: 2px;
+  padding: 0 5px;
+  &.DISABLE {
+    background-color: var(--deep-gray);
+  }
+  &.HANG {
+    background-color: var(--yellow);
+  }
+  &.DIE {
+    background-color: #000; // FIXME: 색상코드 확인 부탁드립니다!
+  }
+  &.CREATED {
+    background-color: var(--sky);
+  }
+  &.STOP {
+    background-color: var(--red);
+  }
+  &.RUN {
+    background-color: #4393de; // FIXME: 색상코드 확인 부탁드립니다!
+  }
+}

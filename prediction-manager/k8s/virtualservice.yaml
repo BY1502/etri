@@ -1,0 +1,45 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: prediction-manager
+  namespace: kubeflow
+spec:
+  gateways:
+    - kubeflow-gateway
+  hosts:
+    - "*"
+  http:
+    - headers:
+        request:
+          add:
+            x-forwarded-prefix: /prediction-manager
+      match:
+        - uri:
+            prefix: /prediction-manager/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: prediction-manager.kubeflow.svc.cluster.local
+            port:
+              number: 80
+    - match:
+        - uri:
+            exact: /prediction-manager
+      redirect:
+        uri: /prediction-manager/
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: prediction-manager-allow
+  namespace: kubeflow
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app: prediction-manager
+  rules:
+    - to:
+        - operation:
+            paths: ["/*"]

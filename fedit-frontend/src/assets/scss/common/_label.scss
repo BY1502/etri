@@ -1,0 +1,38 @@
+.label-span {
+  background: var(--gray);
+  font-family: 'NotoSans';
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 11px;
+  padding: 1px 3px;
+  text-align: center;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  border-radius: 2px;
+}
+.label-Property {
+  background-color: var(--blue);
+}
+// GeoProperty
+.label-GeoProperty {
+  background-color: var(--green);
+}
+// Relationship
+.label-Relationship {
+  background-color: var(--yellow);
+}
+// Member
+.label-Member {
+  background-color: var(--red);
+}
+// Point
+.label-Point {
+  background-color: var(--sky);
+}
+
+.input-label-style {
+  @include LABEL;
+  color: var(--font-sub);
+  line-height: 16px;
+}

@@ -1,0 +1,46 @@
+.error-content {
+  @include RESPONSIVE;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  > div {
+    margin-bottom: 16px;
+    img {
+      width: 100px;
+      opacity: 0.4;
+    }
+  }
+
+  strong {
+    font-size: 2rem;
+    color: var(--sky);
+    margin-left: 6px;
+  }
+}
+
+.warning-message-box {
+  font-size: $FONT_SIZE_REGULAR;
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  background-color: rgba($color: var(--red), $alpha: 0.5);
+  margin-bottom: 24px;
+  border-radius: 2px;
+  border: 1px solid var(--red);
+  display: flex;
+  align-items: center;
+  img {
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-right: 4px;
+  }
+}
+
+.login-wrapper {
+  .warning-message-box {
+    background-color: rgba($color: #a95555, $alpha: 0.5);
+    border: 1px solid #a95555;
+    color: #ffffff;
+  }
+}

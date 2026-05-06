@@ -1,0 +1,41 @@
+.DS_Store
+.vscode/
+.idea/
+
+# Local env / secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+tls.crt
+tls.key
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+env/
+
+# Node / frontend
+node_modules/
+build/
+dist/
+coverage/
+.cache/
+.eslintcache
+
+# Logs / local runtime
+*.log
+logs/
+tmp/
+*.sqlite
+*.db
+
+# Local backups and operational notes
+*.bak
+work-log.md

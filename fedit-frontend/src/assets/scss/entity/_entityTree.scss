@@ -1,0 +1,79 @@
+.tree-list {
+  position: relative;
+  height: calc(100% - 25px);
+  border: 1px solid var(--gray);
+  box-sizing: border-box;
+  overflow: auto;
+  min-width: 265px;
+  padding: 0 8px;
+  button {
+    color: var(--font);
+  }
+  .toggle-tab-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    .whole-row {
+      position: absolute;
+      left: 0;
+      height: 28px;
+      width: 100%;
+      user-select: none;
+    }
+    .whole-row.hover,
+    .whole-row.selected {
+      background-color: var(--lightblue);
+      opacity: 0.4;
+    }
+    button {
+      position: relative;
+      line-height: 9px;
+      font-size: $FONT_SIZE_REGULAR;
+      img {
+        width: 16px;
+      }
+    }
+    span {
+      position: relative;
+      font-size: $FONT_SIZE_SMALL;
+      font-weight: $FONT_WEIGHT_BOLD;
+      border-radius: 2px;
+      padding: 2px;
+      color: #ffffff;
+    }
+    .array-index {
+      color: var(--font);
+    }
+    strong {
+      position: relative;
+    }
+  }
+  .item-tab-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    img {
+      width: 16px;
+      opacity: 0.7;
+    }
+    span {
+      color: var(--font-sub);
+      min-width: 12px;
+      text-align: center;
+    }
+  }
+  .depth-division {
+    margin-left: 7.5px;
+    padding-left: 8px;
+    border-left: 1px solid var(--gray);
+  }
+  .relationship-list {
+    margin-left: 18px;
+    li {
+      list-style: circle;
+      padding: 2px 0;
+    }
+  }
+}

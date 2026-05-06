@@ -1,0 +1,42 @@
+.custom-confirm {
+  position: absolute;
+  z-index: 9999;
+  inset: 0;
+  background-color: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  &__modal {
+    width: auto;
+    min-width: 340px;
+    height: auto;
+    border: 1px solid black;
+    color: black;
+    padding: 40px 16px 24px;
+    box-sizing: border-box;
+    border-radius: 4px;
+
+    p {
+      font-size: 1.6rem;
+      font-weight: 400;
+      color: black;
+      text-align: center;
+    }
+
+    &__btns {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+      gap: 16px;
+
+      button {
+        padding: 8px 16px;
+        border-radius: 4px;
+        background-color: gray;
+        // max-width: 66px;
+        height: 32px;
+      }
+    }
+  }
+}

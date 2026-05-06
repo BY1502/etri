@@ -1,0 +1,28 @@
+.entity-detail {
+  color: var(--font);
+  box-sizing: border-box;
+  width: calc(100% - (22% + 416px));
+  background-color: var(--bg);
+  section {
+    display: flex;
+    height: calc(100% - 40px);
+    article {
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg);
+      width: 50%;
+      padding: 16px;
+    }
+    .info-containter {
+      box-sizing: border-box;
+      height: 100%;
+      .title-wrapper {
+        margin-bottom: 23px;
+        h3 {
+          @include TITLE;
+          margin-right: 8px;
+        }
+      }
+    }
+  }
+}

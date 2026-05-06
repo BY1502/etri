@@ -1,0 +1,110 @@
+.physical-simulation-processing-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  height: 100%;
+  padding: 19px 20px;
+  box-sizing: border-box;
+  &__title {
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 32px;
+  }
+
+  &__providing-tool-box {
+    background: var(--sky);
+    border-radius: 2px;
+    padding: 24px 32px;
+  }
+
+  &__providing-tool-box-title {
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 24px;
+  }
+
+  &__providing-tool-box-subtitle {
+    font-size: 16px;
+    margin-bottom: 16px;
+    margin-left: 16px;
+  }
+
+  &__download-tool-box {
+    border: 2.5px solid var(--sky);
+    border-radius: 2px;
+    padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__download-tool-box-title {
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 24px;
+  }
+
+  &__download-tool-box-subtitle {
+    font-size: 16px;
+    margin-bottom: 16px;
+    margin-left: 16px;
+  }
+  &__download-tool-box-wrapper {
+    height: 100%;
+  }
+  &__download-tool-box-icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2.5px solid var(--sky);
+    border-radius: 8px;
+    padding: 28px;
+    > svg {
+      width: 60px;
+      height: 60px;
+    }
+  }
+  &__download-tool-box-button {
+    background-color: var(--blue);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    width: 100%;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    > svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  &__download {
+    // full screen download view with background that overlay on top
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  &__download-icon {
+    width: 160px;
+    height: 160px;
+  }
+  &__overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+  }
+}

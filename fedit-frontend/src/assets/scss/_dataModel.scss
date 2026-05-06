@@ -1,0 +1,321 @@
+.data-model {
+  @include RESPONSIVE;
+  background-color: var(--bg);
+  display: flex;
+}
+
+.data-model-detail-wrap {
+  @include RESPONSIVE;
+  display: block;
+  > .data-model-attr-btns {
+    padding: 0 16px 16px 0;
+    box-sizing: border-box;
+    border-top: 1px solid var(--gray);
+    height: 67px;
+    display: flex;
+    align-items: flex-end;
+    background-color: var(--sky);
+  }
+  &.ready {
+    background-color: var(--bg);
+    .data-model-detail {
+      height: 100%;
+    }
+    > .data-model-attr-btns {
+      display: none;
+    }
+  }
+}
+
+.data-model-detail {
+  &.read-only {
+    background-color: var(--bg);
+    + .data-model-attr-btns {
+      background-color: var(--bg);
+      input {
+        pointer-events: none !important;
+      }
+    }
+  }
+  @include RESPONSIVE;
+  height: calc(100% - 67px);
+  color: var(--font);
+  box-sizing: border-box;
+  position: relative;
+  width: 100%;
+  background-color: var(--sky);
+  display: flex;
+  > div {
+    box-sizing: border-box;
+    padding: 16px;
+  }
+  .data-model-detail-tree-wrapper {
+    width: 50%;
+  }
+  .data-model-form {
+    width: 25%;
+    margin-top: 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    > div:first-child {
+      width: 100%;
+      height: calc(100% - 50px);
+      overflow: auto;
+    }
+  }
+  .data-model-attr-form-popup {
+    width: 25%;
+    background-color: var(--sky);
+    box-sizing: border-box;
+    overflow: auto;
+    border-left: 1px solid var(--gray);
+    .data-model-attr-form {
+      height: calc(100% - 80px);
+      .data-model-attr-form-content {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        .data-model-custom-attr-wrap {
+          max-height: calc(100% - 224px);
+        }
+        .data-model-attr-top {
+          height: 100%;
+          overflow-x: hidden;
+          overflow-y: auto;
+          box-sizing: border-box;
+          background-color: rgba($color: #aaaaaa, $alpha: 0.1);
+          margin: 0 -16px;
+          padding: 16px 16px 0 16px;
+          border-top: 1px solid var(--gray);
+          border-bottom: 1px solid var(--gray);
+        }
+        .data-model-attr-btns {
+          margin-top: 16px;
+        }
+        .data-model-attr-form-content-form {
+          overflow: auto;
+          height: calc(100% - 48px);
+        }
+      }
+    }
+  }
+}
+
+.data-model-tree-controller {
+  height: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  overflow: hidden;
+  div {
+    display: flex;
+    align-items: center;
+  }
+  button {
+    display: flex;
+    align-items: center;
+    height: 20px;
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--font);
+    margin-left: 4px;
+  }
+  .object-add-btn {
+    background-color: var(--sky);
+    border-radius: 10px;
+    padding-right: 8px;
+    margin: 0;
+    svg {
+      fill: var(--sky);
+      margin-right: 4px;
+    }
+  }
+  .add-btn > svg {
+    fill: var(--blue);
+  }
+  .remove-btn > svg {
+    fill: var(--red);
+  }
+  .fold-btn {
+    width: 20px;
+    height: 20px;
+    opacity: 0.5;
+    &:hover {
+      opacity: 1;
+    }
+    img {
+      width: 100%;
+      height: 100%;
+    }
+  }
+}
+
+.type-label {
+  @include TYPE_LABEL;
+}
+
+.data-model-tree-wrapper {
+  height: calc(100% - 62px);
+  background-color: var(--bg);
+  padding: 0 8px 8px 8px;
+  box-sizing: border-box;
+  margin-right: -16px;
+  border: 1px solid var(--gray);
+  .data-model-tree-btn-controller {
+    display: flex;
+    align-items: center;
+    height: 32px;
+  }
+  .data-model-tree-content {
+    height: calc(100% - 32px);
+    border: 1px solid var(--gray);
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+    ul {
+      line-height: 28px;
+      .summary {
+        height: 28px;
+        padding: 0 6px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        .required {
+          p {
+            font-weight: 900;
+          }
+        }
+        button {
+          height: 16px;
+        }
+        .summary_id {
+          width: 100%;
+          @include FONT_REGULAR;
+          overflow: hidden;
+          text-align: left;
+          color: var(--font);
+          height: 100%;
+          p {
+            display: inline-block;
+            vertical-align: middle;
+          }
+        }
+        &:hover {
+          background-color: var(--sky);
+        }
+        &.active-item {
+          background-color: var(--lightblue);
+        }
+        img {
+          width: 16px;
+          margin-right: 4px;
+          opacity: 0.7;
+          &:hover {
+            opacity: 1;
+          }
+        }
+        span {
+          content: '';
+          display: block;
+          min-width: 1px;
+          height: 100%;
+          background-color: var(--gray);
+          margin: 0 8px 0 7px;
+        }
+      }
+      .tree-icon {
+        margin-right: 8px;
+        width: 16px;
+        height: 16px;
+        background: no-repeat center;
+        background-size: 90%;
+        &.tree-arrow {
+          background-image: url('../images/arrow_right.svg');
+        }
+        &.tree-model {
+          background-image: url('../images/entity.svg');
+        }
+      }
+    }
+  }
+}
+
+.data-model-attr-valid {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 -4px;
+
+  fieldset {
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+}
+
+.with-check-button {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  label {
+    width: calc(100% - 36px);
+  }
+  .context-check-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+// TODO: um i don't know what this does wtf? wht input.. css?
+// input:read-only,
+// select:disabled {
+//   background: none;
+//   padding: 0;
+//   opacity: 1;
+//   font-weight: 700;
+//   border: none;
+//   color: var(--font-sub);
+//   height: 24px;
+// }
+
+.data-model-attr-btns {
+  height: 32px;
+  display: flex;
+  justify-content: flex-end;
+  > div {
+    display: flex;
+  }
+  button {
+    margin-left: 8px;
+  }
+  .data-model-attr-btns-ready {
+    padding-left: 48px;
+  }
+}
+
+.data-model-label {
+  @include LABEL;
+  display: block;
+  color: var(--font-sub);
+  line-height: 16px;
+}
+
+.data-model-type-wrapper {
+  display: flex;
+  justify-content: space-between;
+  fieldset {
+    width: 100%;
+  }
+  img {
+    width: 20px;
+    height: 100%;
+    margin: 8px;
+    margin: 21px 0 8px 8px;
+  }
+  button {
+    min-width: 60px;
+    background-color: var(--sky);
+    margin: 16px 0 0 8px;
+    padding: 0;
+  }
+}

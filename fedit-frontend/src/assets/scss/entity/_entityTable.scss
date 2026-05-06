@@ -1,0 +1,58 @@
+.relationship-table-wrapper {
+  overflow-y: auto;
+  table {
+    width: 100%;
+    thead {
+      background-color: var(--bg);
+      height: 28px;
+      color: var(--font-sub);
+    }
+    th,
+    td {
+      width: 50%;
+      border: 1px solid var(--gray);
+    }
+    th {
+      padding: 0 8px;
+      vertical-align: middle;
+      text-align: left;
+    }
+    td button {
+      text-align: left;
+      font-size: 1.2rem;
+      height: 28px;
+      width: 100%;
+      color: var(--font);
+      padding: 0 8px;
+    }
+    .relation-tab:hover {
+      background-color: var(--sky);
+    }
+  }
+}
+
+.entity-info-table-wrapper + .relationship-table-wrapper,
+.relationship-table-wrapper + .relationship-table-wrapper {
+  border-top: 1px solid var(--gray);
+  margin-top: 13px;
+  padding-top: 13px;
+}
+
+.entity-info-table-wrapper {
+  overflow-y: auto;
+  table {
+    width: 100%;
+    th,
+    td {
+      line-height: 28px;
+      border: 1px solid var(--gray);
+      text-align: start;
+      padding: 0 8px;
+    }
+    th {
+      background-color: var(--bg);
+      color: var(--font-sub);
+      width: 23%;
+    }
+  }
+}

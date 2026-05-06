@@ -1,0 +1,47 @@
+.tab-list-wrapper {
+  display: flex;
+  background-color: var(--lightgray);
+  .tab-item-wrapper {
+    position: relative;
+    background-color: var(--bg);
+    color: var(--font-sub);
+    box-sizing: border-box;
+    max-width: 230px;
+    width: 14.2%;
+    a {
+      @include FONT_ELLIPSIS;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      box-sizing: border-box;
+      height: 40px;
+      padding: 8px 32px 8px 16px;
+      background-color: var(--sky);
+      strong {
+        @include FONT_ELLIPSIS;
+      }
+      span {
+        @include FONT_ELLIPSIS;
+        @include LABEL;
+        color: var(--font-sub);
+      }
+    }
+    button {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      height: 16px;
+      img {
+        width: 16px;
+        height: 16px;
+        padding: 2px;
+      }
+    }
+    .active {
+      color: var(--font);
+      background-color: var(--bg);
+    }
+  }
+}

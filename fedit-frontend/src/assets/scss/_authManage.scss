@@ -1,0 +1,67 @@
+.auth-manage-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow: auto;
+  section {
+    height: 100%;
+    h3 {
+      @include TITLE;
+      color: #000;
+      line-height: 16px;
+      width: 100%;
+      text-align: start;
+      border-bottom: 1px solid var(--gray);
+      margin-bottom: 8px;
+    }
+    .table-wrapper {
+      background-color: var(--sky);
+      height: calc(100% - 25px);
+      overflow: auto;
+      table {
+        position: relative;
+        border: 1px solid var(--gray);
+        width: 100%;
+        overflow: auto;
+        thead {
+          position: sticky;
+          top: -1px;
+          background-color: var(--sky);
+        }
+        tbody {
+          background-color: var(--bg);
+        }
+        tr {
+          height: 35px;
+          line-height: 35px;
+          text-align: center;
+          th,
+          td {
+            @include TITLE;
+            color: #000;
+            border: 1px solid var(--gray);
+            &:last-child {
+              width: 13%;
+            }
+            button {
+              display: inline-block;
+              color: #fff;
+              border-radius: 2px;
+              padding: 3px 8px;
+              &.approve {
+                background-color: var(--blue);
+              }
+              &.reject {
+                background-color: var(--deep-gray);
+              }
+            }
+            button + button {
+              margin-left: 6px;
+            }
+          }
+        }
+      }
+    }
+  }
+}

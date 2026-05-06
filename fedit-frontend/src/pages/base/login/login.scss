@@ -1,0 +1,118 @@
+.login-div {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  max-width: 580px;
+  margin-left: auto;
+  margin-right: auto;
+  > p {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 48px;
+  }
+}
+.login {
+  width: 100%;
+  padding: 55px 69px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+
+  &__input-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  &__input {
+    color: #000;
+    display: block;
+    font-weight: 700;
+    height: 32px;
+    width: 100%;
+    min-height: 45px;
+    padding: 10px 0 8px;
+    border: 0;
+    font-size: 18px;
+    line-height: 25px;
+    color: #191919;
+    background-color: transparent;
+    letter-spacing: 0;
+    box-sizing: border-box;
+    outline: 0 none;
+    caret-color: #191919;
+    opacity: 1;
+    border-bottom: 2px solid #ccc;
+    &:focus {
+      border-bottom: 2px solid #000;
+    }
+  }
+  &__button {
+    padding: 12px 12px;
+    border-radius: 4px;
+    width: 100%;
+    background-color: var(--secondary-blue);
+    color: white;
+    font-weight: 700;
+    font-size: 1rem;
+
+    &:disabled {
+      background-color: var(--sidebar-hover);
+    }
+  }
+  &__error-box {
+    // max-width: 400px;
+    border-radius: 2px;
+    margin-bottom: 36px;
+    color: black;
+    padding: 18px;
+    background-color: #fafafa;
+    color: #e65f3e;
+    border: 1px solid #e65f3e;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  &__footer {
+    font-size: 13px;
+    margin-left: auto;
+    padding-right: 12px;
+  }
+  &__line {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 15px 0;
+    font-size: 0;
+    line-height: 0;
+    &::before {
+      display: inline-block;
+      width: calc(50% - 20px);
+      height: 1px;
+      margin: 8px 0;
+      background-color: rgba(0, 0, 0, 0.06);
+      vertical-align: top;
+      content: '';
+    }
+    &::after {
+      display: inline-block;
+      width: calc(50% - 20px);
+      height: 1px;
+      margin: 8px 0;
+      background-color: rgba(0, 0, 0, 0.06);
+      vertical-align: top;
+      content: '';
+    }
+  }
+  &__line-text {
+    display: inline-block;
+    width: 40px;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    color: #828282;
+  }
+}

@@ -1,0 +1,63 @@
+.donut-chart {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+
+  &__wrapper {
+    display: flex;
+    gap: 32px;
+  }
+
+  &__left-div {
+    display: flex;
+    flex-direction: column;
+    gap: 25.5px;
+    max-width: 200px;
+
+    > p {
+      text-align: center;
+      font-weight: 700;
+      font-size: 15px;
+    }
+  }
+  &__right-div {
+    padding-top: 18.25px;
+    padding-bottom: 18.25px;
+    min-width: 285px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  &__right-bar-div {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  &__right-bar-div-title {
+    color: #555555;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  &__bar-div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    height: 100%;
+    padding-top: 8px;
+    padding-bottom: 8px;
+
+    > p {
+      font-size: 24px;
+      font-weight: 700;
+    }
+  }
+  &__bar-line {
+    border-top: 16px solid #5da0f3;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 206px;
+  }
+}

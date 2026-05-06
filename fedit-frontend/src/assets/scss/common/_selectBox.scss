@@ -1,0 +1,55 @@
+.select-box-wrapper {
+  width: 100%;
+  margin-bottom: 24px;
+  label {
+    @include LABEL;
+    display: block;
+    color: var(--font-sub);
+    line-height: 16px;
+  }
+  select {
+    @include FONT_REGULAR;
+    width: 100%;
+    color: var(--font);
+    box-sizing: border-box;
+    border: 1px solid var(--gray);
+    height: 32px;
+    padding: 0 30px 0 8px;
+    -webkit-appearance: none; /* for chrome */
+    -moz-appearance: none; /*for firefox*/
+    appearance: none;
+    background: url('../../images/arrow_down.svg') no-repeat 98% 50%/15px auto; //화살표 이미지지정
+    background-color: var(--bg);
+    &::-ms-expand {
+      display: none; /*for IE10,11*/
+    }
+    &:active,
+    &:focus {
+      outline: none;
+    }
+  }
+  &.multiple {
+    select {
+      height: 100px;
+      border-radius: 0;
+      padding: 0;
+      background: none;
+      background-color: var(--bg);
+      option {
+        &:not(:checked) {
+          background-color: var(--bg);
+        }
+        padding: 8px;
+        &:checked {
+          background-color: var(--sky);
+        }
+      }
+    }
+  }
+  span {
+    @include LABEL;
+    display: block;
+    color: var(--font-sub);
+    margin-top: 5px;
+  }
+}

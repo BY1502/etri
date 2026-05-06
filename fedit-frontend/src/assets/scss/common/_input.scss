@@ -1,0 +1,99 @@
+.input-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 24px;
+  & > label {
+    @include LABEL;
+    display: block;
+    color: var(--font-sub);
+    width: 100%;
+    line-height: 16px;
+  }
+  input {
+    @include FONT_REGULAR;
+    display: block;
+    width: 100%;
+    color: var(--font);
+    box-sizing: border-box;
+    border: 1px solid var(--gray);
+    background-color: var(--bg);
+    padding: 0 8px;
+    height: 32px;
+  }
+  .error {
+    @include LABEL;
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    color: red;
+  }
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 12px;
+  input[type='text'],
+  input[type='number'] {
+    width: 100%;
+    background-color: var(--bg);
+    color: var(--font);
+    border: 1px solid var(--gray);
+    padding: 7px;
+    margin: 0;
+    margin-right: 8px;
+  }
+  button {
+    display: block;
+    img {
+      opacity: 0.7;
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+  button + button {
+    margin-left: 7px;
+  }
+}
+
+.input-container {
+  width: 100%;
+  overflow: auto;
+  > label {
+    display: flex;
+    flex-direction: column;
+    > span {
+      @include LABEL;
+      color: var(--font-sub);
+      line-height: 16px;
+    }
+    input,
+    select {
+      @include FONT_REGULAR;
+      color: var(--font);
+      height: 32px;
+      width: 100%;
+      box-sizing: border-box;
+      background-color: var(--bg);
+      border: 1px solid var(--gray);
+      padding: 0 8px;
+    }
+    select {
+      padding-right: 30px;
+      -webkit-appearance: none; /* for chrome */
+      -moz-appearance: none; /*for firefox*/
+      appearance: none;
+      background: url('../../images/arrow_down.svg') var(--bg) no-repeat 98% 50%/15px
+        auto; //화살표 이미지지정
+      &::-ms-expand {
+        display: none; /*for IE10,11*/
+      }
+      &:active,
+      &:focus {
+        outline: none;
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+.DS_Store
+.vscode/
+.idea/
+
+# Local env
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local backups
+*.bak
+
+# Caches
+.eslintcache
+.cache/

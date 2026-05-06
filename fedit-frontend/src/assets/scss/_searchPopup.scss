@@ -1,0 +1,21 @@
+.search-popup-wrapper {
+  .input-wrapper {
+    input[type='text'] {
+      background-color: var(--bg);
+      border-color: var(--gray);
+    }
+  }
+  .select-box-wrapper {
+    margin-bottom: 54px;
+  }
+  .search-popup-button-wrapper {
+    float: right;
+    button + button {
+      margin-left: 8px;
+    }
+    button {
+      cursor: pointer;
+      display: inline-block;
+    }
+  }
+}

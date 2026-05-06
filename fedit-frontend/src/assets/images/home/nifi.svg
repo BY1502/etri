@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#728E9B" opacity="0.1"/>
+  <rect x="10" y="14" width="16" height="10" rx="3" fill="#728E9B"/>
+  <rect x="38" y="14" width="16" height="10" rx="3" fill="#728E9B"/>
+  <rect x="24" y="40" width="16" height="10" rx="3" fill="#728E9B"/>
+  <path d="M18 24v6l14 10M46 24v6l-14 10" stroke="#728E9B" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="18" cy="30" r="2" fill="#728E9B"/>
+  <circle cx="46" cy="30" r="2" fill="#728E9B"/>
+  <circle cx="32" cy="40" r="2" fill="white"/>
+  <text x="14" y="21" font-size="6" fill="white" font-weight="bold">IN</text>
+  <text x="41" y="21" font-size="6" fill="white" font-weight="bold">OUT</text>
+</svg>

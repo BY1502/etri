@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prediction-manager
+  namespace: kubeflow
+  labels:
+    app: prediction-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prediction-manager
+  template:
+    metadata:
+      labels:
+        app: prediction-manager
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: prediction-manager
+      containers:
+        - name: prediction-manager
+          image: localhost:5000/prediction-manager-app:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: REGISTRY_URL
+              value: "http://192.168.0.166:5000"
+            - name: REGISTRY_HOST
+              value: "localhost:5000"
+            - name: DEFAULT_NAMESPACE
+              value: "kubeflow-user-example-com"
+          volumeMounts:
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket

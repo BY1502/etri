@@ -1,0 +1,214 @@
+.entity-selector {
+  display: flex;
+}
+
+.entity-list {
+  height: 100%;
+  width: 416px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background-color: var(--sky);
+  border-left: 1px solid var(--gray);
+  border-right: 1px solid var(--gray);
+  padding: 16px;
+  .header-wrapper {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 5px;
+    h3 {
+      @include TITLE;
+      display: flex;
+      align-items: center;
+      width: 95%;
+      overflow: auto;
+      color: var(--font);
+      line-height: 24px;
+      margin-bottom: 12px;
+      .title-path-btn {
+        @include TITLE;
+        color: var(--font);
+        display: flex;
+        align-items: center;
+        line-height: 24px;
+        img {
+          width: 15px;
+        }
+      }
+      &.history-path {
+        color: var(--font-sub);
+        .title-path-btn {
+          color: var(--font-sub);
+          &:hover {
+            color: var(--font);
+          }
+        }
+        span {
+          @include FONT_ELLIPSIS;
+        }
+      }
+    }
+  }
+  .entity-search-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+    .horizontal-input-layout {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      width: 100%;
+      select,
+      input {
+        border-color: var(--gray);
+      }
+      select:disabled,
+      input:disabled {
+        background-color: var(--sky);
+        color: var(--font-sub);
+      }
+    }
+    .button-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      button {
+        @include FONT_REGULAR;
+        background-color: var(--sky);
+        color: #fff;
+        line-height: 16px;
+        border-radius: 3px;
+        box-sizing: border-box;
+        padding: 4px 8px;
+        &:hover {
+          opacity: 0.8;
+        }
+        &:active {
+          opacity: 0.7;
+        }
+        &.submit-button {
+          background-color: var(--blue);
+        }
+        &.reset-button {
+          background-color: var(--deep-gray);
+        }
+      }
+    }
+  }
+  .criteria-date-time-input {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    .datetime-input-wrapper {
+      @include TITLE;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--font-sub);
+      margin-bottom: 9px;
+      input {
+        @include FONT_REGULAR;
+        @include FONT_ELLIPSIS;
+        color: var(--font);
+        background-color: var(--bg);
+        border: 1px solid var(--gray);
+        box-sizing: border-box;
+        padding: 2px 5px;
+      }
+    }
+  }
+
+  .active {
+    background-color: var(--sky);
+    color: var(--font);
+  }
+
+  ul {
+    position: relative;
+    border: 1px solid var(--gray);
+    background-color: var(--bg);
+    box-sizing: border-box;
+    height: 100%;
+    overflow-y: auto;
+    .empty-result {
+      position: absolute;
+      width: max-content;
+      top: 10%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--font);
+    }
+    li.table-header {
+      @include FONT_REGULAR;
+      display: flex;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      color: var(--font);
+      background-color: var(--sky);
+      height: 31px;
+      strong {
+        @include FONT_ELLIPSIS;
+        display: block;
+        line-height: 31px;
+        width: 100%;
+        padding: 0 11.5px;
+        &:last-child {
+          width: 30%;
+          border-left: 1px solid var(--gray);
+        }
+      }
+    }
+    li {
+      box-sizing: border-box;
+      border-bottom: 1px solid var(--gray);
+      height: 28px;
+      &.empty-result-li {
+        border: none;
+      }
+      a,
+      button {
+        @include FONT_REGULAR;
+        display: flex;
+        align-items: center;
+        text-align: left;
+        color: var(--font-sub);
+        width: 100%;
+        height: 27px;
+        &:hover {
+          background-color: var(--sky);
+          color: var(--font);
+        }
+        span {
+          @include FONT_ELLIPSIS;
+          width: 100%;
+          line-height: 31px;
+          padding: 0 11.5px;
+          &:last-child {
+            width: 30%;
+            border-left: 1px solid var(--gray);
+          }
+        }
+      }
+    }
+    .scroll-loader {
+      text-align: center;
+      padding-top: 10px;
+      img {
+        width: 30px;
+        animation: loading 1s infinite ease-out;
+      }
+    }
+    @keyframes loading {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  }
+}

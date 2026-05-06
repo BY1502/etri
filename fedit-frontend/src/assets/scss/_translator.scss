@@ -1,0 +1,257 @@
+.translator-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  .right-align {
+    float: right;
+  }
+  .full-loading-screen {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+  .compile-status {
+    @include FONT_REGULAR;
+    margin-left: 10px;
+    &.blue {
+      color: var(--blue);
+    }
+    &.red {
+      color: var(--red);
+    }
+  }
+  .create-form-popup {
+    table {
+      width: 100%;
+      margin-bottom: 24px;
+      tr {
+        height: 32px;
+        th,
+        td {
+          text-align: left;
+          border: 1px solid var(--gray);
+          box-sizing: border-box;
+          padding: 8px;
+          &.edit {
+            padding: 5px 8px;
+          }
+        }
+        th {
+          @include TITLE;
+          width: 26%;
+          background-color: #d3d9e1; // TODO: color theme 변수 지정하기
+          .flex-horizontal {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            button {
+              height: 20px;
+            }
+          }
+        }
+        td {
+          @include FONT_REGULAR;
+          background-color: #fff; // TODO: color theme 변수 지정하기
+          > span {
+            @include BOLD_LABEL;
+            color: var(--red);
+          }
+          button {
+            margin-left: 8px;
+          }
+          select {
+            min-width: 100px;
+          }
+          .cell-wrapper {
+            line-height: 19px;
+            > :first-child {
+              margin-bottom: 16px;
+            }
+            span {
+              @include LABEL;
+              display: block;
+              color: var(--gray);
+              margin-bottom: 2px;
+            }
+          }
+        }
+      }
+    }
+    .button-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+  }
+  .code-editor-popup {
+    .code-mirror {
+      width: 840px;
+      border: 1px solid var(--gray);
+      margin-bottom: 9px;
+    }
+    .button-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    label {
+      position: relative;
+      strong {
+        @include TITLE;
+        line-height: 24px;
+      }
+      textarea {
+        width: 840px;
+      }
+    }
+  }
+}
+
+.translator-list-wrapper {
+  height: 100%;
+  overflow: auto;
+}
+
+.translator-item-wrapper {
+  &:last-child .container {
+    border-bottom: 1px solid var(--gray);
+  }
+  .container {
+    display: flex;
+    border-left: 1px solid var(--gray);
+    border-right: 1px solid var(--gray);
+    aside {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 16px;
+      width: 140px;
+      background-color: #d3d9e1; // TODO: color theme 변수 지정하기
+      box-sizing: border-box;
+      padding: 16px;
+      button {
+        @include TITLE;
+        color: var(--gray);
+        &.active {
+          color: var(--font);
+        }
+      }
+    }
+  }
+}
+
+.translator-header-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg);
+  border: 1px solid var(--gray);
+  height: 46px;
+  padding: 0 16px;
+  .header-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    h3 {
+      @include TITLE;
+    }
+    span {
+      @include LABEL;
+      color: var(--gray);
+    }
+    button {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--gray);
+      border-radius: 50%;
+      box-sizing: content-box;
+      height: 24px;
+      box-shadow: rgba(0, 0, 0, 0.15) 1.95px 1.95px 2.6px;
+      &:active {
+        box-shadow: none;
+      }
+      &:disabled {
+        cursor: auto;
+        box-shadow: none;
+        opacity: 0.3;
+      }
+      img {
+        height: 22px;
+        width: 22px;
+      }
+    }
+  }
+  .tab-toggle-btn {
+    height: fit-content;
+  }
+}
+
+.translator-detail-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: flex-end;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px;
+  table {
+    width: 100%;
+    tr {
+      height: 32px;
+      th,
+      td {
+        border: 1px solid var(--gray);
+        box-sizing: border-box;
+        padding: 8px;
+        &.edit {
+          padding: 5px 8px;
+        }
+      }
+      th {
+        @include TITLE;
+        width: 26%;
+        background-color: #d3d9e1; // TODO: color theme 변수 지정하기
+        .flex-horizontal {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          button {
+            height: 20px;
+          }
+        }
+      }
+      td {
+        @include FONT_REGULAR;
+        background-color: #fff; // TODO: color theme 변수 지정하기
+        button {
+          margin-left: 8px;
+        }
+        select {
+          min-width: 100px;
+        }
+        .cell-wrapper {
+          line-height: 19px;
+          > :first-child {
+            margin-bottom: 16px;
+          }
+          span {
+            @include LABEL;
+            display: block;
+            color: var(--gray);
+            margin-bottom: 2px;
+          }
+        }
+      }
+    }
+  }
+  .btn-wrapper {
+    button + button {
+      margin-left: 8px;
+    }
+  }
+}

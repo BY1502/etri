@@ -1,0 +1,32 @@
+.loading-mask {
+  position: fixed;
+  z-index: 9990;
+  inset: 0;
+  background-color: rgba($color: #000, $alpha: 30%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  &__spinner {
+    background: url('../../assets/images/loading_circle.png') no-repeat center
+      center;
+    background-size: contain;
+    position: relative;
+    z-index: 2;
+    width: 57px;
+    height: 57px;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+  }
+
+  @keyframes rotation {
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+}

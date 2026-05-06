@@ -1,0 +1,59 @@
+html {
+  // min-width: 1600px;
+  // max-width: 3200px;
+  // min-height: 800px;
+  overflow: auto;
+}
+
+html,
+body,
+#root,
+.app,
+.base {
+  @include RESPONSIVE;
+  color: var(--font);
+}
+
+.base {
+  position: relative;
+}
+
+.header {
+  width: 100%;
+  max-width: 3200px;
+  min-width: 1600px;
+  background-color: var(--bg);
+}
+
+main {
+  width: 100%;
+  height: calc(100% - 71px);
+  @include FONT_REGULAR;
+  position: absolute;
+  top: 55px;
+}
+
+.main-page {
+  @include RESPONSIVE;
+  background-color: var(--bg);
+}
+
+footer {
+  width: 100%;
+  height: 16px;
+  background-color: var(--lightgray);
+  color: var(--font-sub);
+  padding: 0 16px;
+  box-sizing: border-box;
+  text-align: right;
+  @include LABEL;
+  line-height: 16px;
+  overflow: hidden;
+  position: absolute;
+  bottom: 0px;
+}
+
+img,
+svg {
+  @include UNDRAGGABLE;
+}

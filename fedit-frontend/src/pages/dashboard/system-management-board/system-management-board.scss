@@ -1,0 +1,20 @@
+.system-management-board {
+  background-color: #f5f5f5;
+  border-radius: 4px;
+
+  &__card {
+    padding: 12px 20px;
+    border-bottom: 1px solid #999999;
+  }
+
+  &__card-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  &__card-subtitle {
+    font-weight: 500;
+    font-size: 12px;
+    color: #999999;
+  }
+}

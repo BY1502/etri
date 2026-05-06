@@ -1,0 +1,167 @@
+# PIPELINE DEFINITION
+# Name: weekly-retrain
+# Description: 매주 월요일 03:00 재학습. 정확도 임계값 달성까지 반복.
+# Inputs:
+#    dataset_url: str [Default: 'https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv']
+#    max_attempts: int [Default: 10.0]
+#    registered_name: str [Default: 'weekly-auto-titanic']
+#    target_column: str [Default: 'Survived']
+#    threshold: float [Default: 0.8]
+components:
+  comp-train-until-threshold:
+    executorLabel: exec-train-until-threshold
+    inputDefinitions:
+      parameters:
+        dataset_url:
+          parameterType: STRING
+        max_attempts:
+          defaultValue: 10.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        mlflow_uri:
+          defaultValue: http://mlflow-service.ray-system:5000
+          isOptional: true
+          parameterType: STRING
+        registered_name:
+          defaultValue: weekly-auto
+          isOptional: true
+          parameterType: STRING
+        target_column:
+          parameterType: STRING
+        threshold:
+          defaultValue: 0.9
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRUCT
+deploymentSpec:
+  executors:
+    exec-train-until-threshold:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_until_threshold
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'scikit-learn>=1.7,<1.8'\
+          \ 'pandas' 'mlflow>=3.0' 'requests'  &&  python3 -m pip install --quiet\
+          \ --no-warn-script-location 'kfp==2.16.0' '--no-deps' 'typing-extensions>=3.7.4,<5;\
+          \ python_version<\"3.9\"' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_until_threshold(\n    dataset_url: str,\n    target_column:\
+          \ str,\n    threshold: float = 0.90,\n    max_attempts: int = 10,\n    registered_name:\
+          \ str = \"weekly-auto\",\n    mlflow_uri: str = \"http://mlflow-service.ray-system:5000\"\
+          ,\n) -> dict:\n    \"\"\"\uC784\uACC4\uAC12 \uB2EC\uC131\uAE4C\uC9C0 \uC7AC\
+          \uD559\uC2B5. \uB2EC\uC131 \uC2DC MLflow Registry \uB4F1\uB85D.\"\"\"\n\
+          \    import mlflow, mlflow.sklearn, pandas as pd, random\n    from sklearn.ensemble\
+          \ import RandomForestClassifier, RandomForestRegressor\n    from sklearn.model_selection\
+          \ import train_test_split\n    from sklearn.metrics import r2_score, accuracy_score\n\
+          \n    mlflow.set_tracking_uri(mlflow_uri)\n    mlflow.set_experiment(f\"\
+          weekly-retrain-{registered_name}\")\n\n    df = pd.read_csv(dataset_url)\n\
+          \    y = df[target_column]\n    X = df.drop(columns=[target_column]).select_dtypes(include=\"\
+          number\").fillna(0)\n    is_classification = y.dtype == \"object\" or y.nunique()\
+          \ < 10\n\n    best_acc = -1.0\n    best_run_id = None\n    attempts_used\
+          \ = 0\n\n    for attempt in range(max_attempts):\n        attempts_used\
+          \ = attempt + 1\n        random.seed(attempt * 7 + 42)\n        n_est =\
+          \ random.choice([50, 100, 200, 400])\n        max_depth = random.choice([None,\
+          \ 5, 10, 20])\n\n        X_tr, X_te, y_tr, y_te = train_test_split(X, y,\
+          \ test_size=0.2, random_state=attempt)\n        if is_classification:\n\
+          \            m = RandomForestClassifier(n_estimators=n_est, max_depth=max_depth,\
+          \ random_state=42)\n        else:\n            m = RandomForestRegressor(n_estimators=n_est,\
+          \ max_depth=max_depth, random_state=42)\n        m.fit(X_tr, y_tr)\n   \
+          \     pred = m.predict(X_te)\n        score = accuracy_score(y_te, pred)\
+          \ if is_classification else r2_score(y_te, pred)\n\n        with mlflow.start_run(run_name=f\"\
+          attempt-{attempt+1}\") as run:\n            mlflow.log_param(\"n_estimators\"\
+          , n_est)\n            mlflow.log_param(\"max_depth\", str(max_depth))\n\
+          \            mlflow.log_param(\"attempt\", attempt + 1)\n            mlflow.log_metric(\"\
+          score\", score)\n            mlflow.log_metric(\"threshold\", threshold)\n\
+          \            if score > best_acc:\n                best_acc = score\n  \
+          \              best_run_id = run.info.run_id\n                mlflow.sklearn.log_model(m,\
+          \ name=\"model\")\n\n        print(f\"[attempt {attempt+1}] score={score:.4f}\
+          \ (threshold {threshold})\")\n        if score >= threshold:\n         \
+          \   print(f\"\u2192 Threshold \uB2EC\uC131, \uC7AC\uD559\uC2B5 \uC911\uB2E8\
+          \")\n            break\n\n    status = \"ok\" if best_acc >= threshold else\
+          \ \"below_threshold\"\n    if status == \"ok\" and best_run_id:\n      \
+          \  # Registry \uB4F1\uB85D + Production \uC804\uD658\n        import requests\n\
+          \        requests.post(\n            f\"{mlflow_uri}/api/2.0/mlflow/registered-models/create\"\
+          ,\n            json={\"name\": registered_name}, timeout=10,\n        )\n\
+          \        r = requests.post(\n            f\"{mlflow_uri}/api/2.0/mlflow/model-versions/create\"\
+          ,\n            json={\"name\": registered_name,\n                  \"source\"\
+          : f\"runs:/{best_run_id}/model\",\n                  \"run_id\": best_run_id},\n\
+          \            timeout=10,\n        )\n        version = r.json().get(\"model_version\"\
+          , {}).get(\"version\")\n        if version:\n            requests.post(\n\
+          \                f\"{mlflow_uri}/api/2.0/mlflow/model-versions/transition-stage\"\
+          ,\n                json={\"name\": registered_name, \"version\": version,\n\
+          \                      \"stage\": \"Production\", \"archive_existing_versions\"\
+          : True},\n                timeout=10,\n            )\n        print(f\"\u2192\
+          \ Registry \uB4F1\uB85D \uC644\uB8CC: {registered_name} v{version}\")\n\n\
+          \    return {\n        \"status\": status,\n        \"best_score\": float(best_acc),\n\
+          \        \"attempts_used\": attempts_used,\n        \"best_run_id\": best_run_id\
+          \ or \"\",\n    }\n\n"
+        image: python:3.10-slim
+pipelineInfo:
+  description: "\uB9E4\uC8FC \uC6D4\uC694\uC77C 03:00 \uC7AC\uD559\uC2B5. \uC815\uD655\
+    \uB3C4 \uC784\uACC4\uAC12 \uB2EC\uC131\uAE4C\uC9C0 \uBC18\uBCF5."
+  name: weekly-retrain
+root:
+  dag:
+    tasks:
+      train-until-threshold:
+        cachingOptions: {}
+        componentRef:
+          name: comp-train-until-threshold
+        inputs:
+          parameters:
+            dataset_url:
+              componentInputParameter: dataset_url
+            max_attempts:
+              componentInputParameter: max_attempts
+            registered_name:
+              componentInputParameter: registered_name
+            target_column:
+              componentInputParameter: target_column
+            threshold:
+              componentInputParameter: threshold
+        taskInfo:
+          name: train-until-threshold
+  inputDefinitions:
+    parameters:
+      dataset_url:
+        defaultValue: https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv
+        isOptional: true
+        parameterType: STRING
+      max_attempts:
+        defaultValue: 10.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      registered_name:
+        defaultValue: weekly-auto-titanic
+        isOptional: true
+        parameterType: STRING
+      target_column:
+        defaultValue: Survived
+        isOptional: true
+        parameterType: STRING
+      threshold:
+        defaultValue: 0.8
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.16.0

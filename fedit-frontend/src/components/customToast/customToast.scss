@@ -1,0 +1,28 @@
+// 일단 CustomConfirm.scss와 동일하게 작성하였으나 추후 디자인 반영 예정입니다.
+.custom-toast {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  background-color: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  &__modal {
+    width: auto;
+    min-width: 340px;
+    height: auto;
+    background-color: #000;
+    padding: 40px;
+    box-sizing: border-box;
+    border-radius: 4px;
+    text-align: center;
+
+    strong {
+      font-size: 1.6rem;
+      font-weight: 400;
+      color: #fafaf8;
+      text-align: center;
+    }
+  }
+}

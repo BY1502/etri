@@ -1,0 +1,7 @@
+.path-title-wrapper {
+  @include PATH_TITLE;
+  display: flex;
+  flex-wrap: wrap;
+  line-height: $FONT_SIZE_SMALL;
+  color: var(--font-sub);
+}

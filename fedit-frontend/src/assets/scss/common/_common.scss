@@ -1,0 +1,41 @@
+@import '_accordion';
+@import '_modelAttrSearch';
+@import '_pathTitle';
+@import '_selectBox';
+@import './input';
+@import './editableList';
+@import './button';
+@import './label';
+@import './popup';
+@import '_errorContent';
+@import '_modal';
+@import '_statusLabel';
+@import '_loding';
+@import './_modelAttributeAside';
+
+.accordion-aside {
+  min-width: 22%;
+  height: 100%;
+  color: var(--font);
+  padding: 16px;
+  box-sizing: border-box;
+  background-color: var(--sky);
+  border-right: 1px solid var(--gray);
+  .accordion-aside-rectangle-button {
+    a {
+      @include ASIDE-RECTANGLE-ANCHOR;
+    }
+  }
+}
+
+.title-wrapper {
+  min-height: 24px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  .title {
+    @include TITLE;
+    margin-right: 4px;
+  }
+}

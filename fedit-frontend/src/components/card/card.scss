@@ -1,0 +1,36 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--sky);
+  border-radius: 4px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+
+  &__icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  &__icon-div {
+    margin-bottom: 20px;
+  }
+
+  &__subtitle {
+    color: #777777;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  &__title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  // 임의로 지정함 (figma 에 디자인 없음)
+  &:hover {
+    cursor: pointer;
+    box-shadow: 0 0 11px rgba(33, 33, 33, 0.2);
+  }
+}
