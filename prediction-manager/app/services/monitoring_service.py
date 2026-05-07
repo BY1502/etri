@@ -1,0 +1,61 @@
+import httpx
+from app.config import settings
+
+
+async def _query(promql: str) -> float | None:
+    """Prometheus instant query. 결과 없거나 실패 시 None 반환."""
+    if not settings.prometheus_url:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{settings.prometheus_url}/api/v1/query",
+                params={"query": promql},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("data", {}).get("result", [])
+            if not results:
+                return None
+            return float(results[0]["value"][1])
+    except Exception:
+        return None
+
+
+async def get_gpu_metrics() -> dict:
+    util = await _query("avg(DCGM_FI_DEV_GPU_UTIL)")
+    mem_used = await _query("sum(DCGM_FI_DEV_FB_USED)")
+    mem_total = await _query("sum(DCGM_FI_DEV_FB_TOTAL)")
+
+    mem_used_gb = round(mem_used / 1024, 1) if mem_used is not None else None
+    mem_total_gb = round(mem_total / 1024, 1) if mem_total is not None else None
+    mem_pct = (
+        round(mem_used / mem_total * 100)
+        if mem_used is not None and mem_total and mem_total > 0
+        else None
+    )
+
+    return {
+        "util_pct": round(util) if util is not None else None,
+        "mem_used_gb": mem_used_gb,
+        "mem_total_gb": mem_total_gb,
+        "mem_pct": mem_pct,
+    }
+
+
+async def get_system_metrics(namespace: str | None = None) -> dict:
+    ns_filter = f'namespace="{namespace}"' if namespace else 'namespace!=""'
+
+    cpu = await _query(
+        f'sum(rate(container_cpu_usage_seconds_total{{{ns_filter},container!=""}}[5m]))'
+    )
+    mem = await _query(
+        f'sum(container_memory_working_set_bytes{{{ns_filter},container!=""}})'
+    )
+
+    mem_gb = round(mem / 1024 ** 3, 1) if mem is not None else None
+
+    return {
+        "cpu_cores": round(cpu, 2) if cpu is not None else None,
+        "mem_used_gb": mem_gb,
+    }

@@ -147,6 +147,13 @@ const services: Service[] = [
     path: '/nifi',
     url: '/prediction-manager/api/nifi/launch',
   },
+  {
+    name: 'MLOps 모니터링',
+    description: 'GPU/CPU, Ray, AutoML, KServe 상태 모니터링',
+    icon: HomePredictionManagerIcon,
+    path: '/monitoring',
+    url: '/prediction-manager/?standalone=1#/monitoring',
+  },
 ];
 
 interface UserInfo {

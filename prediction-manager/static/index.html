@@ -6,6 +6,8 @@
     <title>예측매니저</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="static/css/style.css" rel="stylesheet">
+    <script>if (new URLSearchParams(window.location.search).get('standalone') === '1') document.documentElement.classList.add('standalone-mode');</script>
+    <style>html.standalone-mode .pm-navbar { display: none !important; }</style>
 </head>
 <body>
     <nav class="pm-navbar">
@@ -32,6 +34,7 @@
     <script src="static/js/pages/admin.js"></script>
     <script src="static/js/pages/automl.js"></script>
     <script src="static/js/pages/models.js"></script>
+    <script src="static/js/pages/monitoring.js"></script>
     <script src="static/js/app.js"></script>
 </body>
 </html>

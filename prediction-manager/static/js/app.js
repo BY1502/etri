@@ -6,6 +6,7 @@ const pages = {
     automl: renderAutoML,
     models: renderModels,
     admin: renderAdmin,
+    monitoring: renderMonitoring,
 };
 
 async function navigate(page) {
