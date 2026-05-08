@@ -22,15 +22,15 @@ async function renderMonitoring() {
     </div>` : '';
 
     const donutChart = (id, label, valueStr, subStr, pct, accent) => `
-        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-            <div style="position:relative; width:120px; height:120px;">
-                <canvas id="${id}" width="120" height="120" data-pct="${pct ?? 0}" data-accent="${accent}"></canvas>
-                <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                    <span style="font-size:18px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
-                    ${subStr ? `<span style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono);">${esc(subStr)}</span>` : ''}
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div style="position:relative; width:200px; height:110px; overflow:hidden;">
+                <canvas id="${id}" width="200" height="200" data-pct="${pct ?? 0}" data-accent="${accent}" style="position:absolute; top:0; left:0;"></canvas>
+                <div style="position:absolute; bottom:4px; left:0; right:0; display:flex; flex-direction:column; align-items:center;">
+                    <span style="font-size:24px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
+                    ${subStr ? `<span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${esc(subStr)}</span>` : ''}
                 </div>
             </div>
-            <div style="font-size:12px; font-weight:600; color:${accent}; letter-spacing:0.5px; text-transform:uppercase;">${esc(label)}</div>
+            <div style="font-size:13px; font-weight:600; color:${accent}; letter-spacing:0.5px; text-transform:uppercase;">${esc(label)}</div>
         </div>`;
 
     const gpuUtil = gpu.util_pct ?? null;
@@ -65,6 +65,14 @@ async function renderMonitoring() {
         { name: 'churn-predictor',   namespace: 'kubeflow-user-a', ready: false },
     ];
 
+    const timeAgo = (dateStr) => {
+        const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+        if (diff < 60) return `${diff}초 전`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+        return `${Math.floor(diff / 86400)}일 전`;
+    };
+
     const statusBadge = (status) => {
         const colors = {
             SUCCEEDED: { bg: '#d4edda', color: '#155724' },
@@ -80,10 +88,15 @@ async function renderMonitoring() {
 
     const automlRows = mockAutomlJobs.map(j => `
         <tr>
-            <td style="font-size:14px; font-weight:500;">${esc(j.name)}</td>
+            <td>
+                <div style="font-size:14px; font-weight:500;">${esc(j.name)}</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${esc(j.submitted_by)}</div>
+            </td>
             <td>${statusBadge(j.status)}</td>
-            <td style="font-size:13px; color:var(--text-muted);">${esc(j.submitted_by)}</td>
-            <td style="font-size:13px; color:var(--text-muted); font-family:var(--font-mono);">${esc(j.submitted_at)}</td>
+            <td>
+                <div style="font-size:13px; font-weight:500;">${timeAgo(j.submitted_at)}</div>
+                <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-top:2px;">${esc(j.submitted_at)}</div>
+            </td>
         </tr>`).join('');
 
     const kserveRows = mockKserve.map(e => `
@@ -101,15 +114,16 @@ async function renderMonitoring() {
 
     ${prometheusWarning}
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:auto auto; gap:16px; margin-bottom:24px;">
+    <div style="display:flex; gap:16px; align-items:flex-start;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
 
-        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px; grid-row: span 2;">
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:20px;">GPU</div>
             <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
                 ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, '', gpuUtil, '#f59e0b')}
                 ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
             </div>
-            <div style="display:grid; grid-template-columns:7fr 3fr; gap:10px; margin-top:100px;">
+            <div style="border-top:1px solid #e5e7eb; margin-top:20px; padding-top:16px; display:grid; grid-template-columns:7fr 3fr; gap:10px;">
                 ${(() => {
                     const pct = gpuTemp !== null ? Math.min(100, Math.round(gpuTemp)) : 0;
                     const fillColor = pct >= 85 ? '#dc3545' : pct >= 75 ? '#f59e0b' : '#22c55e';
@@ -135,6 +149,29 @@ async function renderMonitoring() {
         </div>
 
         <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
+            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px;">
+                ${[
+                    { label: '전체', value: mockAutomlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: '실행중', value: mockAutomlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
+                    { label: '성공', value: mockAutomlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
+                    { label: '실패', value: mockAutomlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
+                ].map(s => `
+                    <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
+                        <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
+                    </div>`).join('')}
+            </div>
+            <table class="pm-table">
+                <thead><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
+                <tbody>${automlRows}</tbody>
+            </table>
+        </div>
+
+        </div><!-- /1열 -->
+        <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
+
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">시스템</div>
             <div style="display:flex; justify-content:space-around;">
                 ${donutChart('chart-cpu', 'CPU', cpuCores !== null ? cpuCores.toFixed(2) + ' core' : null, cpuTotal !== null ? cpuTotal + ' core' : '', cpuPct, '#3b82f6')}
@@ -156,58 +193,41 @@ async function renderMonitoring() {
             </div>
             ${mockRay.running_jobs.length > 0 ? `
             <table class="pm-table">
-                <thead><tr><th>Job ID</th><th>이름</th><th>시작 시간</th></tr></thead>
+                <thead><tr><th>Job ID</th><th>이름</th><th>시작 시간 / 경과</th></tr></thead>
                 <tbody>
                     ${mockRay.running_jobs.map(j => `
                     <tr>
                         <td style="font-family:var(--font-mono); font-size:13px; color:var(--text-muted);">${esc(j.job_id)}</td>
                         <td style="font-size:14px; font-weight:500;">${esc(j.name)}</td>
-                        <td style="font-size:13px; color:var(--text-muted); font-family:var(--font-mono);">${esc(j.started_at)}</td>
+                        <td>
+                            <div style="font-size:13px; font-weight:500;">${timeAgo(j.started_at)}</div>
+                            <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-top:2px;">${esc(j.started_at)}</div>
+                        </td>
                     </tr>`).join('')}
                 </tbody>
             </table>` : `<div style="font-size:13px; color:var(--text-muted); padding:8px 0;">실행 중인 job 없음</div>`}
         </div>
 
-    </div>
-
-
-    <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px; margin-bottom:24px;">
-        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
-        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px;">
-            ${[
-                { label: '전체', value: mockAutomlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
-                { label: '실행중', value: mockAutomlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
-                { label: '성공', value: mockAutomlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
-                { label: '실패', value: mockAutomlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
-            ].map(s => `
-                <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
-                    <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
-                    <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
-                </div>`).join('')}
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
+            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
+                ${[
+                    { label: '전체', value: mockKserve.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: 'Ready', value: mockKserve.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
+                    { label: 'Not Ready', value: mockKserve.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
+                ].map(s => `
+                    <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
+                        <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
+                    </div>`).join('')}
+            </div>
+            <table class="pm-table">
+                <thead><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
+                <tbody>${kserveRows}</tbody>
+            </table>
         </div>
-        <table class="pm-table">
-            <thead><tr><th>이름</th><th>상태</th><th>제출자</th><th>제출 시간</th></tr></thead>
-            <tbody>${automlRows}</tbody>
-        </table>
-    </div>
 
-    <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px; margin-bottom:24px;">
-        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
-            ${[
-                { label: '전체', value: mockKserve.length, color: '#6b7280', bg: '#f3f4f6' },
-                { label: 'Ready', value: mockKserve.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
-                { label: 'Not Ready', value: mockKserve.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
-            ].map(s => `
-                <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
-                    <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
-                    <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
-                </div>`).join('')}
-        </div>
-        <table class="pm-table">
-            <thead><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
-            <tbody>${kserveRows}</tbody>
-        </table>
+        </div><!-- /2열 -->
     </div>
     `;
 }
@@ -229,7 +249,9 @@ function setupMonitoringPage() {
                 }],
             },
             options: {
-                cutout: '72%',
+                rotation: -90,
+                circumference: 180,
+                cutout: '60%',
                 plugins: { legend: { display: false }, tooltip: { enabled: false } },
                 animation: { duration: 600 },
             },
