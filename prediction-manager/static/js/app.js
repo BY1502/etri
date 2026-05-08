@@ -29,6 +29,9 @@ async function navigate(page) {
         if (page === 'containers-new' && typeof setupContainersNewPage === 'function') {
             setupContainersNewPage();
         }
+        if (page === 'monitoring' && typeof setupMonitoringPage === 'function') {
+            setupMonitoringPage();
+        }
     } catch (e) {
         app.innerHTML = `
         <div style="padding:40px;text-align:center">

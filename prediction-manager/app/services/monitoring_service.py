@@ -24,9 +24,13 @@ async def _query(promql: str) -> float | None:
 
 
 async def get_gpu_metrics() -> dict:
-    util = await _query("avg(DCGM_FI_DEV_GPU_UTIL)")
-    mem_used = await _query("sum(DCGM_FI_DEV_FB_USED)")
-    mem_free = await _query("sum(DCGM_FI_DEV_FB_FREE)")
+    util, mem_used, mem_free, temp, power = await asyncio.gather(
+        _query("avg(DCGM_FI_DEV_GPU_UTIL)"),
+        _query("sum(DCGM_FI_DEV_FB_USED)"),
+        _query("sum(DCGM_FI_DEV_FB_FREE)"),
+        _query("avg(DCGM_FI_DEV_GPU_TEMP)"),
+        _query("sum(DCGM_FI_DEV_POWER_USAGE)"),
+    )
 
     mem_total = (mem_used + mem_free) if (mem_used is not None and mem_free is not None) else None
     mem_used_gb = round(mem_used / 1024, 1) if mem_used is not None else None
@@ -42,6 +46,8 @@ async def get_gpu_metrics() -> dict:
         "mem_used_gb": mem_used_gb,
         "mem_total_gb": mem_total_gb,
         "mem_pct": mem_pct,
+        "temp_c": round(temp) if temp is not None else None,
+        "power_w": round(power, 1) if power is not None else None,
     }
 
 
