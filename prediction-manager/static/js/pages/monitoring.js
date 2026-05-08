@@ -46,24 +46,26 @@ async function renderMonitoring() {
     const memTotalGb = sys.mem_total_gb ?? null;
     const memPct = sys.mem_pct ?? null;
 
-    // 유령 데이터 (TODO: API 연동)
-    const mockRay = {
-        ready: true,
-        running_jobs: [
-            { job_id: 'raysubmit_abc123', name: 'lgbm-search',    submitted_by: 'admin@example.com', started_at: '2025-05-07 09:10' },
-            { job_id: 'raysubmit_def456', name: 'xgb-tune-v2',    submitted_by: 'user@example.com',  started_at: '2025-05-07 10:30' },
-        ],
-    };
-    const mockAutomlJobs = [
-        { name: 'xgb-tune-v1', status: 'SUCCEEDED', submitted_by: 'user@example.com', submitted_at: '2025-05-06 11:20' },
-        { name: 'lgbm-search', status: 'RUNNING',   submitted_by: 'admin@example.com', submitted_at: '2025-05-07 09:10' },
-        { name: 'rf-baseline', status: 'FAILED',    submitted_by: 'user@example.com', submitted_at: '2025-05-07 08:00' },
-    ];
-    const mockKserve = [
-        { name: 'iris-classifier',   namespace: 'kubeflow-user-a', ready: true  },
-        { name: 'fraud-detector',    namespace: 'kubeflow-user-b', ready: true  },
-        { name: 'churn-predictor',   namespace: 'kubeflow-user-a', ready: false },
-    ];
+    // API 데이터
+    const ray = { ready: data.ray?.ready ?? false, running_jobs: data.ray?.running_jobs ?? [] };
+    const automlJobs = data.automl_jobs || [];
+    const kserveEndpoints = data.kserve || [];
+
+    // 테스트용 mock data (위 API 변수를 아래 값으로 덮어씌워 사용)
+    // const ray = { ready: true, running_jobs: [
+    //     { job_id: 'raysubmit_abc123', name: 'lgbm-search', started_at: '2025-05-07 09:10' },
+    //     { job_id: 'raysubmit_def456', name: 'xgb-tune-v2', started_at: '2025-05-07 10:30' },
+    // ]};
+    // const automlJobs = [
+    //     { name: 'xgb-tune-v1', status: 'SUCCEEDED', submitted_by: 'user@example.com', submitted_at: '2025-05-06 11:20' },
+    //     { name: 'lgbm-search', status: 'RUNNING',   submitted_by: 'admin@example.com', submitted_at: '2025-05-07 09:10' },
+    //     { name: 'rf-baseline', status: 'FAILED',    submitted_by: 'user@example.com',  submitted_at: '2025-05-07 08:00' },
+    // ];
+    // const kserveEndpoints = [
+    //     { name: 'iris-classifier', namespace: 'kubeflow-user-a', ready: true  },
+    //     { name: 'fraud-detector',  namespace: 'kubeflow-user-b', ready: true  },
+    //     { name: 'churn-predictor', namespace: 'kubeflow-user-a', ready: false },
+    // ];
 
     const timeAgo = (dateStr) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -86,7 +88,7 @@ async function renderMonitoring() {
         return `<span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:${c.bg}; color:${c.color};">${esc(status)}</span>`;
     };
 
-    const automlRows = mockAutomlJobs.map(j => `
+    const automlRows = automlJobs.map(j => `
         <tr>
             <td>
                 <div style="font-size:14px; font-weight:500;">${esc(j.name)}</div>
@@ -99,7 +101,7 @@ async function renderMonitoring() {
             </td>
         </tr>`).join('');
 
-    const kserveRows = mockKserve.map(e => `
+    const kserveRows = kserveEndpoints.map(e => `
         <tr>
             <td style="font-size:14px; font-weight:500;">${esc(e.name)}</td>
             <td style="font-size:13px; color:var(--text-muted); font-family:var(--font-mono);">${esc(e.namespace)}</td>
@@ -152,10 +154,10 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px;">
                 ${[
-                    { label: '전체', value: mockAutomlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: '실행중', value: mockAutomlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
-                    { label: '성공', value: mockAutomlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
-                    { label: '실패', value: mockAutomlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
+                    { label: '전체', value: automlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: '실행중', value: automlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
+                    { label: '성공', value: automlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
+                    { label: '실패', value: automlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
                         <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
@@ -183,19 +185,19 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터</div>
             <div style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="width:12px; height:12px; border-radius:50%; background:${mockRay.ready ? '#22c55e' : '#ef4444'};"></div>
-                    <span style="font-size:15px; font-weight:600; color:${mockRay.ready ? '#15803d' : '#b91c1c'};">${mockRay.ready ? 'Ready' : 'Not Ready'}</span>
+                    <div style="width:12px; height:12px; border-radius:50%; background:${ray.ready ? '#22c55e' : '#ef4444'};"></div>
+                    <span style="font-size:15px; font-weight:600; color:${ray.ready ? '#15803d' : '#b91c1c'};">${ray.ready ? 'Ready' : 'Not Ready'}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; align-items:center; background:#f3f4f6; border-radius:8px; padding:8px 20px;">
-                    <span style="font-size:24px; font-weight:700; color:#111827; font-family:var(--font-mono);">${mockRay.running_jobs.length}</span>
+                    <span style="font-size:24px; font-weight:700; color:#111827; font-family:var(--font-mono);">${ray.running_jobs.length}</span>
                     <span style="font-size:11px; color:var(--text-muted);">실행 중 Job</span>
                 </div>
             </div>
-            ${mockRay.running_jobs.length > 0 ? `
+            ${ray.running_jobs.length > 0 ? `
             <table class="pm-table">
                 <thead><tr><th>Job ID</th><th>이름</th><th>시작 시간 / 경과</th></tr></thead>
                 <tbody>
-                    ${mockRay.running_jobs.map(j => `
+                    ${ray.running_jobs.map(j => `
                     <tr>
                         <td style="font-family:var(--font-mono); font-size:13px; color:var(--text-muted);">${esc(j.job_id)}</td>
                         <td style="font-size:14px; font-weight:500;">${esc(j.name)}</td>
@@ -212,9 +214,9 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
                 ${[
-                    { label: '전체', value: mockKserve.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: 'Ready', value: mockKserve.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
-                    { label: 'Not Ready', value: mockKserve.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
+                    { label: '전체', value: kserveEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: 'Ready', value: kserveEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
+                    { label: 'Not Ready', value: kserveEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
                         <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>

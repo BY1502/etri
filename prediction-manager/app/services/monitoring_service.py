@@ -73,3 +73,54 @@ async def get_system_metrics(namespace: str | None = None) -> dict:
         "mem_total_gb": mem_total_gb,
         "mem_pct": mem_pct,
     }
+
+
+def get_automl_jobs(namespace: str | None = None, is_admin: bool = False) -> list[dict]:
+    try:
+        from app.services import automl_service
+        jobs = automl_service.list_jobs(namespace=namespace, is_admin=is_admin)
+        return [
+            {
+                "name": j.get("experiment_name", j.get("job_id", ""))
+                        .replace("automl-", "")[:40],
+                "status": j.get("status", ""),
+                "submitted_by": j.get("submitted_by", "-"),
+                "submitted_at": j.get("submitted_at", ""),
+            }
+            for j in jobs[:20]
+        ]
+    except Exception:
+        return []
+
+
+def get_ray_status(namespace: str) -> dict:
+    try:
+        from app.services.tenant_resources import ray_status
+        status = ray_status(namespace)
+        return {"ready": status.ready, "running_jobs": []}
+    except Exception:
+        return {"ready": False, "running_jobs": []}
+
+
+def get_kserve_endpoints() -> list[dict]:
+    try:
+        from kubernetes import client as k8s_client
+        custom = k8s_client.CustomObjectsApi()
+        result = custom.list_cluster_custom_object(
+            "serving.kserve.io", "v1beta1", "inferenceservices"
+        )
+        endpoints = []
+        for item in result.get("items", []):
+            conditions = item.get("status", {}).get("conditions", [])
+            ready = any(
+                c.get("type") == "Ready" and c.get("status") == "True"
+                for c in conditions
+            )
+            endpoints.append({
+                "name": item["metadata"]["name"],
+                "namespace": item["metadata"]["namespace"],
+                "ready": ready,
+            })
+        return endpoints
+    except Exception:
+        return []
