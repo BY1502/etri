@@ -172,6 +172,125 @@ async function renderMonitoring() {
             </div>
         </div>
     </div>
+
+    <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px; margin-bottom:16px;">
+        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 노트북 자원 사용량 (CPU cores / Memory GB)</div>
+        <div style="max-height:220px; overflow-y:auto; border-radius:6px;">
+        <table class="pm-table">
+            <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                <tr>
+                    <th>Time</th>
+                    <th>Namespace</th>
+                    <th>Pod</th>
+                    <th style="text-align:right;">Value #A (CPU cores)</th>
+                    <th style="text-align:right;">Value #B (Memory GB)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- TODO: 실제 API 연동 시 교체 -->
+                ${[
+                    { time: '2025-05-11 12:00', ns: 'kubeflow-researcher1', pod: 'jupyter-researcher1-0',     a: '0.13', b: '4.50' },
+                    { time: '2025-05-11 12:00', ns: 'kubeflow-researcher2', pod: 'jupyter-researcher2-0',     a: '0.12', b: '4.25' },
+                    { time: '2025-05-11 12:00', ns: 'kubeflow-admin',       pod: 'jupyter-admin-0',           a: '0.15', b: '4.59' },
+                    { time: '2025-05-11 12:00', ns: 'kubeflow-test-test-com', pod: 'jupyter-test-0',          a: '0.01', b: '0.25' },
+                    { time: '2025-05-11 11:55', ns: 'kubeflow-researcher1', pod: 'jupyter-researcher1-0',     a: '0.11', b: '4.48' },
+                    { time: '2025-05-11 11:55', ns: 'kubeflow-researcher2', pod: 'jupyter-researcher2-0',     a: '0.14', b: '4.22' },
+                    { time: '2025-05-11 11:55', ns: 'kubeflow-admin',       pod: 'jupyter-admin-0',           a: '0.16', b: '4.60' },
+                    { time: '2025-05-11 11:55', ns: 'kubeflow-test-test-com', pod: 'jupyter-test-0',          a: '0.01', b: '0.25' },
+                ].map(r => `
+                <tr>
+                    <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);">${esc(r.time)}</td>
+                    <td style="font-size:13px;">${esc(r.ns)}</td>
+                    <td style="font-size:12px; font-family:var(--font-mono);">${esc(r.pod)}</td>
+                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(r.a)}</td>
+                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(r.b)}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="pm-monitor-2col" style="margin-bottom:16px;">
+    <div class="pm-monitor-card">
+        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 PVC 사용 현황</div>
+        <div style="max-height:200px; overflow-y:auto;">
+        <!-- TODO: 실제 API 연동 시 교체 -->
+        ${[
+            { ns: 'kubeflow-admin', pvcs: [
+                { name: 'automl-61b14f5328-lgbm-pvc', allocated: 1,  used: 0.8 },
+                { name: 'data-nifi-0',                allocated: 5,  used: 3.2 },
+                { name: 'pm-mlflow-data',             allocated: 20, used: 12.5 },
+                { name: 'rs-workspace',               allocated: 5,  used: 2.1 },
+                { name: 'vscode-workspace',           allocated: 5,  used: 1.5 },
+            ]},
+            { ns: 'kubeflow-researcher1', pvcs: [
+                { name: 'data-nifi-0',         allocated: 5,  used: 2.8 },
+                { name: 'ee-test-workspace',   allocated: 5,  used: 1.2 },
+                { name: 'pm-mlflow-data',      allocated: 20, used: 8.3 },
+                { name: 'researcher1-pvc',     allocated: 1,  used: 0.5 },
+            ]},
+            { ns: 'kubeflow-researcher2', pvcs: [
+                { name: 'automl-61b14f5328-lgbm-pvc',      allocated: 1,  used: 0.6 },
+                { name: 'data-nifi-0',                      allocated: 5,  used: 4.1 },
+                { name: 'pm-mlflow-data',                   allocated: 20, used: 15.2 },
+                { name: 'prod-automl-61b14f5328-lgbm-pvc',  allocated: 1,  used: 0.9 },
+            ]},
+            { ns: 'kubeflow-test-test-com', pvcs: [
+                { name: 'data-nifi-0',    allocated: 5,  used: 0.3 },
+                { name: 'pm-mlflow-data', allocated: 20, used: 1.1 },
+            ]},
+        ].map(group => {
+            const totalAllocated = group.pvcs.reduce((s, p) => s + p.allocated, 0);
+            const totalUsed = group.pvcs.reduce((s, p) => s + p.used, 0);
+            const rows = group.pvcs.map(p => {
+                const pct = Math.round(p.used / p.allocated * 100);
+                const barColor = pct >= 90 ? '#dc3545' : pct >= 70 ? '#f59e0b' : '#3b82f6';
+                return `
+                <div style="display:flex; align-items:center; gap:12px; padding:6px 0; border-bottom:1px solid #f3f4f6;">
+                    <div style="flex:0 0 200px; font-size:12px; font-family:var(--font-mono); color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${esc(p.name)}">${esc(p.name)}</div>
+                    <div style="flex:1; position:relative; background:#f3f4f6; height:10px; border-radius:5px; overflow:hidden;">
+                        <div style="position:absolute; left:0; top:0; height:100%; width:${pct}%; background:${barColor}; border-radius:5px; transition:width 0.4s;"></div>
+                    </div>
+                    <div style="flex:0 0 110px; font-size:12px; font-family:var(--font-mono); color:#6b7280; text-align:right;">${p.used.toFixed(1)} / ${p.allocated} GB</div>
+                    <div style="flex:0 0 36px; font-size:11px; font-weight:600; color:${barColor}; text-align:right;">${pct}%</div>
+                </div>`;
+            }).join('');
+            return `
+            <div style="margin-bottom:16px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                    <span style="font-size:13px; font-weight:600; color:#111827;">${esc(group.ns)}</span>
+                    <span style="font-size:11px; color:var(--text-muted);">PVC ${group.pvcs.length}개 · ${totalUsed.toFixed(1)} / ${totalAllocated} GB</span>
+                </div>
+                ${rows}
+            </div>`;
+        }).join('')}
+        </div>
+    </div>
+    <div class="pm-monitor-card">
+        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 PVC 개수</div>
+        <div style="max-height:340px; overflow-y:auto; border-radius:6px;">
+        <table class="pm-table">
+            <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                <tr><th>Namespace</th><th style="text-align:right;">PVC 개수</th></tr>
+            </thead>
+            <tbody>
+                <!-- TODO: 실제 API 연동 시 교체 -->
+                ${[
+                    { ns: 'kubeflow-admin',         count: '5' },
+                    { ns: 'kubeflow-researcher1',   count: '4' },
+                    { ns: 'kubeflow-researcher2',   count: '4' },
+                    { ns: 'kubeflow-test-test-com', count: '2' },
+                ].map(r => `
+                <tr>
+                    <td style="font-size:13px;">${esc(r.ns)}</td>
+                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(r.count)}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    </div>
+
     <div class="pm-monitor-2col-bottom">
         <div class="pm-monitor-col">
         <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
