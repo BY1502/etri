@@ -129,16 +129,25 @@ async function renderMonitoring() {
 
     ${prometheusWarning}
 
-    <div style="display:flex; gap:16px; align-items:flex-start;">
-        <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
-
-        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
+    <div class="pm-monitor-2col">
+        <div class="pm-monitor-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:20px;">GPU</div>
-            <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
+            <div class="pm-donut-row" style="margin-bottom:20px;">
                 ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
                 ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
             </div>
-            <div style="border-top:1px solid #e5e7eb; margin-top:20px; padding-top:16px; display:grid; grid-template-columns:7fr 3fr; gap:10px;">
+            <div style="border-top:1px solid #e5e7eb; padding-top:16px;">
+                <div class="pm-section-title" style="font-size:16px; margin-bottom:20px;">시스템</div>
+                <div class="pm-donut-row">
+                    ${donutChart('chart-cpu', 'CPU', cpuCores !== null ? cpuCores.toFixed(2) + ' core' : null, cpuTotal !== null ? cpuTotal + ' core' : '', cpuPct, '#3b82f6')}
+                    ${donutChart('chart-mem', '메모리', memUsedGb !== null ? memUsedGb.toFixed(1) + ' GB' : null, memTotalGb !== null ? memTotalGb + ' GB' : '', memPct, '#8b5cf6')}
+                </div>
+            </div>
+        </div>
+        <div class="pm-monitor-card">
+            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">GPU 사용 추이</div>
+            <canvas id="chart-gpu-trend" height="120"></canvas>
+            <div style="border-top:1px solid #e5e7eb; margin-top:16px; padding-top:16px; display:grid; grid-template-columns:7fr 3fr; gap:10px;">
                 ${(() => {
                     const pct = gpuTemp !== null ? Math.min(100, Math.round(gpuTemp)) : 0;
                     const fillColor = pct >= 85 ? '#dc3545' : pct >= 75 ? '#f59e0b' : '#22c55e';
@@ -162,46 +171,9 @@ async function renderMonitoring() {
                 </div>
             </div>
         </div>
-
-        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
-            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px;">
-                ${[
-                    { label: '전체',  value: automlError ? '-' : automlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: '실행중', value: automlError ? '-' : automlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
-                    { label: '성공',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
-                    { label: '실패',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
-                ].map(s => `
-                    <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
-                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
-                        <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
-                    </div>`).join('')}
-            </div>
-            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
-            <table class="pm-table">
-                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
-                <tbody>${
-                    automlError
-                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
-                        : automlJobs.length === 0
-                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">제출된 job이 없습니다</td></tr>`
-                            : automlRows
-                }</tbody>
-            </table>
-            </div>
-        </div>
-
-        </div><!-- /1열 -->
-        <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
-
-        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">시스템</div>
-            <div style="display:flex; justify-content:space-around;">
-                ${donutChart('chart-cpu', 'CPU', cpuCores !== null ? cpuCores.toFixed(2) + ' core' : null, cpuTotal !== null ? cpuTotal + ' core' : '', cpuPct, '#3b82f6')}
-                ${donutChart('chart-mem', '메모리', memUsedGb !== null ? memUsedGb.toFixed(1) + ' GB' : null, memTotalGb !== null ? memTotalGb + ' GB' : '', memPct, '#8b5cf6')}
-            </div>
-        </div>
-
+    </div>
+    <div class="pm-monitor-2col-bottom">
+        <div class="pm-monitor-col">
         <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터</div>
             <div style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
@@ -262,8 +234,38 @@ async function renderMonitoring() {
             </table>
             </div>
         </div>
+        </div>
+        <div class="pm-monitor-col">
+        <div class="pm-monitor-card">
+            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px;">
+                ${[
+                    { label: '전체',  value: automlError ? '-' : automlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: '실행중', value: automlError ? '-' : automlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
+                    { label: '성공',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
+                    { label: '실패',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
+                ].map(s => `
+                    <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
+                        <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
+                    </div>`).join('')}
+            </div>
+            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
+            <table class="pm-table">
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
+                <tbody>${
+                    automlError
+                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
+                        : automlJobs.length === 0
+                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">제출된 job이 없습니다</td></tr>`
+                            : automlRows
+                }</tbody>
+            </table>
+            </div>
+        </div>
 
-        </div><!-- /2열 -->
+        </div>
+        </div>
     </div>
     `;
 }
@@ -295,4 +297,43 @@ function setupMonitoringPage() {
             },
         });
     });
+
+    const trendEl = document.getElementById('chart-gpu-trend');
+    if (trendEl) {
+        const now = Date.now();
+        const labels = Array.from({ length: 13 }, (_, i) =>
+            new Date(now - (12 - i) * 5 * 60000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+        );
+        // TODO: 실제 API 연동 시 아래 mock 데이터를 교체
+        const utilData = [4, 12, 35, 72, 68, 55, 80, 91, 76, 60, 45, 30, 0];
+        new Chart(trendEl, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'GPU 사용률 (%)',
+                    data: utilData,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245,158,11,0.1)',
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#f59e0b',
+                    borderWidth: 2,
+                    fill: true,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 11 }, color: '#9ca3af' } },
+                    y: {
+                        min: 0, max: 100,
+                        grid: { color: '#f3f4f6' },
+                        ticks: { font: { size: 11 }, color: '#9ca3af', callback: v => v + '%' },
+                    },
+                },
+            },
+        });
+    }
 }

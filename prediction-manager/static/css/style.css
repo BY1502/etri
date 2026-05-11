@@ -248,10 +248,46 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
 .pm-modal-close:hover { color: var(--text); }
 .pm-modal-body { padding: 20px; overflow-y: auto; max-height: calc(85vh - 60px); }
 
+/* ─── Monitoring ─── */
+.pm-monitor-2col {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    margin-bottom: 16px;
+}
+.pm-monitor-2col-bottom {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+.pm-monitor-card {
+    flex: 1;
+    min-width: 0;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 20px 24px;
+}
+.pm-monitor-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.pm-donut-row {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
     .pm-grid-4 { grid-template-columns: repeat(2,1fr); }
     .pm-grid-3 { grid-template-columns: 1fr; }
     .pm-navbar { padding: 0 12px; }
     .pm-content { padding: 16px 12px; }
+    .pm-monitor-2col { flex-direction: column; }
+    .pm-monitor-2col-bottom { flex-direction: column; }
 }
