@@ -20,7 +20,7 @@ async def summary(request: Request, ns: str | None = None):
         "namespace": namespace,
         "gpu": gpu,
         "system": system,
-        "automl_jobs": monitoring_service.get_automl_jobs(
+        "automl": monitoring_service.get_automl_jobs(
             namespace=None if admin else namespace,
             is_admin=admin,
         ),

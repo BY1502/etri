@@ -75,34 +75,37 @@ async def get_system_metrics(namespace: str | None = None) -> dict:
     }
 
 
-def get_automl_jobs(namespace: str | None = None, is_admin: bool = False) -> list[dict]:
+def get_automl_jobs(namespace: str | None = None, is_admin: bool = False) -> dict:
     try:
         from app.services import automl_service
         jobs = automl_service.list_jobs(namespace=namespace, is_admin=is_admin)
-        return [
-            {
-                "name": j.get("experiment_name", j.get("job_id", ""))
-                        .replace("automl-", "")[:40],
-                "status": j.get("status", ""),
-                "submitted_by": j.get("submitted_by", "-"),
-                "submitted_at": j.get("submitted_at", ""),
-            }
-            for j in jobs[:20]
-        ]
+        return {
+            "error": False,
+            "jobs": [
+                {
+                    "name": j.get("experiment_name", j.get("job_id", ""))
+                            .replace("automl-", "")[:40],
+                    "status": j.get("status", ""),
+                    "submitted_by": j.get("submitted_by", "-"),
+                    "submitted_at": j.get("submitted_at", ""),
+                }
+                for j in jobs[:20]
+            ],
+        }
     except Exception:
-        return []
+        return {"error": True, "jobs": []}
 
 
 def get_ray_status(namespace: str) -> dict:
     try:
         from app.services.tenant_resources import ray_status
         status = ray_status(namespace)
-        return {"ready": status.ready, "running_jobs": []}
+        return {"error": False, "ready": status.ready, "running_jobs": []}
     except Exception:
-        return {"ready": False, "running_jobs": []}
+        return {"error": True, "ready": False, "running_jobs": []}
 
 
-def get_kserve_endpoints() -> list[dict]:
+def get_kserve_endpoints() -> dict:
     try:
         from kubernetes import client as k8s_client
         custom = k8s_client.CustomObjectsApi()
@@ -121,6 +124,6 @@ def get_kserve_endpoints() -> list[dict]:
                 "namespace": item["metadata"]["namespace"],
                 "ready": ready,
             })
-        return endpoints
+        return {"error": False, "endpoints": endpoints}
     except Exception:
-        return []
+        return {"error": True, "endpoints": []}

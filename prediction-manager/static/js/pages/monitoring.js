@@ -22,13 +22,13 @@ async function renderMonitoring() {
     </div>` : '';
 
     const donutChart = (id, label, valueStr, subStr, pct, accent) => `
-        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
-            <div style="position:relative; width:200px; height:110px; overflow:hidden;">
-                <canvas id="${id}" width="200" height="200" data-pct="${pct ?? 0}" data-accent="${accent}" style="position:absolute; top:0; left:0;"></canvas>
-                <div style="position:absolute; bottom:4px; left:0; right:0; display:flex; flex-direction:column; align-items:center;">
-                    <span style="font-size:24px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
-                    ${subStr ? `<span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${esc(subStr)}</span>` : ''}
-                </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+            <div style="position:relative; width:160px; height:82px; overflow:hidden;">
+                <canvas id="${id}" width="160" height="160" data-pct="${pct ?? 0}" data-accent="${accent}" style="position:absolute; top:0; left:0;"></canvas>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; line-height:1.2;">
+                <span style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
+                ${subStr ? `<span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${esc(subStr)}</span>` : ''}
             </div>
             <div style="font-size:13px; font-weight:600; color:${accent}; letter-spacing:0.5px; text-transform:uppercase;">${esc(label)}</div>
         </div>`;
@@ -46,25 +46,38 @@ async function renderMonitoring() {
     const memTotalGb = sys.mem_total_gb ?? null;
     const memPct = sys.mem_pct ?? null;
 
-    // API 데이터
-    const ray = { ready: data.ray?.ready ?? false, running_jobs: data.ray?.running_jobs ?? [] };
-    const automlJobs = data.automl_jobs || [];
-    const kserveEndpoints = data.kserve || [];
+    //API 데이터
+    const ray = data.ray || {};
+    const rayError = ray.error ?? true;
+    const automl = data.automl || {};
+    const automlError = automl.error ?? true;
+    const automlJobs = automl.jobs || [];
+    const kserve = data.kserve || {};
+    const kserveError = kserve.error ?? true;
+    const kserveEndpoints = kserve.endpoints || [];
 
-    // 테스트용 mock data (위 API 변수를 아래 값으로 덮어씌워 사용)
-    // const ray = { ready: true, running_jobs: [
-    //     { job_id: 'raysubmit_abc123', name: 'lgbm-search', started_at: '2025-05-07 09:10' },
-    //     { job_id: 'raysubmit_def456', name: 'xgb-tune-v2', started_at: '2025-05-07 10:30' },
+    // 테스트용 mock data
+    // const rayError = false;
+    // const ray = { error: false, ready: true, running_jobs: [
+    //     { job_id: 'raysubmit_abc123', name: 'lgbm-search', started_at: '2026-05-11 09:10' },
+    //     { job_id: 'raysubmit_def456', name: 'xgb-tune-v2', started_at: '2026-05-11 10:30' },
+    //     { job_id: 'raysubmit_ghi789', name: 'rf-optuna',   started_at: '2026-05-11 11:05' },
     // ]};
+    // const automlError = false;
     // const automlJobs = [
-    //     { name: 'xgb-tune-v1', status: 'SUCCEEDED', submitted_by: 'user@example.com', submitted_at: '2025-05-06 11:20' },
-    //     { name: 'lgbm-search', status: 'RUNNING',   submitted_by: 'admin@example.com', submitted_at: '2025-05-07 09:10' },
-    //     { name: 'rf-baseline', status: 'FAILED',    submitted_by: 'user@example.com',  submitted_at: '2025-05-07 08:00' },
+    //     { name: 'xgb-tune-v1',    status: 'SUCCEEDED', submitted_by: 'researcher1@example.com', submitted_at: '2025-05-10 11:20' },
+    //     { name: 'lgbm-search',    status: 'RUNNING',   submitted_by: 'admin@example.com',        submitted_at: '2025-05-11 09:10' },
+    //     { name: 'rf-baseline',    status: 'FAILED',    submitted_by: 'researcher1@example.com', submitted_at: '2025-05-11 08:00' },
+    //     { name: 'catboost-v2',    status: 'QUEUED',    submitted_by: 'researcher2@example.com', submitted_at: '2025-05-11 11:30' },
+    //     { name: 'nn-tabular',     status: 'STOPPED',   submitted_by: 'admin@example.com',        submitted_at: '2025-05-09 15:00' },
     // ];
+    // const kserveError = false;
     // const kserveEndpoints = [
-    //     { name: 'iris-classifier', namespace: 'kubeflow-user-a', ready: true  },
-    //     { name: 'fraud-detector',  namespace: 'kubeflow-user-b', ready: true  },
-    //     { name: 'churn-predictor', namespace: 'kubeflow-user-a', ready: false },
+    //     { name: 'iris-classifier',  namespace: 'kubeflow-user-a', ready: true  },
+    //     { name: 'fraud-detector',   namespace: 'kubeflow-user-b', ready: true  },
+    //     { name: 'churn-predictor',  namespace: 'kubeflow-user-a', ready: false },
+    //     { name: 'sentiment-model',  namespace: 'kubeflow-user-b', ready: true  },
+    //     { name: 'demand-forecast',  namespace: 'kubeflow-user-c', ready: false },
     // ];
 
     const timeAgo = (dateStr) => {
@@ -122,7 +135,7 @@ async function renderMonitoring() {
         <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:20px;">GPU</div>
             <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
-                ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, '', gpuUtil, '#f59e0b')}
+                ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
                 ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
             </div>
             <div style="border-top:1px solid #e5e7eb; margin-top:20px; padding-top:16px; display:grid; grid-template-columns:7fr 3fr; gap:10px;">
@@ -154,20 +167,28 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px;">
                 ${[
-                    { label: '전체', value: automlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: '실행중', value: automlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
-                    { label: '성공', value: automlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
-                    { label: '실패', value: automlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
+                    { label: '전체',  value: automlError ? '-' : automlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: '실행중', value: automlError ? '-' : automlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
+                    { label: '성공',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
+                    { label: '실패',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
                         <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
                         <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
                     </div>`).join('')}
             </div>
+            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
-                <thead><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
-                <tbody>${automlRows}</tbody>
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
+                <tbody>${
+                    automlError
+                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
+                        : automlJobs.length === 0
+                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">제출된 job이 없습니다</td></tr>`
+                            : automlRows
+                }</tbody>
             </table>
+            </div>
         </div>
 
         </div><!-- /1열 -->
@@ -185,48 +206,61 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터</div>
             <div style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="width:12px; height:12px; border-radius:50%; background:${ray.ready ? '#22c55e' : '#ef4444'};"></div>
-                    <span style="font-size:15px; font-weight:600; color:${ray.ready ? '#15803d' : '#b91c1c'};">${ray.ready ? 'Ready' : 'Not Ready'}</span>
+                    <div style="width:12px; height:12px; border-radius:50%; background:${rayError ? '#d1d5db' : ray.ready ? '#22c55e' : '#ef4444'};"></div>
+                    <span style="font-size:15px; font-weight:600; color:${rayError ? '#9ca3af' : ray.ready ? '#15803d' : '#b91c1c'};">${rayError ? '-' : ray.ready ? 'Ready' : 'Not Ready'}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; align-items:center; background:#f3f4f6; border-radius:8px; padding:8px 20px;">
-                    <span style="font-size:24px; font-weight:700; color:#111827; font-family:var(--font-mono);">${ray.running_jobs.length}</span>
+                    <span style="font-size:24px; font-weight:700; color:#111827; font-family:var(--font-mono);">${rayError ? '-' : ray.running_jobs.length}</span>
                     <span style="font-size:11px; color:var(--text-muted);">실행 중 Job</span>
                 </div>
             </div>
-            ${ray.running_jobs.length > 0 ? `
+            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
-                <thead><tr><th>Job ID</th><th>이름</th><th>시작 시간 / 경과</th></tr></thead>
-                <tbody>
-                    ${ray.running_jobs.map(j => `
-                    <tr>
-                        <td style="font-family:var(--font-mono); font-size:13px; color:var(--text-muted);">${esc(j.job_id)}</td>
-                        <td style="font-size:14px; font-weight:500;">${esc(j.name)}</td>
-                        <td>
-                            <div style="font-size:13px; font-weight:500;">${timeAgo(j.started_at)}</div>
-                            <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-top:2px;">${esc(j.started_at)}</div>
-                        </td>
-                    </tr>`).join('')}
-                </tbody>
-            </table>` : `<div style="font-size:13px; color:var(--text-muted); padding:8px 0;">실행 중인 job 없음</div>`}
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>Job ID</th><th>이름</th><th>시작 시간 / 경과</th></tr></thead>
+                <tbody>${
+                    rayError
+                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
+                        : ray.running_jobs.length === 0
+                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">실행 중인 job이 없습니다</td></tr>`
+                            : ray.running_jobs.map(j => `
+                            <tr>
+                                <td style="font-family:var(--font-mono); font-size:13px; color:var(--text-muted);">${esc(j.job_id)}</td>
+                                <td style="font-size:14px; font-weight:500;">${esc(j.name)}</td>
+                                <td>
+                                    <div style="font-size:13px; font-weight:500;">${timeAgo(j.started_at)}</div>
+                                    <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-top:2px;">${esc(j.started_at)}</div>
+                                </td>
+                            </tr>`).join('')
+                }</tbody>
+            </table>
+            </div>
         </div>
 
         <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
                 ${[
-                    { label: '전체', value: kserveEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: 'Ready', value: kserveEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
-                    { label: 'Not Ready', value: kserveEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
+                    { label: '전체',      value: kserveError ? '-' : kserveEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: 'Ready',    value: kserveError ? '-' : kserveEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
+                    { label: 'Not Ready', value: kserveError ? '-' : kserveEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
                         <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
                         <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
                     </div>`).join('')}
             </div>
+            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
-                <thead><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
-                <tbody>${kserveRows}</tbody>
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
+                <tbody>${
+                    kserveError
+                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
+                        : kserveEndpoints.length === 0
+                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">등록된 endpoint가 없습니다</td></tr>`
+                            : kserveRows
+                }</tbody>
             </table>
+            </div>
         </div>
 
         </div><!-- /2열 -->
@@ -251,9 +285,11 @@ function setupMonitoringPage() {
                 }],
             },
             options: {
+                responsive: false,
                 rotation: -90,
-                circumference: 180,
-                cutout: '60%',
+                circumference: 280,
+                cutout: '50%',
+                layout: { padding: 0 },
                 plugins: { legend: { display: false }, tooltip: { enabled: false } },
                 animation: { duration: 600 },
             },
