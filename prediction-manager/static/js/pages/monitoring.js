@@ -213,7 +213,7 @@ async function renderMonitoring() {
     <div class="pm-monitor-2col" style="margin-bottom:16px;">
     <div class="pm-monitor-card">
         <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 PVC 사용 현황</div>
-        <div style="max-height:200px; overflow-y:auto;">
+        <div style="max-height:260px; overflow-y:auto; padding-right:8px;">
         <!-- TODO: 실제 API 연동 시 교체 -->
         ${[
             { ns: 'kubeflow-admin', pvcs: [
@@ -252,14 +252,12 @@ async function renderMonitoring() {
                         <div style="position:absolute; left:0; top:0; height:100%; width:${pct}%; background:${barColor}; border-radius:5px; transition:width 0.4s;"></div>
                     </div>
                     <div style="flex:0 0 110px; font-size:12px; font-family:var(--font-mono); color:#6b7280; text-align:right;">${p.used.toFixed(1)} / ${p.allocated} GB</div>
-                    <div style="flex:0 0 36px; font-size:11px; font-weight:600; color:${barColor}; text-align:right;">${pct}%</div>
                 </div>`;
             }).join('');
             return `
             <div style="margin-bottom:16px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                <div style="margin-bottom:6px;">
                     <span style="font-size:13px; font-weight:600; color:#111827;">${esc(group.ns)}</span>
-                    <span style="font-size:11px; color:var(--text-muted);">PVC ${group.pvcs.length}개 · ${totalUsed.toFixed(1)} / ${totalAllocated} GB</span>
                 </div>
                 ${rows}
             </div>`;
@@ -268,25 +266,35 @@ async function renderMonitoring() {
     </div>
     <div class="pm-monitor-card">
         <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 PVC 개수</div>
-        <div style="max-height:340px; overflow-y:auto; border-radius:6px;">
-        <table class="pm-table">
-            <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                <tr><th>Namespace</th><th style="text-align:right;">PVC 개수</th></tr>
-            </thead>
-            <tbody>
-                <!-- TODO: 실제 API 연동 시 교체 -->
-                ${[
-                    { ns: 'kubeflow-admin',         count: '5' },
-                    { ns: 'kubeflow-researcher1',   count: '4' },
-                    { ns: 'kubeflow-researcher2',   count: '4' },
-                    { ns: 'kubeflow-test-test-com', count: '2' },
-                ].map(r => `
-                <tr>
-                    <td style="font-size:13px;">${esc(r.ns)}</td>
-                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(r.count)}</td>
-                </tr>`).join('')}
-            </tbody>
-        </table>
+        <div style="max-height:260px; overflow-y:auto; padding-right:8px;">
+        <!-- TODO: 실제 API 연동 시 교체 -->
+        ${(() => {
+            const data = [
+                { ns: 'kubeflow-admin',         count: 5 },
+                { ns: 'kubeflow-researcher1',   count: 4 },
+                { ns: 'kubeflow-researcher2',   count: 4 },
+                { ns: 'kubeflow-test-test-com', count: 2 },
+                { ns: 'kubeflow-test-test-com', count: 2 },
+            ];
+            const max = Math.max(...data.map(d => d.count));
+            return data.map(d => {
+                const pct = Math.round(d.count / max * 100);
+                const cells = Array.from({ length: max }, (_, i) => {
+                    const filled = i < d.count;
+                    return `<div style="flex:1; height:22px; border-radius:3px; background:${filled ? '#3b82f6' : '#dbeafe'};"></div>`;
+                }).join('');
+                return `
+                <div style="margin-bottom:10px;">
+                    <div style="margin-bottom:1px;">
+                        <span style="font-size:12px; color:#374151;">${esc(d.ns)}</span>
+                    </div>
+                    <div style="display:flex; gap:3px; align-items:center;">
+                        ${cells}
+                        <span style="font-size:18px; font-weight:700; color:#3b82f6; font-family:var(--font-mono); min-width:28px; text-align:right; margin-left:6px;">${d.count}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        })()}
         </div>
     </div>
     </div>
