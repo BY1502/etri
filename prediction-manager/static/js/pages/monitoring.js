@@ -479,6 +479,9 @@ async function renderMonitoring() {
             </div>
             <div class="pm-monitor-card pm-fixed-card" style="order:4;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 초당 요청 수 (RPS)</div>
+                <div style="flex:1; min-height:0; position:relative;">
+                    <canvas id="chart-kserve-rps"></canvas>
+                </div>
             </div>
             <div class="pm-monitor-card pm-fixed-card" style="order:6;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 에러율 (%) - 5xx</div>
@@ -536,18 +539,92 @@ function setupMonitoringPage() {
         });
     });
 
+    const rpsEl = document.getElementById('chart-kserve-rps');
+    if (rpsEl) {
+        const RPS_WINDOW_MS = 30 * 60 * 1000;
+        const RPS_COLORS = [
+            { border: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+            { border: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+            { border: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+            { border: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+            { border: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
+        ];
+
+        // TODO: 실제 API 연동 시 아래 mock 데이터를 교체
+        const mockModels = ['sklearn-iris', 'xgb-fraud', 'torch-nlp'];
+        const now = Date.now();
+        const mockDatasets = mockModels.map((name, i) => {
+            const color = RPS_COLORS[i % RPS_COLORS.length];
+            const points = Array.from({ length: 13 }, (_, k) => ({
+                x: now - (12 - k) * 2.5 * 60 * 1000,
+                y: parseFloat((Math.random() * 40 + 5 + i * 10).toFixed(2)),
+            }));
+            return {
+                label: name,
+                data: points,
+                borderColor: color.border,
+                backgroundColor: color.bg,
+                borderWidth: 2,
+                pointRadius: 3,
+                pointBackgroundColor: color.border,
+                tension: 0.4,
+                fill: true,
+            };
+        });
+
+        new Chart(rpsEl, {
+            type: 'line',
+            data: { datasets: mockDatasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 12, padding: 10 },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} req/s`,
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
+                        min: now - RPS_WINDOW_MS,
+                        max: now,
+                        grid: { color: '#f3f4f6' },
+                        ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
+                    },
+                    y: {
+                        min: 0,
+                        grid: { color: '#f3f4f6' },
+                        ticks: {
+                            font: { size: 11 },
+                            color: '#9ca3af',
+                            callback: v => v + ' req/s',
+                        },
+                    },
+                },
+            },
+        });
+    }
+
     const trendEl = document.getElementById('chart-gpu-trend');
     if (trendEl) {
         const now = Date.now();
-        const labels = Array.from({ length: 13 }, (_, i) =>
-            new Date(now - (12 - i) * 5 * 60000).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-        );
         // TODO: 실제 API 연동 시 아래 mock 데이터를 교체
-        const utilData = [4, 12, 35, 72, 68, 55, 80, 91, 76, 60, 45, 30, 0];
+        const utilData = [4, 12, 35, 72, 68, 55, 80, 91, 76, 60, 45, 30, 0].map((y, i) => ({
+            x: now - (12 - i) * 5 * 60000,
+            y,
+        }));
         new Chart(trendEl, {
             type: 'line',
             data: {
-                labels,
                 datasets: [{
                     label: 'GPU 사용률 (%)',
                     data: utilData,
@@ -564,7 +641,14 @@ function setupMonitoringPage() {
                 responsive: true,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 11 }, color: '#9ca3af' } },
+                    x: {
+                        type: 'time',
+                        time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
+                        min: now - 60 * 60000,
+                        max: now,
+                        grid: { color: '#f3f4f6' },
+                        ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
+                    },
                     y: {
                         min: 0, max: 100,
                         grid: { color: '#f3f4f6' },
