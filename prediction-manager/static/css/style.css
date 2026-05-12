@@ -316,6 +316,21 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     display: none;
 }
 
+/* ─── Zigzag Section ─── */
+.pm-zigzag-section {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+.pm-zigzag-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
     .pm-grid-4 { grid-template-columns: repeat(2,1fr); }
@@ -325,4 +340,7 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     .pm-monitor-2col { flex-direction: column; }
     .pm-monitor-2col-bottom { flex-direction: column; }
     .pm-monitor-col { width: 100%; }
+    .pm-zigzag-section { flex-direction: column; }
+    .pm-zigzag-col { display: contents; }
+    .pm-zigzag-col > * { width: 100%; box-sizing: border-box; }
 }

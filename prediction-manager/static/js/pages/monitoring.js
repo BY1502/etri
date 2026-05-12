@@ -429,9 +429,9 @@ async function renderMonitoring() {
         </div>
     </div>
 
-    <div class="pm-monitor-2col" style="margin-bottom:16px; align-items:flex-start;">
-        <div class="pm-monitor-col">
-            <div style="display:flex; gap:10px;">
+    <div class="pm-zigzag-section">
+        <div class="pm-zigzag-col">
+            <div style="display:flex; gap:10px; order:1;">
                 ${[
                     { label: 'MLflow Experiments', value: '-', color: '#16a34a' },
                     { label: 'Registered Models',  value: '-', color: '#2563eb' },
@@ -443,28 +443,28 @@ async function renderMonitoring() {
                     <div></div>
                 </div>`).join('')}
             </div>
-            <div class="pm-monitor-card pm-fixed-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 실험별 Run 수</div>
-            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
-            <table class="pm-table">
-                <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                    <tr><th>실험명</th><th style="text-align:right;">Run 수</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="2" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">데이터 연동 예정</td></tr>
-                </tbody>
-            </table>
+            <div class="pm-monitor-card pm-fixed-card" style="order:3;">
+                <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 실험별 Run 수</div>
+                <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
+                <table class="pm-table">
+                    <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                        <tr><th>실험명</th><th style="text-align:right;">Run 수</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="2" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">데이터 연동 예정</td></tr>
+                    </tbody>
+                </table>
+                </div>
             </div>
-            </div>
-            <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-monitor-card pm-fixed-card" style="order:5;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 추론 지연시간 (초) - 모델별 p95</div>
             </div>
-            <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-monitor-card pm-fixed-card" style="order:7;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Top 5 Latency (p95, ms)</div>
             </div>
         </div>
-        <div class="pm-monitor-col">
-            <div class="pm-monitor-card pm-fixed-card">
+        <div class="pm-zigzag-col">
+            <div class="pm-monitor-card pm-fixed-card" style="order:2;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 모델별 버전 수</div>
                 <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
                 <table class="pm-table">
@@ -477,10 +477,10 @@ async function renderMonitoring() {
                 </table>
                 </div>
             </div>
-            <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-monitor-card pm-fixed-card" style="order:4;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 초당 요청 수 (RPS)</div>
             </div>
-            <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-monitor-card pm-fixed-card" style="order:6;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 에러율 (%) - 5xx</div>
             </div>
         </div>
