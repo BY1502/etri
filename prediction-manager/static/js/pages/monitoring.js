@@ -173,9 +173,9 @@ async function renderMonitoring() {
         </div>
     </div>
 
-    <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px; margin-bottom:16px;">
+    <div class="pm-monitor-card pm-fixed-card" style="margin-bottom:16px;">
         <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 노트북 자원 사용량 (CPU cores / Memory GB)</div>
-        <div style="max-height:220px; overflow-y:auto; border-radius:6px;">
+        <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
         <table class="pm-table">
             <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                 <tr>
@@ -211,9 +211,9 @@ async function renderMonitoring() {
     </div>
 
     <div class="pm-monitor-2col" style="margin-bottom:16px;">
-    <div class="pm-monitor-card">
-        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 PVC 사용 현황</div>
-        <div style="max-height:260px; overflow-y:auto; padding-right:8px;">
+    <div class="pm-monitor-card pm-fixed-card">
+        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">PVC 할당 용량 (GB) - 사용자별</div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding-right:8px;">
         <!-- TODO: 실제 API 연동 시 교체 -->
         ${[
             { ns: 'kubeflow-admin', pvcs: [
@@ -264,16 +264,15 @@ async function renderMonitoring() {
         }).join('')}
         </div>
     </div>
-    <div class="pm-monitor-card">
+    <div class="pm-monitor-card pm-fixed-card">
         <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 PVC 개수</div>
-        <div style="max-height:260px; overflow-y:auto; padding-right:8px;">
+        <div style="flex:1; min-height:0; overflow-y:auto; padding-right:8px;">
         <!-- TODO: 실제 API 연동 시 교체 -->
         ${(() => {
             const data = [
                 { ns: 'kubeflow-admin',         count: 5 },
                 { ns: 'kubeflow-researcher1',   count: 4 },
                 { ns: 'kubeflow-researcher2',   count: 4 },
-                { ns: 'kubeflow-test-test-com', count: 2 },
                 { ns: 'kubeflow-test-test-com', count: 2 },
             ];
             const max = Math.max(...data.map(d => d.count));
@@ -301,19 +300,19 @@ async function renderMonitoring() {
 
     <div class="pm-monitor-2col-bottom">
         <div class="pm-monitor-col">
-        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
+        <div class="pm-monitor-card pm-fixed-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터</div>
             <div style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
                 <div style="display:flex; align-items:center; gap:10px;">
                     <div style="width:12px; height:12px; border-radius:50%; background:${rayError ? '#d1d5db' : ray.ready ? '#22c55e' : '#ef4444'};"></div>
                     <span style="font-size:15px; font-weight:600; color:${rayError ? '#9ca3af' : ray.ready ? '#15803d' : '#b91c1c'};">${rayError ? '-' : ray.ready ? 'Ready' : 'Not Ready'}</span>
                 </div>
-                <div style="display:flex; flex-direction:column; align-items:center; background:#f3f4f6; border-radius:8px; padding:8px 20px;">
+                <div style="display:flex; flex-direction:column; align-items:center; background:#f3f4f6; border-radius:8px; padding:12px 16px; text-align:center;">
                     <span style="font-size:24px; font-weight:700; color:#111827; font-family:var(--font-mono);">${rayError ? '-' : ray.running_jobs.length}</span>
-                    <span style="font-size:11px; color:var(--text-muted);">실행 중 Job</span>
+                    <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">실행 중 Job</span>
                 </div>
             </div>
-            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
+            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>Job ID</th><th>이름</th><th>시작 시간 / 경과</th></tr></thead>
                 <tbody>${
@@ -334,38 +333,11 @@ async function renderMonitoring() {
             </table>
             </div>
         </div>
-
-        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px;">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
-            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
-                ${[
-                    { label: '전체',      value: kserveError ? '-' : kserveEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: 'Ready',    value: kserveError ? '-' : kserveEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
-                    { label: 'Not Ready', value: kserveError ? '-' : kserveEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
-                ].map(s => `
-                    <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
-                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
-                        <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
-                    </div>`).join('')}
-            </div>
-            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
-            <table class="pm-table">
-                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
-                <tbody>${
-                    kserveError
-                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
-                        : kserveEndpoints.length === 0
-                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">등록된 endpoint가 없습니다</td></tr>`
-                            : kserveRows
-                }</tbody>
-            </table>
-            </div>
-        </div>
         </div>
         <div class="pm-monitor-col">
-        <div class="pm-monitor-card">
+        <div class="pm-monitor-card pm-fixed-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
-            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px;">
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
                     { label: '전체',  value: automlError ? '-' : automlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
                     { label: '실행중', value: automlError ? '-' : automlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
@@ -377,7 +349,7 @@ async function renderMonitoring() {
                         <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
                     </div>`).join('')}
             </div>
-            <div style="max-height:260px; overflow-y:auto; border-radius:6px;">
+            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
                 <tbody>${
@@ -390,14 +362,121 @@ async function renderMonitoring() {
             </table>
             </div>
         </div>
-
         </div>
+    </div>
+
+    <div class="pm-monitor-2col" style="margin-bottom:16px;">
+        <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">실행 중인 노트북</div>
+            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
+            <table class="pm-table" style="table-layout:fixed; width:100%;">
+                <colgroup>
+                    <col style="width:25%">
+                    <col style="width:20%">
+                    <col style="width:15%">
+                    <col style="width:40%">
+                </colgroup>
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                    <tr><th>사용자</th><th>Owner</th><th>상태</th><th>Pod 이름</th></tr>
+                </thead>
+                <tbody>
+                    <!-- TODO: 실제 API 연동 시 교체 -->
+                    ${[
+                        { user: 'researcher1@example.com', owner: 'researcher1', status: 'Running', pod: 'jupyter-researcher1-0' },
+                        { user: 'researcher2@example.com', owner: 'researcher2', status: 'Running', pod: 'jupyter-researcher2-0' },
+                        { user: 'admin@example.com',       owner: 'admin',       status: 'Running', pod: 'jupyter-admin-0' },
+                        { user: 'test@test.com',           owner: 'test',        status: 'Stopped', pod: 'jupyter-test-0' },
+                    ].map(n => {
+                        const statusColor = n.status === 'Running' ? { bg: '#d4edda', color: '#155724' } : { bg: '#f8d7da', color: '#721c24' };
+                        return `
+                        <tr>
+                            <td style="font-size:12px;"><span data-tip="${esc(n.user)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.user)}</span></td>
+                            <td style="font-size:13px; font-weight:500;"><span data-tip="${esc(n.owner)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.owner)}</span></td>
+                            <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:${statusColor.bg}; color:${statusColor.color};">${esc(n.status)}</span></td>
+                            <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);"><span data-tip="${esc(n.pod)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.pod)}</span></td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
+                ${[
+                    { label: '전체',     value: kserveError ? '-' : kserveEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: 'Ready',   value: kserveError ? '-' : kserveEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
+                    { label: 'Not Ready', value: kserveError ? '-' : kserveEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
+                ].map(s => `
+                    <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
+                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
+                        <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
+                    </div>`).join('')}
+            </div>
+            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
+            <table class="pm-table">
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
+                <tbody>${
+                    kserveError
+                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
+                        : kserveEndpoints.length === 0
+                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">등록된 endpoint가 없습니다</td></tr>`
+                            : kserveRows
+                }</tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="pm-monitor-2col" style="margin-bottom:16px; align-items:flex-start;">
+        <div class="pm-monitor-col">
+            <div style="display:flex; gap:10px;">
+                ${[
+                    { label: 'MLflow Experiments', value: '-', color: '#16a34a' },
+                    { label: 'Registered Models',  value: '-', color: '#2563eb' },
+                    { label: 'Total Runs',         value: '-', color: '#9333ea' },
+                ].map(s => `
+                <div class="pm-half-card" style="flex:1;">
+                    <div style="font-size:13px; font-weight:600; color:#374151;">${s.label}</div>
+                    <div style="font-size:48px; font-weight:700; font-family:var(--font-mono); color:${s.color}; text-align:center; line-height:1;">${s.value}</div>
+                    <div></div>
+                </div>`).join('')}
+            </div>
+            <div class="pm-monitor-card pm-fixed-card">
+                <!-- TODO: 콘텐츠 추가 예정 -->
+            </div>
+        </div>
+        <div class="pm-monitor-col">
+            <div class="pm-monitor-card pm-fixed-card">
+                <!-- TODO: 2열 콘텐츠 추가 예정 -->
+            </div>
         </div>
     </div>
     `;
 }
 
 function setupMonitoringPage() {
+    let tooltip = document.getElementById('pm-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'pm-tooltip';
+        document.body.appendChild(tooltip);
+    }
+    document.addEventListener('mouseover', e => {
+        const el = e.target.closest('[data-tip]');
+        if (!el) return;
+        tooltip.textContent = el.dataset.tip;
+        tooltip.style.display = 'block';
+    });
+    document.addEventListener('mousemove', e => {
+        tooltip.style.left = (e.clientX + 12) + 'px';
+        tooltip.style.top = (e.clientY - 24) + 'px';
+    });
+    document.addEventListener('mouseout', e => {
+        if (!e.target.closest('[data-tip]')) return;
+        tooltip.style.display = 'none';
+    });
     ['chart-gpu-util', 'chart-gpu-mem', 'chart-cpu', 'chart-mem'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;

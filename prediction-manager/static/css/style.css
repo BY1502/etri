@@ -259,6 +259,7 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     display: flex;
     gap: 16px;
     align-items: flex-start;
+    margin-bottom: 16px;
 }
 .pm-monitor-card {
     flex: 1;
@@ -267,6 +268,24 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     border: 1px solid #e5e7eb;
     border-radius: 10px;
     padding: 20px 24px;
+}
+.pm-fixed-card {
+    min-height: 310px;
+    max-height: 310px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.pm-half-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 20px 24px;
+    min-height: 155px;
+    max-height: 155px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 .pm-monitor-col {
     flex: 1;
@@ -282,6 +301,21 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     gap: 8px;
 }
 
+/* ─── Tooltip ─── */
+#pm-tooltip {
+    position: fixed;
+    background: #1f2937;
+    color: #fff;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
     .pm-grid-4 { grid-template-columns: repeat(2,1fr); }
@@ -290,4 +324,5 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     .pm-content { padding: 16px 12px; }
     .pm-monitor-2col { flex-direction: column; }
     .pm-monitor-2col-bottom { flex-direction: column; }
+    .pm-monitor-col { width: 100%; }
 }
