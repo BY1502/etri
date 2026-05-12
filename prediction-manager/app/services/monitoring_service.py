@@ -1,12 +1,31 @@
 import asyncio
+import time
 import httpx
 from app.config import settings
 
+# Prometheus 쿼리 결과 상태 sentinel (내부용)
+_ERR = object()    # 요청 자체 실패 (URL 미설정, 네트워크 오류 등)
+_EMPTY = object()  # 요청 성공이나 결과 없음
 
-async def _query(promql: str) -> float | None:
-    """Prometheus instant query. 결과 없거나 실패 시 None 반환."""
+
+def _prom_status(*vals) -> str:
+    """sentinel 값 모음에서 전체 상태 문자열 반환."""
+    if any(v is _ERR for v in vals):
+        return "error"
+    if all(v is _EMPTY for v in vals):
+        return "empty"
+    return "ok"
+
+
+def _pv(v):
+    """sentinel → None 변환, 실제 값은 그대로."""
+    return None if (v is _ERR or v is _EMPTY) else v
+
+
+async def _query(promql: str) -> float | object:
+    """Prometheus instant query. float | _EMPTY | _ERR 반환."""
     if not settings.prometheus_url:
-        return None
+        return _ERR
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
@@ -14,13 +33,107 @@ async def _query(promql: str) -> float | None:
                 params={"query": promql},
             )
             resp.raise_for_status()
-            data = resp.json()
-            results = data.get("data", {}).get("result", [])
+            results = resp.json().get("data", {}).get("result", [])
             if not results:
-                return None
+                return _EMPTY
             return float(results[0]["value"][1])
     except Exception:
-        return None
+        return _ERR
+
+
+async def _query_multi(promql: str) -> tuple[list[dict], str]:
+    """Prometheus instant query (다중 결과). (rows, status) 반환."""
+    if not settings.prometheus_url:
+        return [], "error"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{settings.prometheus_url}/api/v1/query",
+                params={"query": promql},
+            )
+            resp.raise_for_status()
+            results = resp.json().get("data", {}).get("result", [])
+            if not results:
+                return [], "empty"
+            return [{"labels": r["metric"], "value": float(r["value"][1])} for r in results], "ok"
+    except Exception:
+        return [], "error"
+
+
+async def _query_range(promql: str, start: float, end: float, step: str) -> tuple[list, str]:
+    """Prometheus range query. (points, status) 반환."""
+    if not settings.prometheus_url:
+        return [], "error"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{settings.prometheus_url}/api/v1/query_range",
+                params={"query": promql, "start": start, "end": end, "step": step},
+            )
+            resp.raise_for_status()
+            results = resp.json().get("data", {}).get("result", [])
+            if not results:
+                return [], "empty"
+            return [[int(float(ts) * 1000), round(float(v))] for ts, v in results[0]["values"]], "ok"
+    except Exception:
+        return [], "error"
+
+
+async def get_notebook_resources() -> dict:
+    (cpu_results, cpu_st), (mem_results, mem_st) = await asyncio.gather(
+        _query_multi(
+            'sum by (namespace, pod) ('
+            'rate(container_cpu_usage_seconds_total'
+            '{namespace=~"kubeflow-.*", container!="", container!="POD"}[5m]))'
+            ' * on(namespace, pod) group_left'
+            ' kube_pod_owner{owner_kind="StatefulSet"}'
+        ),
+        _query_multi(
+            'sum by (namespace, pod) ('
+            'container_memory_working_set_bytes'
+            '{namespace=~"kubeflow-.*", container!="", container!="POD"})'
+            ' / 1024 / 1024 / 1024'
+            ' * on(namespace, pod) group_left'
+            ' kube_pod_owner{owner_kind="StatefulSet"}'
+        ),
+    )
+
+    if "error" in (cpu_st, mem_st):
+        return {"status": "error", "rows": []}
+    if cpu_st == "empty":
+        return {"status": "empty", "rows": []}
+
+    mem_map = {
+        (r["labels"].get("namespace", ""), r["labels"].get("pod", "")): r["value"]
+        for r in mem_results
+    }
+
+    now = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+    rows = []
+    for r in cpu_results:
+        ns = r["labels"].get("namespace", "")
+        pod = r["labels"].get("pod", "")
+        rows.append({
+            "time": now,
+            "ns": ns,
+            "pod": pod,
+            "cpu": round(r["value"], 5),
+            "mem": round(mem_map.get((ns, pod), 0), 5),
+        })
+
+    rows.sort(key=lambda x: (x["ns"], x["pod"]))
+    return {"status": "ok", "rows": rows}
+
+
+async def get_gpu_trend(window_minutes: int = 60, step: str = "1m") -> dict:
+    now = time.time()
+    data, status = await _query_range(
+        "avg(DCGM_FI_DEV_GPU_UTIL)",
+        start=now - window_minutes * 60,
+        end=now,
+        step=step,
+    )
+    return {"status": status, "data": data}
 
 
 async def get_gpu_metrics() -> dict:
@@ -32,6 +145,9 @@ async def get_gpu_metrics() -> dict:
         _query("sum(DCGM_FI_DEV_POWER_USAGE)"),
     )
 
+    status = _prom_status(util, mem_used, mem_free, temp, power)
+    util, mem_used, mem_free, temp, power = _pv(util), _pv(mem_used), _pv(mem_free), _pv(temp), _pv(power)
+
     mem_total = (mem_used + mem_free) if (mem_used is not None and mem_free is not None) else None
     mem_used_gb = round(mem_used / 1024, 1) if mem_used is not None else None
     mem_total_gb = round(mem_total / 1024, 1) if mem_total is not None else None
@@ -42,6 +158,7 @@ async def get_gpu_metrics() -> dict:
     )
 
     return {
+        "status": status,
         "util_pct": round(util) if util is not None else None,
         "mem_used_gb": mem_used_gb,
         "mem_total_gb": mem_total_gb,
@@ -59,6 +176,9 @@ async def get_system_metrics(namespace: str | None = None) -> dict:
         _query('sum(node_memory_MemTotal_bytes)'),
     )
 
+    status = _prom_status(cpu_used, cpu_total, mem_used, mem_total)
+    cpu_used, cpu_total, mem_used, mem_total = _pv(cpu_used), _pv(cpu_total), _pv(mem_used), _pv(mem_total)
+
     cpu_total_cores = round(cpu_total) if cpu_total is not None else None
     cpu_pct = round(cpu_used / cpu_total * 100) if cpu_used is not None and cpu_total else None
     mem_used_gb = round(mem_used / 1024 ** 3, 1) if mem_used is not None else None
@@ -66,6 +186,7 @@ async def get_system_metrics(namespace: str | None = None) -> dict:
     mem_pct = round(mem_used / mem_total * 100) if mem_used is not None and mem_total else None
 
     return {
+        "status": status,
         "cpu_cores": round(cpu_used, 2) if cpu_used is not None else None,
         "cpu_total_cores": cpu_total_cores,
         "cpu_pct": cpu_pct,
@@ -96,13 +217,44 @@ def get_automl_jobs(namespace: str | None = None, is_admin: bool = False) -> dic
         return {"error": True, "jobs": []}
 
 
-def get_ray_status(namespace: str) -> dict:
-    try:
-        from app.services.tenant_resources import ray_status
-        status = ray_status(namespace)
-        return {"error": False, "ready": status.ready, "running_jobs": []}
-    except Exception:
-        return {"error": True, "ready": False, "running_jobs": []}
+async def get_ray_status(namespace: str) -> dict:
+    running, pending, finished = await asyncio.gather(
+        _query("sum(ray_running_jobs)"),
+        _query("sum(ray_pending_jobs)"),
+        _query("sum(ray_finished_jobs_total)"),
+    )
+    status = _prom_status(running, pending, finished)
+    return {
+        "status": status,
+        "running": int(_pv(running)) if _pv(running) is not None else None,
+        "pending": int(_pv(pending)) if _pv(pending) is not None else None,
+        "finished_total": int(_pv(finished)) if _pv(finished) is not None else None,
+    }
+
+
+async def get_pvc_storage() -> dict:
+    rows, status = await _query_multi(
+        'kube_persistentvolumeclaim_resource_requests_storage_bytes'
+        '{namespace=~"kubeflow-.*"} / 1024 / 1024 / 1024'
+    )
+
+    if status == "error":
+        return {"status": "error", "groups": []}
+    if status == "empty":
+        return {"status": "empty", "groups": []}
+
+    from collections import defaultdict
+    ns_map = defaultdict(list)
+    for r in rows:
+        ns = r["labels"].get("namespace", "")
+        pvc = r["labels"].get("persistentvolumeclaim", "")
+        ns_map[ns].append({"name": pvc, "allocated_gb": round(r["value"], 2)})
+
+    groups = [
+        {"ns": ns, "pvcs": sorted(pvcs, key=lambda p: p["name"])}
+        for ns, pvcs in sorted(ns_map.items())
+    ]
+    return {"status": "ok", "groups": groups}
 
 
 def get_kserve_endpoints() -> dict:
