@@ -99,15 +99,77 @@ const MOCK = {
     // ── GPU 사용 추이 (5분 간격, 최근 1시간) ──────────────────────────────
     gpuUtil: [4, 12, 35, 72, 68, 55, 80, 91, 76, 60, 45, 30, 0],
 
-    // ── KServe 모델 목록 (에러율·RPS·지연시간 차트 공용) ──────────────────
+    // ── KServe 모델 목록 (에러율 차트 공용) ──────────────────────────────
     kserveModels: ['sklearn-iris', 'xgb-fraud', 'torch-nlp'],
 
     // ── KServe 에러율 (%, kserveModels 순서와 일치) ───────────────────────
     kserveErrorRates: [0.4, 6.2, 1.8],
 
+    // ── KServe 에러율 API 형식 ────────────────────────────────────────────
+    kserveErrorRate: {
+        status: 'ok',
+        models: [
+            { name: 'sklearn-iris (kubeflow-user-a)', error_rate: 0.4  },
+            { name: 'torch-nlp (kubeflow-user-a)',    error_rate: 1.8  },
+            { name: 'xgb-fraud (kubeflow-user-b)',    error_rate: 6.2  },
+        ],
+    },
+
+    // ── KServe 초당 요청 수 (RPS) ─────────────────────────────────────────
+    kserveRps: (() => {
+        const now = Date.now();
+        const models = [
+            { name: 'sklearn-iris (kubeflow-user-a)', base: 12, noise: 5 },
+            { name: 'xgb-fraud (kubeflow-user-b)',    base: 30, noise: 8 },
+            { name: 'torch-nlp (kubeflow-user-a)',    base: 7,  noise: 3 },
+        ];
+        return {
+            status: 'ok',
+            series: models.map(m => ({
+                name: m.name,
+                data: Array.from({ length: 31 }, (_, i) => [
+                    now - (30 - i) * 60 * 1000,
+                    parseFloat((m.base + (Math.random() - 0.5) * m.noise * 2).toFixed(4)),
+                ]),
+            })),
+        };
+    })(),
+
+    // ── KServe 추론 지연시간 p95 (초) ────────────────────────────────────
+    kserveLatency: (() => {
+        const now = Date.now();
+        const models = [
+            { name: 'sklearn-iris (kubeflow-user-a)', base: 0.12, noise: 0.05 },
+            { name: 'xgb-fraud (kubeflow-user-b)',    base: 0.45, noise: 0.10 },
+            { name: 'torch-nlp (kubeflow-user-a)',    base: 1.20, noise: 0.30 },
+        ];
+        return {
+            status: 'ok',
+            series: models.map(m => ({
+                name: m.name,
+                data: Array.from({ length: 31 }, (_, i) => [
+                    now - (30 - i) * 60 * 1000,
+                    parseFloat((m.base + (Math.random() - 0.5) * m.noise * 2).toFixed(4)),
+                ]),
+            })),
+        };
+    })(),
+
     // ── Top 5 Latency (p95, ms) — 내림차순 정렬 ──────────────────────────
     top5Latency: {
         models: ['torch-nlp', 'xgb-fraud', 'sklearn-iris', 'resnet-50', 'bert-base'],
         values: [1840, 1230, 870, 640, 410],
+    },
+
+    // ── Top 5 Latency API 형식 ────────────────────────────────────────────
+    kserveTop5Latency: {
+        status: 'ok',
+        models: [
+            { name: 'torch-nlp (kubeflow-user-a)',    latency_ms: 1840 },
+            { name: 'xgb-fraud (kubeflow-user-b)',    latency_ms: 1230 },
+            { name: 'sklearn-iris (kubeflow-user-a)', latency_ms: 870  },
+            { name: 'resnet-50 (kubeflow-user-c)',    latency_ms: 640  },
+            { name: 'bert-base (kubeflow-user-b)',    latency_ms: 410  },
+        ],
     },
 };

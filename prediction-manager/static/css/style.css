@@ -275,6 +275,7 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
 }
 .pm-half-card {
     background: #fff;

@@ -69,6 +69,8 @@ async function renderMonitoring() {
     const runningNbs      = data.running_notebooks?.notebooks ?? [];
     const pvcStatus       = data.pvc?.status  ?? 'error';
     const pvcGroups       = data.pvc?.groups  ?? [];
+    const mlflowExpRunsStatus = data.mlflow_experiment_runs?.status ?? 'error';
+    const mlflowExpRuns       = data.mlflow_experiment_runs?.experiments ?? [];
 
     const timeAgo = (dateStr) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -90,6 +92,11 @@ async function renderMonitoring() {
         const c = colors[status] || { bg: '#e9ecef', color: '#495057' };
         return `<span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:${c.bg}; color:${c.color};">${esc(status)}</span>`;
     };
+
+    const noConnTd  = (cols) => `<tr><td colspan="${cols}" style="text-align:center; padding:32px 0; font-size:20px; font-weight:700; color:#ef4444; letter-spacing:0.5px;">No connection</td></tr>`;
+    const noDataTd  = (cols) => `<tr><td colspan="${cols}" style="text-align:center; padding:32px 0; font-size:20px; font-weight:700; color:#d1d5db; letter-spacing:0.5px;">No data</td></tr>`;
+    const noConnDiv = `<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; color:#ef4444; letter-spacing:0.5px; white-space:nowrap;">No connection</div>`;
+    const noDataDiv = `<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; color:#d1d5db; letter-spacing:0.5px; white-space:nowrap;">No data</div>`;
 
     const automlRows = automlJobs.map(j => `
         <tr>
@@ -178,9 +185,9 @@ async function renderMonitoring() {
             </thead>
             <tbody>
                 ${notebookStatus === 'error'
-                    ? `<tr><td colspan="5" style="text-align:center; padding:20px 0; font-size:13px; color:#ef4444;">연결 오류</td></tr>`
+                    ? noConnTd(5)
                     : notebookStatus === 'empty' || notebookRows.length === 0
-                        ? `<tr><td colspan="5" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">데이터 없음</td></tr>`
+                        ? noDataTd(5)
                         : notebookRows.map(r => `
                 <tr>
                     <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);">${esc(r.time)}</td>
@@ -201,10 +208,10 @@ async function renderMonitoring() {
         <div style="flex:1; min-height:0; overflow-y:auto; padding-right:8px;">
         ${(() => {
             if (pvcStatus === 'error') {
-                return `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#ef4444;">연결 오류</div>`;
+                return noConnDiv;
             }
             if (pvcStatus === 'empty' || pvcGroups.length === 0) {
-                return `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#9ca3af;">kubeflow-* 네임스페이스에 PVC가 없습니다</div>`;
+                return noDataDiv;
             }
             return pvcGroups.map(group => {
                 const maxGb = Math.max(...group.pvcs.map(p => p.allocated_gb), 1);
@@ -235,10 +242,10 @@ async function renderMonitoring() {
         <div style="flex:1; min-height:0; overflow-y:auto; padding-right:8px;">
         ${(() => {
             if (pvcStatus === 'error') {
-                return `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#ef4444;">연결 오류</div>`;
+                return noConnDiv;
             }
             if (pvcStatus === 'empty' || pvcGroups.length === 0) {
-                return `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#9ca3af;">kubeflow-* 네임스페이스에 PVC가 없습니다</div>`;
+                return noDataDiv;
             }
             const counts = pvcGroups.map(g => ({ ns: g.ns, count: g.pvcs.length }));
             const max = Math.max(...counts.map(d => d.count));
@@ -268,9 +275,9 @@ async function renderMonitoring() {
         <div class="pm-monitor-card pm-fixed-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
             ${rayStatus === 'error'
-                ? `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#ef4444;">Prometheus 연결 오류</div>`
+                ? noConnDiv
                 : rayStatus === 'empty'
-                    ? `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#9ca3af;">Ray 메트릭 없음</div>`
+                    ? noDataDiv
                     : `<div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; flex:1;">
                         ${[
                             { label: '활성 노드', value: ray.nodes ?? '-', color: '#1a56a8', bg: '#e8f4ff' },
@@ -304,9 +311,9 @@ async function renderMonitoring() {
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
                 <tbody>${
                     automlError
-                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
+                        ? noConnTd(3)
                         : automlJobs.length === 0
-                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">제출된 job이 없습니다</td></tr>`
+                            ? noDataTd(3)
                             : automlRows
                 }</tbody>
             </table>
@@ -331,9 +338,9 @@ async function renderMonitoring() {
                 </thead>
                 <tbody>
                     ${runningNbStatus === 'error'
-                        ? `<tr><td colspan="4" style="text-align:center; padding:20px 0; font-size:13px; color:#ef4444;">연결 오류</td></tr>`
+                        ? noConnTd(4)
                         : runningNbStatus === 'empty' || runningNbs.length === 0
-                            ? `<tr><td colspan="4" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">실행 중인 노트북이 없습니다</td></tr>`
+                            ? noDataTd(4)
                             : runningNbs.map(n => `
                         <tr>
                             <td style="font-size:12px; font-family:var(--font-mono);"><span data-tip="${esc(n.namespace)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.namespace)}</span></td>
@@ -365,9 +372,9 @@ async function renderMonitoring() {
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
                 <tbody>${
                     kserveError
-                        ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">정보를 불러올 수 없습니다</td></tr>`
+                        ? noConnTd(3)
                         : kserveEndpoints.length === 0
-                            ? `<tr><td colspan="3" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">등록된 endpoint가 없습니다</td></tr>`
+                            ? noDataTd(3)
                             : kserveRows
                 }</tbody>
             </table>
@@ -392,18 +399,22 @@ async function renderMonitoring() {
             <div class="pm-monitor-card pm-fixed-card" style="order:3;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 실험별 Run 수</div>
                 <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
-                <table class="pm-table">
+                ${mlflowExpRunsStatus === 'error'
+                    ? noConnDiv
+                    : mlflowExpRunsStatus === 'empty' || mlflowExpRuns.length === 0
+                        ? noDataDiv
+                        : `<table class="pm-table">
                     <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                         <tr><th>실험명</th><th style="text-align:right;">Run 수</th></tr>
                     </thead>
                     <tbody>
-                        ${MOCK.mlflowExperiments.map(e => `
+                        ${mlflowExpRuns.map(e => `
                         <tr>
                             <td>${esc(e.name)}</td>
                             <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${e.runs}</td>
                         </tr>`).join('')}
                     </tbody>
-                </table>
+                </table>`}
                 </div>
             </div>
             <div class="pm-monitor-card pm-fixed-card" style="order:5;">
@@ -424,9 +435,9 @@ async function renderMonitoring() {
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 모델별 버전 수</div>
                 <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
                 ${mlflowModelsStatus === 'error'
-                    ? `<div style="color:var(--text-muted); font-size:13px; padding:16px 0;">데이터를 불러올 수 없습니다.</div>`
+                    ? noConnDiv
                     : mlflowModelsStatus === 'empty' || mlflowModels.length === 0
-                        ? `<div style="color:var(--text-muted); font-size:13px; padding:16px 0;">등록된 모델이 없습니다.</div>`
+                        ? noDataDiv
                         : `<table class="pm-table">
                     <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                         <tr><th>모델명</th><th style="text-align:center;">버전 수</th><th>최신 Stage</th></tr>
@@ -466,6 +477,16 @@ async function renderMonitoring() {
 }
 
 async function setupMonitoringPage() {
+    // ── API 데이터 (mock 테스트 시 아래 주석을 해제하고 실제 라인을 주석 처리) ──
+    // const kserveRps       = MOCK.kserveRps;       // mock
+    const kserveRps           = _monitoringData?.kserve_rps           || { status: 'error', series: [] };
+    // const kserveLatency   = MOCK.kserveLatency;   // mock
+    const kserveLatency       = _monitoringData?.kserve_latency_p95   || { status: 'error', series: [] };
+    // const kserveErrorRate   = MOCK.kserveErrorRate;   // mock
+    const kserveErrorRate       = _monitoringData?.kserve_error_rate    || { status: 'error', models: [] };
+    // const kserveTop5Latency = MOCK.kserveTop5Latency; // mock
+    const kserveTop5Latency     = _monitoringData?.kserve_top5_latency  || { status: 'error', models: [] };
+
     let tooltip = document.getElementById('pm-tooltip');
     if (!tooltip) {
         tooltip = document.createElement('div');
@@ -520,234 +541,255 @@ async function setupMonitoringPage() {
         { border: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
         { border: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
     ];
-    const KSERVE_MODELS = MOCK.kserveModels;
     const KSERVE_WINDOW_MS = 30 * 60 * 1000;
 
     const top5El = document.getElementById('chart-top5-latency');
     if (top5El) {
-        const top5Models = MOCK.top5Latency.models;
-        const top5Values = MOCK.top5Latency.values;
+        const top5Placeholder = (msg, isError) => {
+            const card = top5El.closest('.pm-fixed-card');
+            top5El.remove();
+            card.appendChild(Object.assign(document.createElement('div'), {
+                style: `position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; letter-spacing:0.5px; white-space:nowrap; color:${isError ? '#ef4444' : '#d1d5db'};`,
+                textContent: msg,
+            }));
+        };
 
-        new Chart(top5El, {
-            type: 'bar',
-            data: {
-                labels: top5Models,
-                datasets: [{
-                    label: 'p95 지연시간 (ms)',
-                    data: top5Values,
-                    backgroundColor: '#3b82f6',
-                    borderRadius: 4,
-                    borderSkipped: false,
-                }],
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.parsed.x.toLocaleString()} ms`,
+        if (kserveTop5Latency.status === 'error') { top5Placeholder('No connection', true); }
+        else if (kserveTop5Latency.status === 'empty' || !kserveTop5Latency.models?.length) { top5Placeholder('No data', false); }
+        else {
+            new Chart(top5El, {
+                type: 'bar',
+                data: {
+                    labels: kserveTop5Latency.models.map(m => m.name),
+                    datasets: [{
+                        label: 'p95 지연시간 (ms)',
+                        data: kserveTop5Latency.models.map(m => m.latency_ms),
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }],
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ${ctx.parsed.x.toLocaleString()} ms`,
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            min: 0,
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', callback: v => v + ' ms' },
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11 }, color: '#6b7280' },
                         },
                     },
                 },
-                scales: {
-                    x: {
-                        min: 0,
-                        grid: { color: '#f3f4f6' },
-                        ticks: {
-                            font: { size: 11 },
-                            color: '#9ca3af',
-                            callback: v => v + ' ms',
-                        },
-                    },
-                    y: {
-                        grid: { display: false },
-                        ticks: { font: { size: 11 }, color: '#6b7280' },
-                    },
-                },
-            },
-        });
+            });
+        }
     }
 
     const errorRateEl = document.getElementById('chart-kserve-error-rate');
     if (errorRateEl) {
-        const errorRates = MOCK.kserveErrorRates;
-        const barColors = errorRates.map(v =>
-            v >= 5 ? '#ef4444' : v >= 1 ? '#f59e0b' : '#10b981'
-        );
+        const errPlaceholder = (msg, isError) => {
+            const card = errorRateEl.closest('.pm-fixed-card');
+            errorRateEl.remove();
+            card.appendChild(Object.assign(document.createElement('div'), {
+                style: `position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; letter-spacing:0.5px; white-space:nowrap; color:${isError ? '#ef4444' : '#d1d5db'};`,
+                textContent: msg,
+            }));
+        };
 
-        new Chart(errorRateEl, {
-            type: 'bar',
-            data: {
-                labels: KSERVE_MODELS,
-                datasets: [{
-                    label: '에러율 (%)',
-                    data: errorRates,
-                    backgroundColor: barColors,
-                    borderRadius: 4,
-                    borderSkipped: false,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.parsed.y.toFixed(2)} %`,
+        if (kserveErrorRate.status === 'error') { errPlaceholder('No connection', true); }
+        else if (kserveErrorRate.status === 'empty' || !kserveErrorRate.models?.length) { errPlaceholder('No data', false); }
+        else {
+            const labels = kserveErrorRate.models.map(m => m.name);
+            const values = kserveErrorRate.models.map(m => m.error_rate);
+            const barColors = values.map(v => v >= 5 ? '#ef4444' : v >= 1 ? '#f59e0b' : '#10b981');
+
+            new Chart(errorRateEl, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: '에러율 (%)',
+                        data: values,
+                        backgroundColor: barColors,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ${ctx.parsed.y.toFixed(4)} %`,
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11 }, color: '#6b7280' },
+                        },
+                        y: {
+                            min: 0,
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', callback: v => v + '%' },
                         },
                     },
                 },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: { font: { size: 11 }, color: '#6b7280' },
-                    },
-                    y: {
-                        min: 0,
-                        grid: { color: '#f3f4f6' },
-                        ticks: {
-                            font: { size: 11 },
-                            color: '#9ca3af',
-                            callback: v => v + '%',
-                        },
-                    },
-                },
-            },
-        });
+            });
+        }
     }
 
     const latencyEl = document.getElementById('chart-kserve-latency');
     if (latencyEl) {
-        const now = Date.now();
-        // TODO: 실제 API 연동 시 아래 mock 데이터를 교체
-        const latencyDatasets = KSERVE_MODELS.map((name, i) => {
-            const color = KSERVE_COLORS[i % KSERVE_COLORS.length];
-            const points = Array.from({ length: 13 }, (_, k) => ({
-                x: now - (12 - k) * 2.5 * 60 * 1000,
-                y: parseFloat((Math.random() * 1.5 + 0.1 + i * 0.3).toFixed(3)),
+        const latencyPlaceholder = (msg, isError) => {
+            const card = latencyEl.closest('.pm-fixed-card');
+            latencyEl.remove();
+            card.appendChild(Object.assign(document.createElement('div'), {
+                style: `position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; letter-spacing:0.5px; white-space:nowrap; color:${isError ? '#ef4444' : '#d1d5db'};`,
+                textContent: msg,
             }));
-            return {
-                label: name,
-                data: points,
-                borderColor: color.border,
-                backgroundColor: color.border,
-                borderWidth: 2,
-                pointRadius: 3,
-                pointBackgroundColor: color.border,
-                tension: 0.4,
-                fill: false,
-            };
-        });
+        };
 
-        new Chart(latencyEl, {
-            type: 'line',
-            data: { datasets: latencyDatasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top',
-                        labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 12, padding: 10 },
+        if (kserveLatency.status === 'error') { latencyPlaceholder('No connection', true); }
+        else if (kserveLatency.status === 'empty' || !kserveLatency.series?.length) { latencyPlaceholder('No data', false); }
+        else {
+            const now = Date.now();
+            const datasets = kserveLatency.series.map((s, i) => {
+                const color = KSERVE_COLORS[i % KSERVE_COLORS.length];
+                return {
+                    label: s.name,
+                    data: s.data.map(([ts, v]) => ({ x: ts, y: v })),
+                    borderColor: color.border,
+                    backgroundColor: color.border,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: color.border,
+                    tension: 0.4,
+                    fill: false,
+                };
+            });
+
+            new Chart(latencyEl, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 12, padding: 10 },
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(4)} s`,
+                            },
+                        },
                     },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} s`,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
+                            min: now - KSERVE_WINDOW_MS,
+                            max: now,
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
+                        },
+                        y: {
+                            min: 0,
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', callback: v => v + ' s' },
                         },
                     },
                 },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
-                        min: now - KSERVE_WINDOW_MS,
-                        max: now,
-                        grid: { color: '#f3f4f6' },
-                        ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
-                    },
-                    y: {
-                        min: 0,
-                        grid: { color: '#f3f4f6' },
-                        ticks: {
-                            font: { size: 11 },
-                            color: '#9ca3af',
-                            callback: v => v + ' s',
-                        },
-                    },
-                },
-            },
-        });
+            });
+        }
     }
 
     const rpsEl = document.getElementById('chart-kserve-rps');
     if (rpsEl) {
-        // TODO: 실제 API 연동 시 아래 mock 데이터를 교체
-        const now = Date.now();
-        const mockDatasets = KSERVE_MODELS.map((name, i) => {
-            const color = KSERVE_COLORS[i % KSERVE_COLORS.length];
-            const points = Array.from({ length: 13 }, (_, k) => ({
-                x: now - (12 - k) * 2.5 * 60 * 1000,
-                y: parseFloat((Math.random() * 40 + 5 + i * 10).toFixed(2)),
+        const rpsPlaceholder = (msg, isError) => {
+            const card = rpsEl.closest('.pm-fixed-card');
+            rpsEl.remove();
+            card.appendChild(Object.assign(document.createElement('div'), {
+                style: `position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; letter-spacing:0.5px; white-space:nowrap; color:${isError ? '#ef4444' : '#d1d5db'};`,
+                textContent: msg,
             }));
-            return {
-                label: name,
-                data: points,
-                borderColor: color.border,
-                backgroundColor: color.bg,
-                borderWidth: 2,
-                pointRadius: 3,
-                pointBackgroundColor: color.border,
-                tension: 0.4,
-                fill: true,
-            };
-        });
+        };
 
-        new Chart(rpsEl, {
-            type: 'line',
-            data: { datasets: mockDatasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top',
-                        labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 12, padding: 10 },
+        if (kserveRps.status === 'error') { rpsPlaceholder('No connection', true); }
+        else if (kserveRps.status === 'empty' || !kserveRps.series?.length) { rpsPlaceholder('No data', false); }
+        else {
+            const now = Date.now();
+            const datasets = kserveRps.series.map((s, i) => {
+                const color = KSERVE_COLORS[i % KSERVE_COLORS.length];
+                return {
+                    label: s.name,
+                    data: s.data.map(([ts, v]) => ({ x: ts, y: v })),
+                    borderColor: color.border,
+                    backgroundColor: color.bg,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: color.border,
+                    tension: 0.4,
+                    fill: true,
+                };
+            });
+
+            new Chart(rpsEl, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 12, padding: 10 },
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(4)} req/s`,
+                            },
+                        },
                     },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} req/s`,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
+                            min: now - KSERVE_WINDOW_MS,
+                            max: now,
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
+                        },
+                        y: {
+                            min: 0,
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', callback: v => v + ' req/s' },
                         },
                     },
                 },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
-                        min: now - KSERVE_WINDOW_MS,
-                        max: now,
-                        grid: { color: '#f3f4f6' },
-                        ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
-                    },
-                    y: {
-                        min: 0,
-                        grid: { color: '#f3f4f6' },
-                        ticks: {
-                            font: { size: 11 },
-                            color: '#9ca3af',
-                            callback: v => v + ' req/s',
-                        },
-                    },
-                },
-            },
-        });
+            });
+        }
     }
 
     const trendEl = document.getElementById('chart-gpu-trend');

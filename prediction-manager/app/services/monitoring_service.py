@@ -74,7 +74,33 @@ async def _query_range(promql: str, start: float, end: float, step: str) -> tupl
             results = resp.json().get("data", {}).get("result", [])
             if not results:
                 return [], "empty"
-            return [[int(float(ts) * 1000), round(float(v))] for ts, v in results[0]["values"]], "ok"
+            return [[int(float(ts) * 1000), round(float(v), 2)] for ts, v in results[0]["values"]], "ok"
+    except Exception:
+        return [], "error"
+
+
+async def _query_range_multi(promql: str, start: float, end: float, step: str) -> tuple[list, str]:
+    """Prometheus range query (다중 시계열). (series_list, status) 반환."""
+    if not settings.prometheus_url:
+        return [], "error"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{settings.prometheus_url}/api/v1/query_range",
+                params={"query": promql, "start": start, "end": end, "step": step},
+            )
+            resp.raise_for_status()
+            results = resp.json().get("data", {}).get("result", [])
+            if not results:
+                return [], "empty"
+            series = [
+                {
+                    "labels": r["metric"],
+                    "data": [[int(float(ts) * 1000), round(float(v), 4)] for ts, v in r["values"]],
+                }
+                for r in results
+            ]
+            return series, "ok"
     except Exception:
         return [], "error"
 
@@ -134,6 +160,90 @@ async def get_gpu_trend(window_minutes: int = 60, step: str = "1m") -> dict:
         step=step,
     )
     return {"status": status, "data": data}
+
+
+async def get_kserve_rps(window_minutes: int = 30, step: str = "1m") -> dict:
+    now = time.time()
+    series, status = await _query_range_multi(
+        "sum by (configuration_name, namespace_name) (rate(revision_request_count[5m]))",
+        start=now - window_minutes * 60,
+        end=now,
+        step=step,
+    )
+    if status != "ok":
+        return {"status": status, "series": []}
+    result = [
+        {
+            "name": f"{s['labels'].get('configuration_name', '?')} ({s['labels'].get('namespace_name', '?')})",
+            "data": s["data"],
+        }
+        for s in series
+    ]
+    return {"status": "ok", "series": result}
+
+
+async def get_kserve_top5_latency() -> dict:
+    rows, status = await _query_multi(
+        "topk(5, histogram_quantile(0.95, sum by (configuration_name, namespace_name, le)"
+        " (rate(revision_app_request_latencies_bucket[5m]))))"
+    )
+    if status == "error":
+        return {"status": "error", "models": []}
+    if status == "empty":
+        return {"status": "empty", "models": []}
+    models = [
+        {
+            "name": f"{r['labels'].get('configuration_name', '?')} ({r['labels'].get('namespace_name', '?')})",
+            "latency_ms": round(r["value"], 2),
+        }
+        for r in rows
+        if r["value"] == r["value"]  # NaN 제외
+    ]
+    models.sort(key=lambda m: m["latency_ms"], reverse=True)
+    return {"status": "ok", "models": models}
+
+
+async def get_kserve_error_rate() -> dict:
+    rows, status = await _query_multi(
+        'sum by (configuration_name, namespace_name)'
+        ' (rate(revision_request_count{response_code_class="5xx"}[5m]))'
+        ' / sum by (configuration_name, namespace_name)'
+        ' (rate(revision_request_count[5m])) * 100'
+    )
+    if status == "error":
+        return {"status": "error", "models": []}
+    if status == "empty":
+        return {"status": "empty", "models": []}
+    models = [
+        {
+            "name": f"{r['labels'].get('configuration_name', '?')} ({r['labels'].get('namespace_name', '?')})",
+            "error_rate": round(r["value"], 4) if not (r["value"] != r["value"]) else 0.0,
+        }
+        for r in rows
+    ]
+    models.sort(key=lambda m: m["name"])
+    return {"status": "ok", "models": models}
+
+
+async def get_kserve_latency_p95(window_minutes: int = 30, step: str = "1m") -> dict:
+    now = time.time()
+    series, status = await _query_range_multi(
+        "histogram_quantile(0.95, sum by (configuration_name, namespace_name, le)"
+        " (rate(revision_app_request_latencies_bucket[5m])))/1000",
+        start=now - window_minutes * 60,
+        end=now,
+        step=step,
+    )
+    if status != "ok":
+        return {"status": status, "series": []}
+    result = [
+        {
+            "name": f"{s['labels'].get('configuration_name', '?')} ({s['labels'].get('namespace_name', '?')})",
+            "data": s["data"],
+        }
+        for s in series
+    ]
+    return {"status": "ok", "series": result}
 
 
 async def get_gpu_metrics() -> dict:
@@ -230,6 +340,21 @@ async def get_mlflow_stats() -> dict:
         "models": int(_pv(models)) if _pv(models) is not None else None,
         "runs": int(_pv(runs)) if _pv(runs) is not None else None,
     }
+
+
+async def get_mlflow_experiment_runs() -> dict:
+    rows, status = await _query_multi('max by (experiment_name) (mlflow_runs_total)')
+
+    if status == "error":
+        return {"status": "error", "experiments": []}
+    if status == "empty":
+        return {"status": "empty", "experiments": []}
+
+    experiments = sorted(
+        [{"name": r["labels"].get("experiment_name", ""), "runs": int(r["value"])} for r in rows],
+        key=lambda e: -e["runs"],
+    )
+    return {"status": "ok", "experiments": experiments}
 
 
 async def get_mlflow_model_versions() -> dict:
