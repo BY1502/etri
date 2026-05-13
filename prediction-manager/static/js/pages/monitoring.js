@@ -36,19 +36,19 @@ async function renderMonitoring() {
             <div style="font-size:13px; font-weight:600; color:${accent}; letter-spacing:0.5px; text-transform:uppercase;">${esc(label)}</div>
         </div>`;
 
-    //API 데이터 ── 테스트 시 아래 변수에 직접 값을 넣어 확인 가능
-    const gpuUtil = gpu.util_pct ?? null;
+    //── API 데이터 ── 테스트 시 아래 MOCK 섹션과 교체 ──────────────────
+    const gpuUtil    = gpu.util_pct    ?? null;
     const gpuMemUsed = gpu.mem_used_gb ?? null;
     const gpuMemTotal = gpu.mem_total_gb ?? null;
-    const gpuMemPct = gpu.mem_pct ?? null;
-    const gpuTemp = gpu.temp_c ?? null;
-    const gpuPower = gpu.power_w ?? null;
-    const cpuCores = sys.cpu_cores ?? null;
-    const cpuTotal = sys.cpu_total_cores ?? null;
-    const cpuPct = sys.cpu_pct ?? null;
-    const memUsedGb = sys.mem_used_gb ?? null;
-    const memTotalGb = sys.mem_total_gb ?? null;
-    const memPct = sys.mem_pct ?? null;
+    const gpuMemPct  = gpu.mem_pct     ?? null;
+    const gpuTemp    = gpu.temp_c      ?? null;
+    const gpuPower   = gpu.power_w     ?? null;
+    const cpuCores   = sys.cpu_cores       ?? null;
+    const cpuTotal   = sys.cpu_total_cores ?? null;
+    const cpuPct     = sys.cpu_pct         ?? null;
+    const memUsedGb  = sys.mem_used_gb     ?? null;
+    const memTotalGb = sys.mem_total_gb    ?? null;
+    const memPct     = sys.mem_pct         ?? null;
 
     const ray             = data.ray              || {};
     const rayStatus       = ray.status            ?? 'error';
@@ -58,19 +58,40 @@ async function renderMonitoring() {
     const kserve          = data.kserve           || {};
     const kserveError     = kserve.error          ?? true;
     const kserveEndpoints = kserve.endpoints      || [];
-    const mlflowStats     = data.mlflow           || { status: 'error' };
-    const mlflowModelsStatus = data.mlflow_models?.status ?? 'error';
-    const mlflowModels       = data.mlflow_models?.models  ?? [];
-    // const mlflowModelsStatus = 'ok';
-    // const mlflowModels       = MOCK.mlflowModels ?? [];
-    const notebookStatus  = data.notebook_resources?.status ?? 'error';
-    const notebookRows    = data.notebook_resources?.rows   ?? [];
-    const runningNbStatus = data.running_notebooks?.status   ?? 'error';
-    const runningNbs      = data.running_notebooks?.notebooks ?? [];
-    const pvcStatus       = data.pvc?.status  ?? 'error';
-    const pvcGroups       = data.pvc?.groups  ?? [];
-    const mlflowExpRunsStatus = data.mlflow_experiment_runs?.status ?? 'error';
+    const mlflowStats         = data.mlflow                          || { status: 'error', experiments: null, models: null, runs: null };
+    const mlflowModelsStatus  = data.mlflow_models?.status           ?? 'error';
+    const mlflowModels        = data.mlflow_models?.models           ?? [];
+    const notebookStatus      = data.notebook_resources?.status      ?? 'error';
+    const notebookRows        = data.notebook_resources?.rows        ?? [];
+    const runningNbStatus     = data.running_notebooks?.status       ?? 'error';
+    const runningNbs          = data.running_notebooks?.notebooks    ?? [];
+    const pvcStatus           = data.pvc?.status                     ?? 'error';
+    const pvcGroups           = data.pvc?.groups                     ?? [];
+    const mlflowExpRunsStatus = data.mlflow_experiment_runs?.status  ?? 'error';
     const mlflowExpRuns       = data.mlflow_experiment_runs?.experiments ?? [];
+
+    // ── MOCK (테스트용: 위 해당 라인 주석 처리 후 아래 해제) ──────────────────
+    // const gpuUtil    = 75;     const gpuMemUsed  = 18.4; const gpuMemTotal = 24;
+    // const gpuMemPct  = 76.7;   const gpuTemp     = 68;   const gpuPower    = 180;
+    // const cpuCores   = 8;      const cpuTotal    = 16;   const cpuPct      = 42;
+    // const memUsedGb  = 28.5;   const memTotalGb  = 64;   const memPct      = 44.5;
+    // const ray             = MOCK.ray;
+    // const rayStatus       = 'ok';
+    // const automlError     = false;
+    // const automlJobs      = MOCK.automl;
+    // const kserveError     = false;
+    // const kserveEndpoints = MOCK.kserve;
+    // const mlflowStats         = MOCK.mlflowStats;
+    // const mlflowModelsStatus  = 'ok';
+    // const mlflowModels        = MOCK.mlflowModels        ?? [];
+    // const notebookStatus      = 'ok';
+    // const notebookRows        = MOCK.jupyterResources    ?? [];
+    // const runningNbStatus     = 'ok';
+    // const runningNbs          = MOCK.jupyterNotebooks    ?? [];
+    // const pvcStatus           = 'ok';
+    // const pvcGroups           = MOCK.pvcByUser           ?? [];
+    // const mlflowExpRunsStatus = 'ok';
+    // const mlflowExpRuns       = MOCK.mlflowExperiments   ?? [];
 
     const timeAgo = (dateStr) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -477,15 +498,19 @@ async function renderMonitoring() {
 }
 
 async function setupMonitoringPage() {
-    // ── API 데이터 (mock 테스트 시 아래 주석을 해제하고 실제 라인을 주석 처리) ──
-    // const kserveRps       = MOCK.kserveRps;       // mock
-    const kserveRps           = _monitoringData?.kserve_rps           || { status: 'error', series: [] };
-    // const kserveLatency   = MOCK.kserveLatency;   // mock
-    const kserveLatency       = _monitoringData?.kserve_latency_p95   || { status: 'error', series: [] };
-    // const kserveErrorRate   = MOCK.kserveErrorRate;   // mock
-    const kserveErrorRate       = _monitoringData?.kserve_error_rate    || { status: 'error', models: [] };
-    // const kserveTop5Latency = MOCK.kserveTop5Latency; // mock
-    const kserveTop5Latency     = _monitoringData?.kserve_top5_latency  || { status: 'error', models: [] };
+    //── API 데이터 ── 테스트 시 아래 MOCK 섹션과 교체 ──────────────────
+    const gpuTrend          = _monitoringData?.gpu_trend            || {};
+    const kserveRps         = _monitoringData?.kserve_rps           || { status: 'error', series: [] };
+    const kserveLatency     = _monitoringData?.kserve_latency_p95   || { status: 'error', series: [] };
+    const kserveErrorRate   = _monitoringData?.kserve_error_rate    || { status: 'error', models: [] };
+    const kserveTop5Latency = _monitoringData?.kserve_top5_latency  || { status: 'error', models: [] };
+
+    // ── MOCK (테스트용: 위 해당 라인 주석 처리 후 아래 해제) ──────────────────
+    // const gpuTrend          = MOCK.gpuTrend;
+    // const kserveRps         = MOCK.kserveRps;
+    // const kserveLatency     = MOCK.kserveLatency;
+    // const kserveErrorRate   = MOCK.kserveErrorRate;
+    // const kserveTop5Latency = MOCK.kserveTop5Latency;
 
     let tooltip = document.getElementById('pm-tooltip');
     if (!tooltip) {
@@ -802,10 +827,9 @@ async function setupMonitoringPage() {
             }));
         };
 
-        const trendResult = _monitoringData?.gpu_trend || {};
-        if (trendResult.status === 'error') { chartPlaceholder('연결 오류'); return; }
-        if (trendResult.status === 'empty' || !trendResult.data?.length) { chartPlaceholder('데이터 없음'); return; }
-        const trendPoints = trendResult.data.map(([ts, v]) => ({ x: ts, y: v }));
+        if (gpuTrend.status === 'error') { chartPlaceholder('연결 오류'); return; }
+        if (gpuTrend.status === 'empty' || !gpuTrend.data?.length) { chartPlaceholder('데이터 없음'); return; }
+        const trendPoints = gpuTrend.data.map(([ts, v]) => ({ x: ts, y: v }));
 
         new Chart(trendEl, {
             type: 'line',

@@ -38,45 +38,40 @@ const MOCK = {
     // ── PVC 할당 용량 (사용자별) ──────────────────────────────────────────
     pvcByUser: [
         { ns: 'kubeflow-admin', pvcs: [
-            { name: 'automl-61b14f5328-lgbm-pvc', allocated: 1,  used: 0.8  },
-            { name: 'data-nifi-0',                allocated: 5,  used: 3.2  },
-            { name: 'pm-mlflow-data',             allocated: 20, used: 12.5 },
-            { name: 'rs-workspace',               allocated: 5,  used: 2.1  },
-            { name: 'vscode-workspace',           allocated: 5,  used: 1.5  },
+            { name: 'automl-61b14f5328-lgbm-pvc', allocated_gb: 1  },
+            { name: 'data-nifi-0',                allocated_gb: 5  },
+            { name: 'pm-mlflow-data',             allocated_gb: 20 },
+            { name: 'rs-workspace',               allocated_gb: 5  },
+            { name: 'vscode-workspace',           allocated_gb: 5  },
         ]},
         { ns: 'kubeflow-researcher1', pvcs: [
-            { name: 'data-nifi-0',       allocated: 5,  used: 2.8 },
-            { name: 'ee-test-workspace', allocated: 5,  used: 1.2 },
-            { name: 'pm-mlflow-data',    allocated: 20, used: 8.3 },
-            { name: 'researcher1-pvc',   allocated: 1,  used: 0.5 },
+            { name: 'data-nifi-0',       allocated_gb: 5  },
+            { name: 'ee-test-workspace', allocated_gb: 5  },
+            { name: 'pm-mlflow-data',    allocated_gb: 20 },
+            { name: 'researcher1-pvc',   allocated_gb: 1  },
         ]},
         { ns: 'kubeflow-researcher2', pvcs: [
-            { name: 'automl-61b14f5328-lgbm-pvc',     allocated: 1,  used: 0.6  },
-            { name: 'data-nifi-0',                     allocated: 5,  used: 4.1  },
-            { name: 'pm-mlflow-data',                  allocated: 20, used: 15.2 },
-            { name: 'prod-automl-61b14f5328-lgbm-pvc', allocated: 1,  used: 0.9  },
+            { name: 'automl-61b14f5328-lgbm-pvc',      allocated_gb: 1  },
+            { name: 'data-nifi-0',                      allocated_gb: 5  },
+            { name: 'pm-mlflow-data',                   allocated_gb: 20 },
+            { name: 'prod-automl-61b14f5328-lgbm-pvc',  allocated_gb: 1  },
         ]},
         { ns: 'kubeflow-test-test-com', pvcs: [
-            { name: 'data-nifi-0',    allocated: 5,  used: 0.3 },
-            { name: 'pm-mlflow-data', allocated: 20, used: 1.1 },
+            { name: 'data-nifi-0',    allocated_gb: 5  },
+            { name: 'pm-mlflow-data', allocated_gb: 20 },
         ]},
-    ],
-
-    // ── 사용자별 PVC 개수 ──────────────────────────────────────────────────
-    pvcCounts: [
-        { ns: 'kubeflow-admin',         count: 5 },
-        { ns: 'kubeflow-researcher1',   count: 4 },
-        { ns: 'kubeflow-researcher2',   count: 4 },
-        { ns: 'kubeflow-test-test-com', count: 2 },
     ],
 
     // ── 실행 중인 노트북 ────────────────────────────────────────────────────
     jupyterNotebooks: [
-        { user: 'researcher1@example.com', owner: 'researcher1', status: 'Running', pod: 'jupyter-researcher1-0' },
-        { user: 'researcher2@example.com', owner: 'researcher2', status: 'Running', pod: 'jupyter-researcher2-0' },
-        { user: 'admin@example.com',       owner: 'admin',       status: 'Running', pod: 'jupyter-admin-0'       },
-        { user: 'test@test.com',           owner: 'test',        status: 'Stopped', pod: 'jupyter-test-0'        },
+        { namespace: 'kubeflow-researcher1',   owner_name: 'researcher1', pod: 'jupyter-researcher1-0' },
+        { namespace: 'kubeflow-researcher2',   owner_name: 'researcher2', pod: 'jupyter-researcher2-0' },
+        { namespace: 'kubeflow-admin',         owner_name: 'admin',       pod: 'jupyter-admin-0'       },
+        { namespace: 'kubeflow-test-test-com', owner_name: 'test',        pod: 'jupyter-test-0'        },
     ],
+
+    // ── MLflow 전체 통계 ───────────────────────────────────────────────────
+    mlflowStats: { status: 'ok', experiments: 12, models: 8, runs: 134 },
 
     // ── MLflow 실험별 Run 수 ───────────────────────────────────────────────
     mlflowExperiments: [
@@ -98,6 +93,16 @@ const MOCK = {
 
     // ── GPU 사용 추이 (5분 간격, 최근 1시간) ──────────────────────────────
     gpuUtil: [4, 12, 35, 72, 68, 55, 80, 91, 76, 60, 45, 30, 0],
+
+    // ── GPU 사용 추이 API 형식 ─────────────────────────────────────────────
+    gpuTrend: (() => {
+        const now = Date.now();
+        const values = [4, 12, 35, 72, 68, 55, 80, 91, 76, 60, 45, 30, 0];
+        return {
+            status: 'ok',
+            data: values.map((v, i) => [now - (values.length - 1 - i) * 5 * 60 * 1000, v]),
+        };
+    })(),
 
     // ── KServe 모델 목록 (에러율 차트 공용) ──────────────────────────────
     kserveModels: ['sklearn-iris', 'xgb-fraud', 'torch-nlp'],
