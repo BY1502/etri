@@ -151,8 +151,19 @@ async def get_notebook_resources() -> dict:
     return {"status": "ok", "rows": rows}
 
 
+def _parse_step_seconds(step: str) -> int:
+    if step.endswith("m"):
+        return int(step[:-1]) * 60
+    elif step.endswith("s"):
+        return int(step[:-1])
+    elif step.endswith("h"):
+        return int(step[:-1]) * 3600
+    return 60
+
+
 async def get_gpu_trend(window_minutes: int = 60, step: str = "1m") -> dict:
-    now = time.time()
+    step_seconds = _parse_step_seconds(step)
+    now = (int(time.time()) // step_seconds) * step_seconds
     data, status = await _query_range(
         "avg(DCGM_FI_DEV_GPU_UTIL)",
         start=now - window_minutes * 60,
