@@ -217,19 +217,86 @@ def get_automl_jobs(namespace: str | None = None, is_admin: bool = False) -> dic
         return {"error": True, "jobs": []}
 
 
-async def get_ray_status(namespace: str) -> dict:
-    running, pending, finished = await asyncio.gather(
-        _query("sum(ray_running_jobs)"),
-        _query("sum(ray_pending_jobs)"),
-        _query("sum(ray_finished_jobs_total)"),
+async def get_mlflow_stats() -> dict:
+    experiments, models, runs = await asyncio.gather(
+        _query("max(mlflow_experiments_total)"),
+        _query("max(mlflow_registered_models_total)"),
+        _query("sum(max by (experiment_id) (mlflow_runs_total))"),
     )
-    status = _prom_status(running, pending, finished)
+    status = _prom_status(experiments, models, runs)
     return {
         "status": status,
-        "running": int(_pv(running)) if _pv(running) is not None else None,
-        "pending": int(_pv(pending)) if _pv(pending) is not None else None,
+        "experiments": int(_pv(experiments)) if _pv(experiments) is not None else None,
+        "models": int(_pv(models)) if _pv(models) is not None else None,
+        "runs": int(_pv(runs)) if _pv(runs) is not None else None,
+    }
+
+
+async def get_mlflow_model_versions() -> dict:
+    rows, status = await _query_multi(
+        'sum by (name, current_stage) (mlflow_registered_model_versions_total)'
+    )
+
+    if status == "error":
+        return {"status": "error", "models": []}
+    if status == "empty":
+        return {"status": "empty", "models": []}
+
+    from collections import defaultdict
+    model_map: dict[str, dict] = defaultdict(lambda: {"versions": 0, "stage": "None"})
+    stage_priority = {"Production": 3, "Staging": 2, "Archived": 1, "None": 0}
+
+    for r in rows:
+        name = r["labels"].get("name", "")
+        stage = r["labels"].get("current_stage", "None")
+        count = int(r["value"])
+        model_map[name]["versions"] += count
+        cur_stage = model_map[name]["stage"]
+        if stage_priority.get(stage, 0) > stage_priority.get(cur_stage, 0):
+            model_map[name]["stage"] = stage
+
+    models = sorted(
+        [{"name": n, "versions": v["versions"], "stage": v["stage"]} for n, v in model_map.items()],
+        key=lambda m: (-m["versions"], m["name"]),
+    )
+    return {"status": "ok", "models": models}
+
+
+async def get_ray_status(namespace: str) -> dict:
+    nodes, finished = await asyncio.gather(
+        _query("count(ray_node_cpu_count)"),
+        _query("sum(ray_finished_jobs_total)"),
+    )
+    status = _prom_status(nodes, finished)
+    return {
+        "status": status,
+        "nodes": int(_pv(nodes)) if _pv(nodes) is not None else None,
         "finished_total": int(_pv(finished)) if _pv(finished) is not None else None,
     }
+
+
+async def get_running_notebooks() -> dict:
+    rows, status = await _query_multi(
+        'kube_pod_status_phase{namespace=~"kubeflow-.*",phase="Running"}'
+        ' * on(namespace,pod) group_left(owner_name)'
+        ' kube_pod_owner{owner_kind="StatefulSet"} == 1'
+    )
+
+    if status == "error":
+        return {"status": "error", "notebooks": []}
+    if status == "empty":
+        return {"status": "empty", "notebooks": []}
+
+    notebooks = [
+        {
+            "namespace": r["labels"].get("namespace", ""),
+            "owner_name": r["labels"].get("owner_name", ""),
+            "pod": r["labels"].get("pod", ""),
+        }
+        for r in rows
+    ]
+    notebooks.sort(key=lambda x: (x["namespace"], x["pod"]))
+    return {"status": "ok", "notebooks": notebooks}
 
 
 async def get_pvc_storage() -> dict:

@@ -1,7 +1,10 @@
+let _monitoringData = null;
+
 async function renderMonitoring() {
     let data;
     try {
         data = await API.get('/api/monitoring/summary');
+        _monitoringData = data;
     } catch (e) {
         return `
         <div class="pm-page-header">
@@ -33,6 +36,7 @@ async function renderMonitoring() {
             <div style="font-size:13px; font-weight:600; color:${accent}; letter-spacing:0.5px; text-transform:uppercase;">${esc(label)}</div>
         </div>`;
 
+    //API 데이터 ── 테스트 시 아래 변수에 직접 값을 넣어 확인 가능
     const gpuUtil = gpu.util_pct ?? null;
     const gpuMemUsed = gpu.mem_used_gb ?? null;
     const gpuMemTotal = gpu.mem_total_gb ?? null;
@@ -46,35 +50,25 @@ async function renderMonitoring() {
     const memTotalGb = sys.mem_total_gb ?? null;
     const memPct = sys.mem_pct ?? null;
 
-    //API 데이터
-    const ray = MOCK.ray || {};
-    const rayStatus = ray.status ?? 'error';
-    const automl = data.automl || {};
-    const automlError = automl.error ?? true;
-    const automlJobs = automl.jobs || [];
-    const kserve = data.kserve || {};
-    const kserveError = kserve.error ?? true;
-    const kserveEndpoints = kserve.endpoints || [];
-
-    let notebookStatus = 'error';
-    let notebookRows = [];
-    try {
-        const nbResult = await API.get('/api/monitoring/notebook-resources');
-        notebookStatus = nbResult.status;
-        notebookRows = nbResult.rows ?? [];
-    } catch {
-        notebookStatus = 'error';
-    }
-
-    let pvcStatus = 'error';
-    let pvcGroups = [];
-    try {
-        const pvcResult = await API.get('/api/monitoring/pvc-storage');
-        pvcStatus = pvcResult.status;
-        pvcGroups = pvcResult.groups ?? [];
-    } catch {
-        pvcStatus = 'error';
-    }
+    const ray             = data.ray              || {};
+    const rayStatus       = ray.status            ?? 'error';
+    const automl          = data.automl           || {};
+    const automlError     = automl.error          ?? true;
+    const automlJobs      = automl.jobs           || [];
+    const kserve          = data.kserve           || {};
+    const kserveError     = kserve.error          ?? true;
+    const kserveEndpoints = kserve.endpoints      || [];
+    const mlflowStats     = data.mlflow           || { status: 'error' };
+    const mlflowModelsStatus = data.mlflow_models?.status ?? 'error';
+    const mlflowModels       = data.mlflow_models?.models  ?? [];
+    // const mlflowModelsStatus = 'ok';
+    // const mlflowModels       = MOCK.mlflowModels ?? [];
+    const notebookStatus  = data.notebook_resources?.status ?? 'error';
+    const notebookRows    = data.notebook_resources?.rows   ?? [];
+    const runningNbStatus = data.running_notebooks?.status   ?? 'error';
+    const runningNbs      = data.running_notebooks?.notebooks ?? [];
+    const pvcStatus       = data.pvc?.status  ?? 'error';
+    const pvcGroups       = data.pvc?.groups  ?? [];
 
     const timeAgo = (dateStr) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -272,20 +266,19 @@ async function renderMonitoring() {
     <div class="pm-monitor-2col-bottom">
         <div class="pm-monitor-col">
         <div class="pm-monitor-card pm-fixed-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터</div>
+            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
             ${rayStatus === 'error'
                 ? `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#ef4444;">Prometheus 연결 오류</div>`
                 : rayStatus === 'empty'
                     ? `<div style="display:flex; align-items:center; justify-content:center; height:80px; font-size:13px; color:#9ca3af;">Ray 메트릭 없음</div>`
-                    : `<div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
+                    : `<div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; flex:1;">
                         ${[
-                            { label: '실행 중', value: ray.running ?? '-', color: '#1a56a8', bg: '#e8f4ff' },
-                            { label: '대기 중', value: ray.pending ?? '-', color: '#856404', bg: '#fff3cd' },
-                            { label: '완료 누적', value: ray.finished_total ?? '-', color: '#155724', bg: '#d4edda' },
+                            { label: '활성 노드', value: ray.nodes ?? '-', color: '#1a56a8', bg: '#e8f4ff' },
+                            { label: '완료 Job', value: ray.finished_total ?? '-', color: '#155724', bg: '#d4edda' },
                         ].map(s => `
-                            <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
-                                <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
-                                <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
+                            <div style="background:${s.bg}; border-radius:8px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
+                                <div style="font-size:48px; font-weight:700; color:${s.color}; font-family:var(--font-mono); line-height:1;">${s.value}</div>
+                                <div style="font-size:13px; font-weight:600; color:${s.color};">${s.label}</div>
                             </div>`).join('')}
                     </div>`
             }
@@ -328,26 +321,27 @@ async function renderMonitoring() {
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table" style="table-layout:fixed; width:100%;">
                 <colgroup>
-                    <col style="width:25%">
+                    <col style="width:30%">
                     <col style="width:20%">
                     <col style="width:15%">
-                    <col style="width:40%">
+                    <col style="width:35%">
                 </colgroup>
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                    <tr><th>사용자</th><th>Owner</th><th>상태</th><th>Pod 이름</th></tr>
+                    <tr><th>사용자</th><th>owner_name</th><th>상태</th><th>Pod 이름</th></tr>
                 </thead>
                 <tbody>
-                    <!-- TODO: 실제 API 연동 시 교체 -->
-                    ${MOCK.jupyterNotebooks.map(n => {
-                        const statusColor = n.status === 'Running' ? { bg: '#d4edda', color: '#155724' } : { bg: '#f8d7da', color: '#721c24' };
-                        return `
+                    ${runningNbStatus === 'error'
+                        ? `<tr><td colspan="4" style="text-align:center; padding:20px 0; font-size:13px; color:#ef4444;">연결 오류</td></tr>`
+                        : runningNbStatus === 'empty' || runningNbs.length === 0
+                            ? `<tr><td colspan="4" style="text-align:center; padding:20px 0; font-size:13px; color:#9ca3af;">실행 중인 노트북이 없습니다</td></tr>`
+                            : runningNbs.map(n => `
                         <tr>
-                            <td style="font-size:12px;"><span data-tip="${esc(n.user)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.user)}</span></td>
-                            <td style="font-size:13px; font-weight:500;"><span data-tip="${esc(n.owner)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.owner)}</span></td>
-                            <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:${statusColor.bg}; color:${statusColor.color};">${esc(n.status)}</span></td>
+                            <td style="font-size:12px; font-family:var(--font-mono);"><span data-tip="${esc(n.namespace)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.namespace)}</span></td>
+                            <td style="font-size:13px; font-weight:500;"><span data-tip="${esc(n.owner_name)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.owner_name)}</span></td>
+                            <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:#d4edda; color:#155724;">Running</span></td>
                             <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);"><span data-tip="${esc(n.pod)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.pod)}</span></td>
-                        </tr>`;
-                    }).join('')}
+                        </tr>`).join('')
+                    }
                 </tbody>
             </table>
             </div>
@@ -385,9 +379,9 @@ async function renderMonitoring() {
         <div class="pm-zigzag-col">
             <div style="display:flex; gap:10px; order:1;">
                 ${[
-                    { label: 'MLflow Experiments', value: '-', color: '#16a34a' },
-                    { label: 'Registered Models',  value: '-', color: '#2563eb' },
-                    { label: 'Total Runs',         value: '-', color: '#9333ea' },
+                    { label: 'MLflow Experiments', value: mlflowStats.experiments ?? '-', color: '#16a34a' },
+                    { label: 'Registered Models',  value: mlflowStats.models ?? '-',      color: '#2563eb' },
+                    { label: 'Total Runs',         value: mlflowStats.runs ?? '-',         color: '#9333ea' },
                 ].map(s => `
                 <div class="pm-half-card" style="flex:1;">
                     <div style="font-size:14px; font-weight:600; color:#374151;">${s.label}</div>
@@ -429,12 +423,16 @@ async function renderMonitoring() {
             <div class="pm-monitor-card pm-fixed-card" style="order:2;">
                 <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 모델별 버전 수</div>
                 <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
-                <table class="pm-table">
+                ${mlflowModelsStatus === 'error'
+                    ? `<div style="color:var(--text-muted); font-size:13px; padding:16px 0;">데이터를 불러올 수 없습니다.</div>`
+                    : mlflowModelsStatus === 'empty' || mlflowModels.length === 0
+                        ? `<div style="color:var(--text-muted); font-size:13px; padding:16px 0;">등록된 모델이 없습니다.</div>`
+                        : `<table class="pm-table">
                     <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                         <tr><th>모델명</th><th style="text-align:center;">버전 수</th><th>최신 Stage</th></tr>
                     </thead>
                     <tbody>
-                        ${MOCK.mlflowModels.map(m => {
+                        ${mlflowModels.map(m => {
                             const stageStyle = m.stage === 'Production'
                                 ? 'background:#e8f4ff; color:#1a56a8;'
                                 : m.stage === 'Staging'
@@ -447,7 +445,7 @@ async function renderMonitoring() {
                             </tr>`;
                         }).join('')}
                     </tbody>
-                </table>
+                </table>`}
                 </div>
             </div>
             <div class="pm-monitor-card pm-fixed-card" style="order:4;">
@@ -762,16 +760,10 @@ async function setupMonitoringPage() {
             }));
         };
 
-        let trendPoints;
-        try {
-            const result = await API.get('/api/monitoring/gpu/trend?window=60&step=1m');
-            if (result.status === 'error') { chartPlaceholder('연결 오류'); return; }
-            if (result.status === 'empty' || result.data.length === 0) { chartPlaceholder('데이터 없음'); return; }
-            trendPoints = result.data.map(([ts, v]) => ({ x: ts, y: v }));
-        } catch {
-            chartPlaceholder('API 호출 실패');
-            return;
-        }
+        const trendResult = _monitoringData?.gpu_trend || {};
+        if (trendResult.status === 'error') { chartPlaceholder('연결 오류'); return; }
+        if (trendResult.status === 'empty' || !trendResult.data?.length) { chartPlaceholder('데이터 없음'); return; }
+        const trendPoints = trendResult.data.map(([ts, v]) => ({ x: ts, y: v }));
 
         new Chart(trendEl, {
             type: 'line',
