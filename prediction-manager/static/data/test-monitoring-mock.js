@@ -37,29 +37,49 @@ const MOCK = {
 
     // ── PVC 할당 용량 (사용자별) ──────────────────────────────────────────
     pvcByUser: [
-        { ns: 'kubeflow-admin', pvcs: [
-            { name: 'automl-61b14f5328-lgbm-pvc', allocated_gb: 1  },
-            { name: 'data-nifi-0',                allocated_gb: 5  },
-            { name: 'pm-mlflow-data',             allocated_gb: 20 },
-            { name: 'rs-workspace',               allocated_gb: 5  },
-            { name: 'vscode-workspace',           allocated_gb: 5  },
-        ]},
-        { ns: 'kubeflow-researcher1', pvcs: [
-            { name: 'data-nifi-0',       allocated_gb: 5  },
-            { name: 'ee-test-workspace', allocated_gb: 5  },
-            { name: 'pm-mlflow-data',    allocated_gb: 20 },
-            { name: 'researcher1-pvc',   allocated_gb: 1  },
-        ]},
-        { ns: 'kubeflow-researcher2', pvcs: [
-            { name: 'automl-61b14f5328-lgbm-pvc',      allocated_gb: 1  },
-            { name: 'data-nifi-0',                      allocated_gb: 5  },
-            { name: 'pm-mlflow-data',                   allocated_gb: 20 },
-            { name: 'prod-automl-61b14f5328-lgbm-pvc',  allocated_gb: 1  },
-        ]},
-        { ns: 'kubeflow-test-test-com', pvcs: [
-            { name: 'data-nifi-0',    allocated_gb: 5  },
-            { name: 'pm-mlflow-data', allocated_gb: 20 },
-        ]},
+        {
+            ns: 'kubeflow-admin',
+            total_gb: 36,
+            phase_counts: { Bound: 4, Pending: 1, Lost: 0 },
+            pvcs: [
+                { name: 'automl-61b14f5328-lgbm-pvc', allocated_gb: 1,  phase: 'Bound'   },
+                { name: 'data-nifi-0',                allocated_gb: 5,  phase: 'Bound'   },
+                { name: 'pm-mlflow-data',             allocated_gb: 20, phase: 'Pending' },
+                { name: 'rs-workspace',               allocated_gb: 5,  phase: 'Bound'   },
+                { name: 'vscode-workspace',           allocated_gb: 5,  phase: 'Bound'   },
+            ],
+        },
+        {
+            ns: 'kubeflow-researcher1',
+            total_gb: 31,
+            phase_counts: { Bound: 3, Pending: 0, Lost: 1 },
+            pvcs: [
+                { name: 'data-nifi-0',       allocated_gb: 5,  phase: 'Bound' },
+                { name: 'ee-test-workspace', allocated_gb: 5,  phase: 'Lost'  },
+                { name: 'pm-mlflow-data',    allocated_gb: 20, phase: 'Bound' },
+                { name: 'researcher1-pvc',   allocated_gb: 1,  phase: 'Bound' },
+            ],
+        },
+        {
+            ns: 'kubeflow-researcher2',
+            total_gb: 27,
+            phase_counts: { Bound: 4, Pending: 0, Lost: 0 },
+            pvcs: [
+                { name: 'automl-61b14f5328-lgbm-pvc',     allocated_gb: 1,  phase: 'Bound' },
+                { name: 'data-nifi-0',                     allocated_gb: 5,  phase: 'Bound' },
+                { name: 'pm-mlflow-data',                  allocated_gb: 20, phase: 'Bound' },
+                { name: 'prod-automl-61b14f5328-lgbm-pvc', allocated_gb: 1,  phase: 'Bound' },
+            ],
+        },
+        {
+            ns: 'kubeflow-test-test-com',
+            total_gb: 25,
+            phase_counts: { Bound: 1, Pending: 1, Lost: 0 },
+            pvcs: [
+                { name: 'data-nifi-0',    allocated_gb: 5,  phase: 'Pending' },
+                { name: 'pm-mlflow-data', allocated_gb: 20, phase: 'Bound'   },
+            ],
+        },
     ],
 
     // ── 실행 중인 노트북 ────────────────────────────────────────────────────

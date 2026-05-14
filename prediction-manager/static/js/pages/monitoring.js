@@ -35,61 +35,64 @@ async function renderMonitoring() {
         </div>`;
 
     //── API 데이터 ── 테스트 시 아래 MOCK 섹션과 교체 ──────────────────
-    // const gpuUtil    = gpu.util_pct    ?? null;
-    // const gpuMemUsed = gpu.mem_used_gb ?? null;
-    // const gpuMemTotal = gpu.mem_total_gb ?? null;
-    // const gpuMemPct  = gpu.mem_pct     ?? null;
-    // const gpuTemp    = gpu.temp_c      ?? null;
-    // const gpuPower   = gpu.power_w     ?? null;
-    // const cpuCores   = sys.cpu_cores       ?? null;
-    // const cpuTotal   = sys.cpu_total_cores ?? null;
-    // const cpuPct     = sys.cpu_pct         ?? null;
-    // const memUsedGb  = sys.mem_used_gb     ?? null;
-    // const memTotalGb = sys.mem_total_gb    ?? null;
-    // const memPct     = sys.mem_pct         ?? null;
+    const gpuUtil    = gpu.util_pct    ?? null;
+    const gpuMemUsed = gpu.mem_used_gb ?? null;
+    const gpuMemTotal = gpu.mem_total_gb ?? null;
+    const gpuMemPct  = gpu.mem_pct     ?? null;
+    const gpuTemp    = gpu.temp_c      ?? null;
+    const gpuPower   = gpu.power_w     ?? null;
+    const cpuCores   = sys.cpu_cores       ?? null;
+    const cpuTotal   = sys.cpu_total_cores ?? null;
+    const cpuPct     = sys.cpu_pct         ?? null;
+    const memUsedGb  = sys.mem_used_gb     ?? null;
+    const memTotalGb = sys.mem_total_gb    ?? null;
+    const memPct     = sys.mem_pct         ?? null;
 
-    // const ray             = data.ray              || {};
-    // const rayStatus       = ray.status            ?? 'error';
-    // const automl          = data.automl           || {};
-    // const automlError     = automl.error          ?? true;
-    // const automlJobs      = automl.jobs           || [];
-    // const kserve          = data.kserve           || {};
-    // const kserveError     = kserve.error          ?? true;
-    // const kserveEndpoints = kserve.endpoints      || [];
-    // const mlflowStats         = data.mlflow                          || { status: 'error', experiments: null, models: null, runs: null };
-    // const mlflowModelsStatus  = data.mlflow_models?.status           ?? 'error';
-    // const mlflowModels        = data.mlflow_models?.models           ?? [];
-    // const notebookStatus      = data.notebook_resources?.status      ?? 'error';
-    // const notebookRows        = data.notebook_resources?.rows        ?? [];
-    // const runningNbStatus     = data.running_notebooks?.status       ?? 'error';
-    // const runningNbs          = data.running_notebooks?.notebooks    ?? [];
-    // const pvcStatus           = data.pvc?.status                     ?? 'error';
-    // const pvcGroups           = data.pvc?.groups                     ?? [];
-    // const mlflowExpRunsStatus = data.mlflow_experiment_runs?.status  ?? 'error';
-    // const mlflowExpRuns       = data.mlflow_experiment_runs?.experiments ?? [];
+    const isAdminView     = data.is_admin_view     ?? true;
+    const currentNs       = data.namespace         ?? '';
+
+    const ray             = data.ray              || {};
+    const rayStatus       = ray.status            ?? 'error';
+    const automl          = data.automl           || {};
+    const automlError     = automl.error          ?? true;
+    const automlJobs      = automl.jobs           || [];
+    const kserve          = data.kserve           || {};
+    const kserveError     = kserve.error          ?? true;
+    const kserveEndpoints = kserve.endpoints      || [];
+    const mlflowStats         = data.mlflow                          || { status: 'error', experiments: null, models: null, runs: null };
+    const mlflowModelsStatus  = data.mlflow_models?.status           ?? 'error';
+    const mlflowModels        = data.mlflow_models?.models           ?? [];
+    const notebookStatus      = data.notebook_resources?.status      ?? 'error';
+    const notebookRows        = data.notebook_resources?.rows        ?? [];
+    const runningNbStatus     = data.running_notebooks?.status       ?? 'error';
+    const runningNbs          = data.running_notebooks?.notebooks    ?? [];
+    const pvcStatus           = data.pvc?.status                     ?? 'error';
+    const pvcGroups           = data.pvc?.groups                     ?? [];
+    const mlflowExpRunsStatus = data.mlflow_experiment_runs?.status  ?? 'error';
+    const mlflowExpRuns       = data.mlflow_experiment_runs?.experiments ?? [];
 
     // ── MOCK (테스트용: 위 해당 라인 주석 처리 후 아래 해제) ──────────────────
-    const gpuUtil    = 75;     const gpuMemUsed  = 18.4; const gpuMemTotal = 24;
-    const gpuMemPct  = 76.7;   const gpuTemp     = 68;   const gpuPower    = 180;
-    const cpuCores   = 8;      const cpuTotal    = 16;   const cpuPct      = 42;
-    const memUsedGb  = 28.5;   const memTotalGb  = 64;   const memPct      = 44.5;
-    const ray             = MOCK.ray;
-    const rayStatus       = 'ok';
-    const automlError     = false;
-    const automlJobs      = MOCK.automl;
-    const kserveError     = false;
-    const kserveEndpoints = MOCK.kserve;
-    const mlflowStats         = MOCK.mlflowStats;
-    const mlflowModelsStatus  = 'ok';
-    const mlflowModels        = MOCK.mlflowModels        ?? [];
-    const notebookStatus      = 'ok';
-    const notebookRows        = MOCK.jupyterResources    ?? [];
-    const runningNbStatus     = 'ok';
-    const runningNbs          = MOCK.jupyterNotebooks    ?? [];
-    const pvcStatus           = 'ok';
-    const pvcGroups           = MOCK.pvcByUser           ?? [];
-    const mlflowExpRunsStatus = 'ok';
-    const mlflowExpRuns       = MOCK.mlflowExperiments   ?? [];
+    // const gpuUtil    = 75;     const gpuMemUsed  = 18.4; const gpuMemTotal = 24;
+    // const gpuMemPct  = 76.7;   const gpuTemp     = 68;   const gpuPower    = 180;
+    // const cpuCores   = 8;      const cpuTotal    = 16;   const cpuPct      = 42;
+    // const memUsedGb  = 28.5;   const memTotalGb  = 64;   const memPct      = 44.5;
+    // const ray             = MOCK.ray;
+    // const rayStatus       = 'ok';
+    // const automlError     = false;
+    // const automlJobs      = MOCK.automl;
+    // const kserveError     = false;
+    // const kserveEndpoints = MOCK.kserve;
+    // const mlflowStats         = MOCK.mlflowStats;
+    // const mlflowModelsStatus  = 'ok';
+    // const mlflowModels        = MOCK.mlflowModels        ?? [];
+    // const notebookStatus      = 'ok';
+    // const notebookRows        = MOCK.jupyterResources    ?? [];
+    // const runningNbStatus     = 'ok';
+    // const runningNbs          = MOCK.jupyterNotebooks    ?? [];
+    // const pvcStatus           = 'ok';
+    // const pvcGroups           = MOCK.pvcByUser           ?? [];
+    // const mlflowExpRunsStatus = 'ok';
+    // const mlflowExpRuns       = MOCK.mlflowExperiments   ?? [];
 
     const timeAgo = (dateStr) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -181,22 +184,24 @@ async function renderMonitoring() {
                         <div style="font-size:10px; color:var(--text-muted);">기준 75° / 85°</div>
                     </div>`;
                 })()}
-                <div style="background:#f3f4f6; border-radius:8px; padding:14px 16px; text-align:center;">
-                    <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">전력</div>
-                    <div style="font-size:26px; font-weight:700; font-family:var(--font-mono); color:#111827;">${gpuPower !== null ? gpuPower + ' W' : '-'}</div>
+                <div style="background:#f3f4f6; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; align-items:center;">
+                    <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px;">전력</div>
+                    <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+                        <div style="font-size:26px; font-weight:700; font-family:var(--font-mono); color:#111827;">${gpuPower !== null ? gpuPower + ' W' : '-'}</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="pm-monitor-card pm-fixed-card" style="margin-bottom:16px;">
-        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 노트북 자원 사용량 (CPU cores / Memory GB)</div>
+        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">${isAdminView ? '사용자별 노트북 자원 사용량' : '노트북 자원 사용량'} (CPU cores / Memory GB)</div>
         <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
         <table class="pm-table">
             <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                 <tr>
                     <th>Time</th>
-                    <th>Namespace</th>
+                    ${isAdminView ? '<th>Namespace</th>' : ''}
                     <th>Pod</th>
                     <th style="text-align:right;">Value #A (CPU cores)</th>
                     <th style="text-align:right;">Value #B (Memory GB)</th>
@@ -204,13 +209,13 @@ async function renderMonitoring() {
             </thead>
             <tbody>
                 ${notebookStatus === 'error'
-                    ? noConnTd(5)
+                    ? noConnTd(isAdminView ? 5 : 4)
                     : notebookStatus === 'empty' || notebookRows.length === 0
-                        ? noDataTd(5)
+                        ? noDataTd(isAdminView ? 5 : 4)
                         : notebookRows.map(r => `
                 <tr>
                     <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);">${esc(r.time)}</td>
-                    <td style="font-size:13px;">${esc(r.ns)}</td>
+                    ${isAdminView ? `<td style="font-size:13px;">${esc(r.ns)}</td>` : ''}
                     <td style="font-size:12px; font-family:var(--font-mono);">${esc(r.pod)}</td>
                     <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.cpu))}</td>
                     <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.mem))}</td>
@@ -223,68 +228,101 @@ async function renderMonitoring() {
 
     <div class="pm-monitor-2col" style="margin-bottom:16px;">
     <div class="pm-monitor-card pm-fixed-card">
-        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">PVC 할당 용량 (GB) - 사용자별</div>
-        <div style="flex:1; min-height:0; overflow-y:auto; padding-right:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div id="pvc-table-title" class="pm-section-title" style="font-size:16px; margin-bottom:0;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}</div>
+            ${isAdminView ? `
+            <div style="display:flex; gap:4px;">
+                <button id="pvc-left-tab-all"  style="padding:4px 10px; border-radius:6px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;">전체</button>
+                <button id="pvc-left-tab-mine" style="padding:4px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; color:#6b7280; font-size:11px; font-weight:600; cursor:pointer;">내 PVC</button>
+            </div>` : ''}
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px; position:relative;">
         ${(() => {
-            if (pvcStatus === 'error') {
-                return noConnDiv;
-            }
-            if (pvcStatus === 'empty' || pvcGroups.length === 0) {
-                return noDataDiv;
-            }
-            return pvcGroups.map(group => {
-                const maxGb = Math.max(...group.pvcs.map(p => p.allocated_gb), 1);
-                const rows = group.pvcs.map(p => {
-                    const pct = Math.round(p.allocated_gb / maxGb * 100);
-                    return `
-                    <div style="display:flex; align-items:center; gap:12px; padding:6px 0; border-bottom:1px solid #f3f4f6;">
-                        <div style="flex:0 0 200px; font-size:12px; font-family:var(--font-mono); color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${esc(p.name)}">${esc(p.name)}</div>
-                        <div style="flex:1; position:relative; background:#f3f4f6; height:10px; border-radius:5px; overflow:hidden;">
-                            <div style="position:absolute; left:0; top:0; height:100%; width:${pct}%; background:#3b82f6; border-radius:5px; transition:width 0.4s;"></div>
-                        </div>
-                        <div style="flex:0 0 80px; font-size:12px; font-family:var(--font-mono); color:#6b7280; text-align:right;">${p.allocated_gb.toFixed(1)} GB</div>
-                    </div>`;
-                }).join('');
-                return `
-                <div style="margin-bottom:16px;">
-                    <div style="margin-bottom:6px;">
-                        <span style="font-size:13px; font-weight:600; color:#111827;">${esc(group.ns)}</span>
-                    </div>
-                    ${rows}
-                </div>`;
+            if (pvcStatus === 'error') return noConnDiv;
+            if (pvcStatus === 'empty' || pvcGroups.length === 0) return noDataDiv;
+
+            const phaseColors = { Bound: '#3b82f6', Pending: '#f59e0b', Lost: '#ef4444' };
+            const phaseIcons  = { Bound: '●', Pending: '⚠', Lost: '✕' };
+
+            const adminRows = pvcGroups.map(g => {
+                const pc = g.phase_counts || {};
+                const badges = [
+                    pc.Bound   > 0 ? `<span style="color:#3b82f6; font-weight:600; margin-right:6px;">● ${pc.Bound}</span>`   : '',
+                    pc.Pending > 0 ? `<span style="color:#f59e0b; font-weight:600; margin-right:6px;">⚠ ${pc.Pending}</span>` : '',
+                    pc.Lost    > 0 ? `<span style="color:#ef4444; font-weight:600;">✕ ${pc.Lost}</span>`                      : '',
+                ].filter(Boolean).join('');
+                return `<tr>
+                    <td style="font-size:13px;">${esc(g.ns)}</td>
+                    <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${g.pvcs.length}</td>
+                    <td style="text-align:right; font-family:var(--font-mono);">${g.total_gb?.toFixed(1) ?? '-'} GB</td>
+                    <td>${badges || '<span style="color:#d1d5db;">-</span>'}</td>
+                </tr>`;
             }).join('');
+
+            const myGroup   = pvcGroups.find(g => g.ns === currentNs);
+            const myPvcs    = myGroup?.pvcs ?? [];
+            const mineRows  = myPvcs.map(p => {
+                const color = phaseColors[p.phase] || '#9ca3af';
+                const icon  = phaseIcons[p.phase]  || '?';
+                return `<tr>
+                    <td style="font-size:12px; font-family:var(--font-mono);" title="${esc(p.name)}">${esc(p.name)}</td>
+                    <td style="text-align:right; font-family:var(--font-mono);">${p.allocated_gb.toFixed(1)} GB</td>
+                    <td><span style="color:${color}; font-weight:600;">${icon} ${esc(p.phase)}</span></td>
+                </tr>`;
+            }).join('');
+
+            if (isAdminView) {
+                return `
+                <div id="pvc-view-all">
+                    <table class="pm-table">
+                        <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                            <tr><th>Namespace</th><th style="text-align:right;">PVC 수</th><th style="text-align:right;">총 용량</th><th>상태</th></tr>
+                        </thead>
+                        <tbody>${adminRows}</tbody>
+                    </table>
+                </div>
+                <div id="pvc-view-mine" style="display:none;">
+                    <table class="pm-table">
+                        <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                            <tr><th>PVC 이름</th><th style="text-align:right;">용량</th><th>상태</th></tr>
+                        </thead>
+                        <tbody>${mineRows || noDataTd(3)}</tbody>
+                    </table>
+                </div>`;
+            } else {
+                const pvcs = pvcGroups.flatMap(g => g.pvcs);
+                if (pvcs.length === 0) return noDataDiv;
+                const userRows = pvcs.map(p => {
+                    const color = phaseColors[p.phase] || '#9ca3af';
+                    const icon  = phaseIcons[p.phase]  || '?';
+                    return `<tr>
+                        <td style="font-size:12px; font-family:var(--font-mono);" title="${esc(p.name)}">${esc(p.name)}</td>
+                        <td style="text-align:right; font-family:var(--font-mono);">${p.allocated_gb.toFixed(1)} GB</td>
+                        <td><span style="color:${color}; font-weight:600;">${icon} ${esc(p.phase)}</span></td>
+                    </tr>`;
+                }).join('');
+                return `<table class="pm-table">
+                    <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                        <tr><th>PVC 이름</th><th style="text-align:right;">용량</th><th>상태</th></tr>
+                    </thead>
+                    <tbody>${userRows}</tbody>
+                </table>`;
+            }
         })()}
         </div>
     </div>
     <div class="pm-monitor-card pm-fixed-card">
-        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">사용자별 PVC 개수</div>
-        <div style="flex:1; min-height:0; overflow-y:auto; padding-right:8px;">
-        ${(() => {
-            if (pvcStatus === 'error') {
-                return noConnDiv;
+        <div style="margin-bottom:16px;">
+            <div class="pm-section-title" id="pvc-chart-title" style="font-size:16px; margin-bottom:0;">${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
+        </div>
+        <div style="flex:1; display:flex; align-items:center; justify-content:flex-start; position:relative; padding-left:50px;">
+            ${pvcStatus === 'ok' && pvcGroups.length > 0
+                ? `<div style="display:flex; align-items:center; gap:50px;">
+                       <canvas id="chart-pvc-donut" width="220" height="220"></canvas>
+                       <div id="chart-pvc-legend" style="font-size:12px; color:#6b7280; line-height:2;"></div>
+                   </div>`
+                : noDataDiv
             }
-            if (pvcStatus === 'empty' || pvcGroups.length === 0) {
-                return noDataDiv;
-            }
-            const counts = pvcGroups.map(g => ({ ns: g.ns, count: g.pvcs.length }));
-            const max = Math.max(...counts.map(d => d.count));
-            return counts.map(d => {
-                const cells = Array.from({ length: max }, (_, i) => {
-                    const filled = i < d.count;
-                    return `<div style="flex:1; height:22px; border-radius:3px; background:${filled ? '#3b82f6' : '#dbeafe'};"></div>`;
-                }).join('');
-                return `
-                <div style="margin-bottom:10px;">
-                    <div style="margin-bottom:1px;">
-                        <span style="font-size:12px; color:#374151;">${esc(d.ns)}</span>
-                    </div>
-                    <div style="display:flex; gap:3px; align-items:center;">
-                        ${cells}
-                        <span style="font-size:18px; font-weight:700; color:#3b82f6; font-family:var(--font-mono); min-width:28px; text-align:right; margin-left:6px;">${d.count}</span>
-                    </div>
-                </div>`;
-            }).join('');
-        })()}
         </div>
     </div>
     </div>
@@ -347,22 +385,22 @@ async function renderMonitoring() {
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table" style="table-layout:fixed; width:100%;">
                 <colgroup>
-                    <col style="width:30%">
-                    <col style="width:20%">
+                    ${isAdminView ? '<col style="width:30%">' : ''}
+                    <col style="width:${isAdminView ? '20%' : '35%'}">
                     <col style="width:15%">
-                    <col style="width:35%">
+                    <col style="width:${isAdminView ? '35%' : '50%'}">
                 </colgroup>
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                    <tr><th>사용자</th><th>owner_name</th><th>상태</th><th>Pod 이름</th></tr>
+                    <tr>${isAdminView ? '<th>사용자</th>' : ''}<th>owner_name</th><th>상태</th><th>Pod 이름</th></tr>
                 </thead>
                 <tbody>
                     ${runningNbStatus === 'error'
-                        ? noConnTd(4)
+                        ? noConnTd(isAdminView ? 4 : 3)
                         : runningNbStatus === 'empty' || runningNbs.length === 0
-                            ? noDataTd(4)
+                            ? noDataTd(isAdminView ? 4 : 3)
                             : runningNbs.map(n => `
                         <tr>
-                            <td style="font-size:12px; font-family:var(--font-mono);"><span data-tip="${esc(n.namespace)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.namespace)}</span></td>
+                            ${isAdminView ? `<td style="font-size:12px; font-family:var(--font-mono);"><span data-tip="${esc(n.namespace)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.namespace)}</span></td>` : ''}
                             <td style="font-size:13px; font-weight:500;"><span data-tip="${esc(n.owner_name)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.owner_name)}</span></td>
                             <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:#d4edda; color:#155724;">Running</span></td>
                             <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);"><span data-tip="${esc(n.pod)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.pod)}</span></td>
@@ -497,18 +535,18 @@ async function renderMonitoring() {
 
 async function setupMonitoringPage() {
     //── API 데이터 ── 테스트 시 아래 MOCK 섹션과 교체 ──────────────────
-    // const gpuTrend          = _monitoringData?.gpu_trend            || {};
-    // const kserveRps         = _monitoringData?.kserve_rps           || { status: 'error', series: [] };
-    // const kserveLatency     = _monitoringData?.kserve_latency_p95   || { status: 'error', series: [] };
-    // const kserveErrorRate   = _monitoringData?.kserve_error_rate    || { status: 'error', models: [] };
-    // const kserveTop5Latency = _monitoringData?.kserve_top5_latency  || { status: 'error', models: [] };
+    const gpuTrend          = _monitoringData?.gpu_trend            || {};
+    const kserveRps         = _monitoringData?.kserve_rps           || { status: 'error', series: [] };
+    const kserveLatency     = _monitoringData?.kserve_latency_p95   || { status: 'error', series: [] };
+    const kserveErrorRate   = _monitoringData?.kserve_error_rate    || { status: 'error', models: [] };
+    const kserveTop5Latency = _monitoringData?.kserve_top5_latency  || { status: 'error', models: [] };
 
     // ── MOCK (테스트용: 위 해당 라인 주석 처리 후 아래 해제) ──────────────────
-    const gpuTrend          = MOCK.gpuTrend;
-    const kserveRps         = MOCK.kserveRps;
-    const kserveLatency     = MOCK.kserveLatency;
-    const kserveErrorRate   = MOCK.kserveErrorRate;
-    const kserveTop5Latency = MOCK.kserveTop5Latency;
+    // const gpuTrend          = MOCK.gpuTrend;
+    // const kserveRps         = MOCK.kserveRps;
+    // const kserveLatency     = MOCK.kserveLatency;
+    // const kserveErrorRate   = MOCK.kserveErrorRate;
+    // const kserveTop5Latency = MOCK.kserveTop5Latency;
 
     let tooltip = document.getElementById('pm-tooltip');
     if (!tooltip) {
@@ -866,5 +904,143 @@ async function setupMonitoringPage() {
                 },
             },
         });
+    }
+
+    const pvcDonutEl = document.getElementById('chart-pvc-donut');
+    if (pvcDonutEl) {
+        const isAdminView = _monitoringData?.is_admin_view ?? false;
+        const pvcGroups   = _monitoringData?.pvc?.groups   ?? [];
+
+        const CHART_COLORS  = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+        const PHASE_COLORS  = { Bound: '#3b82f6', Pending: '#f59e0b', Lost: '#ef4444' };
+        const ALL_PHASES    = ['Bound', 'Pending', 'Lost'];
+
+        const phaseTotals = pvcGroups.reduce(
+            (acc, g) => {
+                acc.Bound   += g.phase_counts?.Bound   ?? 0;
+                acc.Pending += g.phase_counts?.Pending ?? 0;
+                acc.Lost    += g.phase_counts?.Lost    ?? 0;
+                return acc;
+            },
+            { Bound: 0, Pending: 0, Lost: 0 }
+        );
+        const statusLabels  = ALL_PHASES.filter(k => phaseTotals[k] > 0);
+        const statusValues  = statusLabels.map(k => phaseTotals[k]);
+        const statusColors  = statusLabels.map(k => PHASE_COLORS[k]);
+
+        const storageLabels = pvcGroups.map(g => g.ns);
+        const storageValues = pvcGroups.map(g => g.total_gb ?? 0);
+        const storageColors = CHART_COLORS.slice(0, storageLabels.length);
+
+        const initialLabels = isAdminView ? storageLabels : statusLabels;
+        const initialValues = isAdminView ? storageValues : statusValues;
+        const initialColors = isAdminView ? storageColors : statusColors;
+
+        if (!initialValues.length || initialValues.every(v => v === 0)) return;
+
+        const chart = new Chart(pvcDonutEl, {
+            type: 'doughnut',
+            data: {
+                labels: initialLabels,
+                datasets: [{ data: initialValues, backgroundColor: initialColors, borderWidth: 0 }],
+            },
+            options: {
+                responsive: false,
+                cutout: '60%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` ${ctx.label}: ${ctx.parsed + '개'}`,
+                        },
+                    },
+                },
+            },
+        });
+
+        const legendEl = document.getElementById('chart-pvc-legend');
+        legendEl.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; padding:4px 12px; min-width:140px;';
+
+        const myNs          = _monitoringData?.namespace ?? '';
+        const myGroup       = pvcGroups.find(g => g.ns === myNs);
+        const myPhaseTotals = {
+            Bound:   myGroup?.phase_counts?.Bound   ?? 0,
+            Pending: myGroup?.phase_counts?.Pending ?? 0,
+            Lost:    myGroup?.phase_counts?.Lost    ?? 0,
+        };
+        const myStatusLabels = ALL_PHASES.filter(k => myPhaseTotals[k] > 0);
+        const myStatusValues = myStatusLabels.map(k => myPhaseTotals[k]);
+        const myStatusColors = myStatusLabels.map(k => PHASE_COLORS[k]);
+
+        const renderLegend = (tab, totals) => {
+            const isStorage = tab === 'storage';
+            const labels = isStorage ? storageLabels : (totals === myPhaseTotals ? myStatusLabels : statusLabels);
+            const values = isStorage ? storageValues : (totals === myPhaseTotals ? myStatusValues : statusValues);
+            const colors = isStorage ? storageColors : (totals === myPhaseTotals ? myStatusColors : statusColors);
+            const total  = values.reduce((s, v) => s + v, 0);
+            const activeTotals = totals ?? phaseTotals;
+
+            const items = isStorage
+                ? labels.map((l, i) => ({ label: l, value: values[i], color: colors[i], empty: false }))
+                : ALL_PHASES.map(p => ({
+                    label: p,
+                    value: activeTotals[p],
+                    color: PHASE_COLORS[p],
+                    empty: activeTotals[p] === 0,
+                  }));
+
+            legendEl.innerHTML = items.map(item => {
+                const val = isStorage ? item.value.toFixed(1) + ' GB' : item.value + '개';
+                const pct = total > 0 ? Math.round(item.value / total * 100) : 0;
+                return `
+                <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #f3f4f6;">
+                    <div style="width:12px; height:12px; border-radius:3px; background:${item.color}; flex-shrink:0;"></div>
+                    <div style="flex:1;">
+                        <div style="font-size:13px; font-weight:600; color:#111827;">${esc(item.label)}</div>
+                        <div style="font-size:11px; color:#9ca3af;">${val}${!item.empty ? ' · ' + pct + '%' : ''}</div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            chart.options.plugins.tooltip.callbacks.label =
+                ctx => ` ${ctx.label}: ${isStorage ? ctx.parsed.toFixed(1) + ' GB' : ctx.parsed + '개'}`;
+        };
+
+        renderLegend(isAdminView ? 'storage' : 'status', phaseTotals);
+
+        if (isAdminView) {
+            const TAB_ON  = 'padding:4px 10px; border-radius:6px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;';
+            const TAB_OFF = 'padding:4px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; color:#6b7280; font-size:11px; font-weight:600; cursor:pointer;';
+
+            const btnAll   = document.getElementById('pvc-left-tab-all');
+            const btnMine  = document.getElementById('pvc-left-tab-mine');
+            const viewAll  = document.getElementById('pvc-view-all');
+            const viewMine = document.getElementById('pvc-view-mine');
+            const chartTitle = document.getElementById('pvc-chart-title');
+            const tableTitle = document.getElementById('pvc-table-title');
+
+            const switchMode = (mode) => {
+                const isMine    = mode === 'mine';
+                const newLabels = isMine ? myStatusLabels : storageLabels;
+                const newValues = isMine ? myStatusValues : storageValues;
+                const newColors = isMine ? myStatusColors : storageColors;
+
+                viewAll.style.display  = isMine ? 'none' : '';
+                viewMine.style.display = isMine ? ''     : 'none';
+                btnAll.style.cssText   = isMine ? TAB_OFF : TAB_ON;
+                btnMine.style.cssText  = isMine ? TAB_ON  : TAB_OFF;
+                if (chartTitle) chartTitle.textContent = isMine ? 'PVC 상태' : '용량 점유율';
+                if (tableTitle) tableTitle.textContent = isMine ? 'PVC 현황' : '사용자별 PVC 현황';
+
+                chart.data.labels = newLabels;
+                chart.data.datasets[0].data = newValues;
+                chart.data.datasets[0].backgroundColor = newColors;
+                chart.update();
+                renderLegend(isMine ? 'status' : 'storage', isMine ? myPhaseTotals : phaseTotals);
+            };
+
+            btnAll?.addEventListener('click',  () => switchMode('all'));
+            btnMine?.addEventListener('click', () => switchMode('mine'));
+        }
     }
 }

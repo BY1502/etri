@@ -105,7 +105,7 @@ async def _query_range_multi(promql: str, start: float, end: float, step: str) -
         return [], "error"
 
 
-async def get_notebook_resources() -> dict:
+async def get_notebook_resources(namespace: str | None = None) -> dict:
     (cpu_results, cpu_st), (mem_results, mem_st) = await asyncio.gather(
         _query_multi(
             'sum by (namespace, pod) ('
@@ -148,6 +148,8 @@ async def get_notebook_resources() -> dict:
         })
 
     rows.sort(key=lambda x: (x["ns"], x["pod"]))
+    if namespace:
+        rows = [r for r in rows if r["ns"] == namespace]
     return {"status": "ok", "rows": rows}
 
 
@@ -411,7 +413,7 @@ async def get_ray_status(namespace: str) -> dict:
     }
 
 
-async def get_running_notebooks() -> dict:
+async def get_running_notebooks(namespace: str | None = None) -> dict:
     rows, status = await _query_multi(
         'kube_pod_status_phase{namespace=~"kubeflow-.*",phase="Running"}'
         ' * on(namespace,pod) group_left(owner_name)'
@@ -432,31 +434,59 @@ async def get_running_notebooks() -> dict:
         for r in rows
     ]
     notebooks.sort(key=lambda x: (x["namespace"], x["pod"]))
+    if namespace:
+        notebooks = [n for n in notebooks if n["namespace"] == namespace]
     return {"status": "ok", "notebooks": notebooks}
 
 
-async def get_pvc_storage() -> dict:
-    rows, status = await _query_multi(
-        'kube_persistentvolumeclaim_resource_requests_storage_bytes'
-        '{namespace=~"kubeflow-.*"} / 1024 / 1024 / 1024'
+async def get_pvc_storage(namespace: str | None = None) -> dict:
+    ns_filter = f'namespace="{namespace}"' if namespace else 'namespace=~"kubeflow-.*"'
+
+    (cap_rows, cap_st), (phase_rows, _) = await asyncio.gather(
+        _query_multi(
+            f'kube_persistentvolumeclaim_resource_requests_storage_bytes'
+            f'{{{ns_filter}}} / 1024 / 1024 / 1024'
+        ),
+        _query_multi(f'kube_persistentvolumeclaim_status_phase{{{ns_filter}}}'),
     )
 
-    if status == "error":
+    if cap_st == "error":
         return {"status": "error", "groups": []}
-    if status == "empty":
+    if cap_st == "empty":
         return {"status": "empty", "groups": []}
+
+    phase_map = {}
+    for r in phase_rows:
+        if round(r["value"]) == 1:
+            ns = r["labels"].get("namespace", "")
+            pvc = r["labels"].get("persistentvolumeclaim", "")
+            phase_map[(ns, pvc)] = r["labels"].get("phase", "Unknown")
 
     from collections import defaultdict
     ns_map = defaultdict(list)
-    for r in rows:
+    for r in cap_rows:
         ns = r["labels"].get("namespace", "")
         pvc = r["labels"].get("persistentvolumeclaim", "")
-        ns_map[ns].append({"name": pvc, "allocated_gb": round(r["value"], 2)})
+        ns_map[ns].append({
+            "name": pvc,
+            "allocated_gb": round(r["value"], 2),
+            "phase": phase_map.get((ns, pvc), "Unknown"),
+        })
 
-    groups = [
-        {"ns": ns, "pvcs": sorted(pvcs, key=lambda p: p["name"])}
-        for ns, pvcs in sorted(ns_map.items())
-    ]
+    groups = []
+    for ns, pvcs in sorted(ns_map.items()):
+        pvcs_sorted = sorted(pvcs, key=lambda p: p["name"])
+        total_gb = round(sum(p["allocated_gb"] for p in pvcs_sorted), 2)
+        phase_counts = {"Bound": 0, "Pending": 0, "Lost": 0}
+        for p in pvcs_sorted:
+            if p["phase"] in phase_counts:
+                phase_counts[p["phase"]] += 1
+        groups.append({
+            "ns": ns,
+            "pvcs": pvcs_sorted,
+            "total_gb": total_gb,
+            "phase_counts": phase_counts,
+        })
     return {"status": "ok", "groups": groups}
 
 
