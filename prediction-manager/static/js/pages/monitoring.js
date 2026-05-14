@@ -50,6 +50,7 @@ async function renderMonitoring() {
 
     const isAdminView     = data.is_admin_view     ?? true;
     const currentNs       = data.namespace         ?? '';
+    const currentEmail    = data.user_email        ?? '';
 
     const ray             = data.ray              || {};
     const rayStatus       = ray.status            ?? 'error';
@@ -120,11 +121,12 @@ async function renderMonitoring() {
     const noConnDiv = `<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; color:#ef4444; letter-spacing:0.5px; white-space:nowrap;">No connection</div>`;
     const noDataDiv = `<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; color:#d1d5db; letter-spacing:0.5px; white-space:nowrap;">No data</div>`;
 
-    const automlRows = automlJobs.map(j => `
+    const automlDisplayJobs = isAdminView ? automlJobs : automlJobs.filter(j => j.submitted_by === currentEmail);
+    const automlRows = automlDisplayJobs.map(j => `
         <tr>
             <td>
                 <div style="font-size:14px; font-weight:500;">${esc(j.name)}</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${esc(j.submitted_by)}</div>
+                ${isAdminView ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${esc(j.submitted_by)}</div>` : ''}
             </td>
             <td>${statusBadge(j.status)}</td>
             <td>
@@ -133,10 +135,11 @@ async function renderMonitoring() {
             </td>
         </tr>`).join('');
 
-    const kserveRows = kserveEndpoints.map(e => `
+    const kserveDisplayEndpoints = isAdminView ? kserveEndpoints : kserveEndpoints.filter(e => e.namespace === currentNs);
+    const kserveRows = kserveDisplayEndpoints.map(e => `
         <tr>
             <td style="font-size:14px; font-weight:500;">${esc(e.name)}</td>
-            <td style="font-size:13px; color:var(--text-muted); font-family:var(--font-mono);">${esc(e.namespace)}</td>
+            ${isAdminView ? `<td style="font-size:13px; color:var(--text-muted); font-family:var(--font-mono);">${esc(e.namespace)}</td>` : ''}
             <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:${e.ready ? '#d4edda' : '#f8d7da'}; color:${e.ready ? '#155724' : '#721c24'};">${e.ready ? 'Ready' : 'Not Ready'}</span></td>
         </tr>`).join('');
 
@@ -353,10 +356,10 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
-                    { label: '전체',  value: automlError ? '-' : automlJobs.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: '실행중', value: automlError ? '-' : automlJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
-                    { label: '성공',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
-                    { label: '실패',  value: automlError ? '-' : automlJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
+                    { label: '전체',  value: automlError ? '-' : automlDisplayJobs.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: '실행중', value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
+                    { label: '성공',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
+                    { label: '실패',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
                         <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
@@ -365,11 +368,11 @@ async function renderMonitoring() {
             </div>
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
-                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름 / 제출자</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>${isAdminView ? '이름 / 제출자' : '이름'}</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
                 <tbody>${
                     automlError
                         ? noConnTd(3)
-                        : automlJobs.length === 0
+                        : automlDisplayJobs.length === 0
                             ? noDataTd(3)
                             : automlRows
                 }</tbody>
@@ -415,9 +418,9 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
-                    { label: '전체',     value: kserveError ? '-' : kserveEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: 'Ready',   value: kserveError ? '-' : kserveEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
-                    { label: 'Not Ready', value: kserveError ? '-' : kserveEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
+                    { label: '전체',     value: kserveError ? '-' : kserveDisplayEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { label: 'Ready',   value: kserveError ? '-' : kserveDisplayEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
+                    { label: 'Not Ready', value: kserveError ? '-' : kserveDisplayEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
                         <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
@@ -426,12 +429,12 @@ async function renderMonitoring() {
             </div>
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
-                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름</th><th>Namespace</th><th>상태</th></tr></thead>
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름</th>${isAdminView ? '<th>Namespace</th>' : ''}<th>상태</th></tr></thead>
                 <tbody>${
                     kserveError
-                        ? noConnTd(3)
-                        : kserveEndpoints.length === 0
-                            ? noDataTd(3)
+                        ? noConnTd(isAdminView ? 3 : 2)
+                        : kserveDisplayEndpoints.length === 0
+                            ? noDataTd(isAdminView ? 3 : 2)
                             : kserveRows
                 }</tbody>
             </table>

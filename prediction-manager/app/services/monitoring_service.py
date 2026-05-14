@@ -340,7 +340,31 @@ def get_automl_jobs(namespace: str | None = None, is_admin: bool = False) -> dic
         return {"error": True, "jobs": []}
 
 
-async def get_mlflow_stats() -> dict:
+async def get_mlflow_stats(namespace: str | None = None) -> dict:
+    if namespace:
+        from app.services.tenant_resources import mlflow_tracking_uri
+        base = mlflow_tracking_uri(namespace)
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r_exp, r_model = await asyncio.gather(
+                    client.get(f"{base}/api/2.0/mlflow/experiments/search", params={"max_results": 1000}),
+                    client.get(f"{base}/api/2.0/mlflow/registered-models/search", params={"max_results": 1000}),
+                )
+            experiments = [e for e in r_exp.json().get("experiments", []) if e.get("lifecycle_stage") == "active"]
+            models = r_model.json().get("registered_models", [])
+            exp_ids = [e["experiment_id"] for e in experiments]
+            runs = 0
+            if exp_ids:
+                async with httpx.AsyncClient(timeout=15) as client:
+                    r_runs = await client.post(
+                        f"{base}/api/2.0/mlflow/runs/search",
+                        json={"experiment_ids": exp_ids, "max_results": 50000},
+                    )
+                runs = len(r_runs.json().get("runs", []))
+            return {"status": "ok", "experiments": len(experiments), "models": len(models), "runs": runs}
+        except Exception:
+            return {"status": "error", "experiments": None, "models": None, "runs": None}
+
     experiments, models, runs = await asyncio.gather(
         _query("max(mlflow_experiments_total)"),
         _query("max(mlflow_registered_models_total)"),
@@ -355,7 +379,36 @@ async def get_mlflow_stats() -> dict:
     }
 
 
-async def get_mlflow_experiment_runs() -> dict:
+async def get_mlflow_experiment_runs(namespace: str | None = None) -> dict:
+    if namespace:
+        from app.services.tenant_resources import mlflow_tracking_uri
+        base = mlflow_tracking_uri(namespace)
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(f"{base}/api/2.0/mlflow/experiments/search", params={"max_results": 1000})
+            exps = [e for e in r.json().get("experiments", []) if e.get("lifecycle_stage") == "active"]
+            if not exps:
+                return {"status": "empty", "experiments": []}
+            exp_ids = [e["experiment_id"] for e in exps]
+            exp_name_map = {e["experiment_id"]: e["name"] for e in exps}
+            async with httpx.AsyncClient(timeout=15) as client:
+                r_runs = await client.post(
+                    f"{base}/api/2.0/mlflow/runs/search",
+                    json={"experiment_ids": exp_ids, "max_results": 50000},
+                )
+            run_counts: dict[str, int] = {e["experiment_id"]: 0 for e in exps}
+            for run in r_runs.json().get("runs", []):
+                eid = run.get("info", {}).get("experiment_id")
+                if eid in run_counts:
+                    run_counts[eid] += 1
+            experiments = sorted(
+                [{"name": exp_name_map[eid], "runs": cnt} for eid, cnt in run_counts.items()],
+                key=lambda e: -e["runs"],
+            )
+            return {"status": "ok", "experiments": experiments}
+        except Exception:
+            return {"status": "error", "experiments": []}
+
     rows, status = await _query_multi('max by (experiment_name) (mlflow_runs_total)')
 
     if status == "error":
@@ -370,7 +423,36 @@ async def get_mlflow_experiment_runs() -> dict:
     return {"status": "ok", "experiments": experiments}
 
 
-async def get_mlflow_model_versions() -> dict:
+async def get_mlflow_model_versions(namespace: str | None = None) -> dict:
+    if namespace:
+        from app.services.tenant_resources import mlflow_tracking_uri
+        base = mlflow_tracking_uri(namespace)
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(f"{base}/api/2.0/mlflow/registered-models/search", params={"max_results": 1000})
+            registered = r.json().get("registered_models", [])
+            if not registered:
+                return {"status": "empty", "models": []}
+            from collections import defaultdict
+            model_map: dict[str, dict] = defaultdict(lambda: {"versions": 0, "stage": "None"})
+            stage_priority = {"Production": 3, "Staging": 2, "Archived": 1, "None": 0}
+            for m in registered:
+                name = m.get("name", "")
+                versions = m.get("latest_versions", [])
+                model_map[name]["versions"] = len(versions)
+                for v in versions:
+                    stage = v.get("current_stage", "None")
+                    cur = model_map[name]["stage"]
+                    if stage_priority.get(stage, 0) > stage_priority.get(cur, 0):
+                        model_map[name]["stage"] = stage
+            models = sorted(
+                [{"name": n, "versions": v["versions"], "stage": v["stage"]} for n, v in model_map.items()],
+                key=lambda m: (-m["versions"], m["name"]),
+            )
+            return {"status": "ok", "models": models}
+        except Exception:
+            return {"status": "error", "models": []}
+
     rows, status = await _query_multi(
         'sum by (name, current_stage) (mlflow_registered_model_versions_total)'
     )

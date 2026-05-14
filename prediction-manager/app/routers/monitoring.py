@@ -1,6 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Request
-from app.auth import get_user_namespace, get_owner_namespace, is_admin
+from app.auth import get_user_namespace, get_owner_namespace, is_admin, get_user_email
 from app.services import monitoring_service
 
 router = APIRouter()
@@ -24,9 +24,9 @@ async def summary(request: Request, ns: str | None = None):
         monitoring_service.get_gpu_metrics(),
         monitoring_service.get_system_metrics(namespace),
         monitoring_service.get_ray_status(namespace),
-        monitoring_service.get_mlflow_stats(),
-        monitoring_service.get_mlflow_model_versions(),
-        monitoring_service.get_mlflow_experiment_runs(),
+        monitoring_service.get_mlflow_stats(namespace=filter_ns),
+        monitoring_service.get_mlflow_model_versions(namespace=filter_ns),
+        monitoring_service.get_mlflow_experiment_runs(namespace=filter_ns),
         monitoring_service.get_notebook_resources(namespace=filter_ns),
         monitoring_service.get_running_notebooks(namespace=filter_ns),
         monitoring_service.get_pvc_storage(namespace=filter_ns),
@@ -39,6 +39,7 @@ async def summary(request: Request, ns: str | None = None):
 
     return {
         "namespace": namespace,
+        "user_email": get_user_email(request),
         "is_admin": admin,
         "is_admin_view": is_admin_view,
         "gpu": gpu,

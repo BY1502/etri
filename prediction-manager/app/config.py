@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     app_title: str = "예측매니저"
     prometheus_url: str = ""
     mlflow_url: str = ""
+    mlflow_uri: str = ""
     automl_db_path: str = ""
     allow_unauthenticated: str = ""
     dev_user_email: str = ""
+    pm_tenant_resources_enabled: str = ""
 
     class Config:
         env_file = str(_ENV_FILE)
