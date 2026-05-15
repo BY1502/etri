@@ -76,6 +76,7 @@ async function renderMonitoring() {
     // MOCK 테스트 섹션 — 현재 모두 주석 처리 → 실제 API 데이터 사용 중
     // 활성화 시: 위 동일 변수 선언 라인을 주석 처리하고 아래 해제
     // ════════════════════════════════════════════════════════════════
+    // data.gpu_trend           = MOCK.gpuTrend;                              // GPU 사용 추이 차트
     // data.kserve              = { error: false, endpoints: MOCK.kserve };  // KServe 엔드포인트 주입 (setupMonitoringPage 차트에도 반영)
     // data.kserve_rps          = MOCK.kserveRps;
     // data.kserve_latency_p95  = MOCK.kserveLatency;
@@ -872,8 +873,10 @@ async function setupMonitoringPage() {
             }));
         };
 
-        if (gpuTrend.status === 'error') { chartPlaceholder('연결 오류'); return; }
-        if (gpuTrend.status === 'empty' || !gpuTrend.data?.length) { chartPlaceholder('데이터 없음'); return; }
+        if (gpuTrend.status === 'error') { chartPlaceholder('연결 오류'); }
+        else if (gpuTrend.status === 'empty' || !gpuTrend.data?.length) { chartPlaceholder('데이터 없음'); }
+        else {
+        console.log('[GPU Trend] status:', gpuTrend.status, '| points:', gpuTrend.data.length, '| non-zero:', gpuTrend.data.filter(([,v]) => v > 0));
         const trendPoints = gpuTrend.data.map(([ts, v]) => ({ x: ts, y: v }));
 
         new Chart(trendEl, {
@@ -900,8 +903,6 @@ async function setupMonitoringPage() {
                     x: {
                         type: 'time',
                         time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
-                        min: now - 60 * 60000,
-                        max: now,
                         grid: { color: '#f3f4f6' },
                         ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
                     },
@@ -913,6 +914,7 @@ async function setupMonitoringPage() {
                 },
             },
         });
+        } // else
     }
 
     const pvcDonutEl = document.getElementById('chart-pvc-donut');

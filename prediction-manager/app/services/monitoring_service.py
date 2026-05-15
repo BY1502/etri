@@ -167,7 +167,7 @@ async def get_gpu_trend(window_minutes: int = 60, step: str = "1m") -> dict:
     step_seconds = _parse_step_seconds(step)
     now = (int(time.time()) // step_seconds) * step_seconds
     data, status = await _query_range(
-        "avg(DCGM_FI_DEV_GPU_UTIL)",
+        f"max_over_time(avg(DCGM_FI_DEV_GPU_UTIL)[{step}:30s])",
         start=now - window_minutes * 60,
         end=now,
         step=step,
