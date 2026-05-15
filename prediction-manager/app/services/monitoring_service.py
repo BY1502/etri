@@ -175,10 +175,11 @@ async def get_gpu_trend(window_minutes: int = 60, step: str = "1m") -> dict:
     return {"status": status, "data": data}
 
 
-async def get_kserve_rps(window_minutes: int = 30, step: str = "1m") -> dict:
+async def get_kserve_rps(namespace: str | None = None, window_minutes: int = 30, step: str = "1m") -> dict:
     now = time.time()
+    ns_filter = f'{{namespace_name="{namespace}"}}' if namespace else ""
     series, status = await _query_range_multi(
-        "sum by (configuration_name, namespace_name) (rate(revision_request_count[5m]))",
+        f"sum by (configuration_name, namespace_name) (rate(revision_request_count{ns_filter}[5m]))",
         start=now - window_minutes * 60,
         end=now,
         step=step,
@@ -195,10 +196,11 @@ async def get_kserve_rps(window_minutes: int = 30, step: str = "1m") -> dict:
     return {"status": "ok", "series": result}
 
 
-async def get_kserve_top5_latency() -> dict:
+async def get_kserve_top5_latency(namespace: str | None = None) -> dict:
+    ns_filter = f'{{namespace_name="{namespace}"}}' if namespace else ""
     rows, status = await _query_multi(
-        "topk(5, histogram_quantile(0.95, sum by (configuration_name, namespace_name, le)"
-        " (rate(revision_app_request_latencies_bucket[5m]))))"
+        f"topk(5, histogram_quantile(0.95, sum by (configuration_name, namespace_name, le)"
+        f" (rate(revision_app_request_latencies_bucket{ns_filter}[5m]))))"
     )
     if status == "error":
         return {"status": "error", "models": []}
@@ -216,12 +218,13 @@ async def get_kserve_top5_latency() -> dict:
     return {"status": "ok", "models": models}
 
 
-async def get_kserve_error_rate() -> dict:
+async def get_kserve_error_rate(namespace: str | None = None) -> dict:
+    ns_filter = f',namespace_name="{namespace}"' if namespace else ""
     rows, status = await _query_multi(
-        'sum by (configuration_name, namespace_name)'
-        ' (rate(revision_request_count{response_code_class="5xx"}[5m]))'
-        ' / sum by (configuration_name, namespace_name)'
-        ' (rate(revision_request_count[5m])) * 100'
+        f'sum by (configuration_name, namespace_name)'
+        f' (rate(revision_request_count{{response_code_class="5xx"{ns_filter}}}[5m]))'
+        f' / sum by (configuration_name, namespace_name)'
+        f' (rate(revision_request_count{{{ns_filter.lstrip(",")}}}[5m])) * 100'
     )
     if status == "error":
         return {"status": "error", "models": []}
@@ -238,11 +241,12 @@ async def get_kserve_error_rate() -> dict:
     return {"status": "ok", "models": models}
 
 
-async def get_kserve_latency_p95(window_minutes: int = 30, step: str = "1m") -> dict:
+async def get_kserve_latency_p95(namespace: str | None = None, window_minutes: int = 30, step: str = "1m") -> dict:
     now = time.time()
+    ns_filter = f'{{namespace_name="{namespace}"}}' if namespace else ""
     series, status = await _query_range_multi(
-        "histogram_quantile(0.95, sum by (configuration_name, namespace_name, le)"
-        " (rate(revision_app_request_latencies_bucket[5m])))/1000",
+        f"histogram_quantile(0.95, sum by (configuration_name, namespace_name, le)"
+        f" (rate(revision_app_request_latencies_bucket{ns_filter}[5m])))/1000",
         start=now - window_minutes * 60,
         end=now,
         step=step,
@@ -572,13 +576,18 @@ async def get_pvc_storage(namespace: str | None = None) -> dict:
     return {"status": "ok", "groups": groups}
 
 
-def get_kserve_endpoints() -> dict:
+def get_kserve_endpoints(namespace: str | None = None) -> dict:
     try:
         from kubernetes import client as k8s_client
         custom = k8s_client.CustomObjectsApi()
-        result = custom.list_cluster_custom_object(
-            "serving.kserve.io", "v1beta1", "inferenceservices"
-        )
+        if namespace:
+            result = custom.list_namespaced_custom_object(
+                "serving.kserve.io", "v1beta1", namespace, "inferenceservices"
+            )
+        else:
+            result = custom.list_cluster_custom_object(
+                "serving.kserve.io", "v1beta1", "inferenceservices"
+            )
         endpoints = []
         for item in result.get("items", []):
             conditions = item.get("status", {}).get("conditions", [])

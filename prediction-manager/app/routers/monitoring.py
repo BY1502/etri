@@ -31,10 +31,10 @@ async def summary(request: Request, ns: str | None = None):
         monitoring_service.get_running_notebooks(namespace=filter_ns),
         monitoring_service.get_pvc_storage(namespace=filter_ns),
         monitoring_service.get_gpu_trend(window_minutes=60, step="1m"),
-        monitoring_service.get_kserve_rps(window_minutes=30, step="1m"),
-        monitoring_service.get_kserve_latency_p95(window_minutes=30, step="1m"),
-        monitoring_service.get_kserve_error_rate(),
-        monitoring_service.get_kserve_top5_latency(),
+        monitoring_service.get_kserve_rps(namespace=filter_ns, window_minutes=30, step="1m"),
+        monitoring_service.get_kserve_latency_p95(namespace=filter_ns, window_minutes=30, step="1m"),
+        monitoring_service.get_kserve_error_rate(namespace=filter_ns),
+        monitoring_service.get_kserve_top5_latency(namespace=filter_ns),
     )
 
     return {
@@ -54,7 +54,7 @@ async def summary(request: Request, ns: str | None = None):
             namespace=None if is_admin_view else namespace,
             is_admin=admin,
         ),
-        "kserve": monitoring_service.get_kserve_endpoints(),
+        "kserve": monitoring_service.get_kserve_endpoints(namespace=filter_ns),
         "mlflow": mlflow,
         "mlflow_models": mlflow_models,
         "mlflow_experiment_runs": mlflow_experiment_runs,

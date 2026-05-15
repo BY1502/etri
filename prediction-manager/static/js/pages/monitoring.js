@@ -72,28 +72,27 @@ async function renderMonitoring() {
     const mlflowExpRunsStatus = data.mlflow_experiment_runs?.status  ?? 'error';
     const mlflowExpRuns       = data.mlflow_experiment_runs?.experiments ?? [];
 
-    // ── MOCK (테스트용: 위 해당 라인 주석 처리 후 아래 해제) ──────────────────
+    // ════════════════════════════════════════════════════════════════
+    // MOCK 테스트 섹션 — 현재 모두 주석 처리 → 실제 API 데이터 사용 중
+    // 활성화 시: 위 동일 변수 선언 라인을 주석 처리하고 아래 해제
+    // ════════════════════════════════════════════════════════════════
+    // data.kserve              = { error: false, endpoints: MOCK.kserve };  // KServe 엔드포인트 주입 (setupMonitoringPage 차트에도 반영)
+    // data.kserve_rps          = MOCK.kserveRps;
+    // data.kserve_latency_p95  = MOCK.kserveLatency;
+    // data.kserve_error_rate   = MOCK.kserveErrorRate;
+    // data.kserve_top5_latency = MOCK.kserveTop5Latency;
     // const gpuUtil    = 75;     const gpuMemUsed  = 18.4; const gpuMemTotal = 24;
     // const gpuMemPct  = 76.7;   const gpuTemp     = 68;   const gpuPower    = 180;
     // const cpuCores   = 8;      const cpuTotal    = 16;   const cpuPct      = 42;
     // const memUsedGb  = 28.5;   const memTotalGb  = 64;   const memPct      = 44.5;
-    // const ray             = MOCK.ray;
-    // const rayStatus       = 'ok';
-    // const automlError     = false;
-    // const automlJobs      = MOCK.automl;
-    // const kserveError     = false;
-    // const kserveEndpoints = MOCK.kserve;
+    // const ray             = MOCK.ray;          const rayStatus       = 'ok';
+    // const automlError     = false;             const automlJobs      = MOCK.automl;
     // const mlflowStats         = MOCK.mlflowStats;
-    // const mlflowModelsStatus  = 'ok';
-    // const mlflowModels        = MOCK.mlflowModels        ?? [];
-    // const notebookStatus      = 'ok';
-    // const notebookRows        = MOCK.jupyterResources    ?? [];
-    // const runningNbStatus     = 'ok';
-    // const runningNbs          = MOCK.jupyterNotebooks    ?? [];
-    // const pvcStatus           = 'ok';
-    // const pvcGroups           = MOCK.pvcByUser           ?? [];
-    // const mlflowExpRunsStatus = 'ok';
-    // const mlflowExpRuns       = MOCK.mlflowExperiments   ?? [];
+    // const mlflowModelsStatus  = 'ok';          const mlflowModels        = MOCK.mlflowModels        ?? [];
+    // const notebookStatus      = 'ok';          const notebookRows        = MOCK.jupyterResources    ?? [];
+    // const runningNbStatus     = 'ok';          const runningNbs          = MOCK.jupyterNotebooks    ?? [];
+    // const pvcStatus           = 'ok';          const pvcGroups           = MOCK.pvcByUser           ?? [];
+    // const mlflowExpRunsStatus = 'ok';          const mlflowExpRuns       = MOCK.mlflowExperiments   ?? [];
 
     const timeAgo = (dateStr) => {
         const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -537,19 +536,26 @@ async function renderMonitoring() {
 }
 
 async function setupMonitoringPage() {
-    //── API 데이터 ── 테스트 시 아래 MOCK 섹션과 교체 ──────────────────
+    const isAdminView = _monitoringData?.is_admin_view ?? true;
+    const currentNs   = _monitoringData?.namespace     ?? '';
+
     const gpuTrend          = _monitoringData?.gpu_trend            || {};
     const kserveRps         = _monitoringData?.kserve_rps           || { status: 'error', series: [] };
     const kserveLatency     = _monitoringData?.kserve_latency_p95   || { status: 'error', series: [] };
     const kserveErrorRate   = _monitoringData?.kserve_error_rate    || { status: 'error', models: [] };
     const kserveTop5Latency = _monitoringData?.kserve_top5_latency  || { status: 'error', models: [] };
 
-    // ── MOCK (테스트용: 위 해당 라인 주석 처리 후 아래 해제) ──────────────────
-    // const gpuTrend          = MOCK.gpuTrend;
-    // const kserveRps         = MOCK.kserveRps;
-    // const kserveLatency     = MOCK.kserveLatency;
-    // const kserveErrorRate   = MOCK.kserveErrorRate;
-    // const kserveTop5Latency = MOCK.kserveTop5Latency;
+    // ════════════════════════════════════════════════════════════════
+    // MOCK 테스트 섹션 — 현재 모두 주석 처리 → 실제 API 데이터 사용 중
+    // renderMonitoring() MOCK 섹션과 함께 활성화해야 차트 namespace 필터링 동작
+    // ════════════════════════════════════════════════════════════════
+    // const nsSuffix = currentNs ? `(${currentNs})` : null;
+    // if (!isAdminView && nsSuffix) {
+    //     kserveRps.series         = (kserveRps.series         || []).filter(s => s.name.includes(nsSuffix));
+    //     kserveLatency.series     = (kserveLatency.series     || []).filter(s => s.name.includes(nsSuffix));
+    //     kserveErrorRate.models   = (kserveErrorRate.models   || []).filter(m => m.name.includes(nsSuffix));
+    //     kserveTop5Latency.models = (kserveTop5Latency.models || []).filter(m => m.name.includes(nsSuffix));
+    // }
 
     let tooltip = document.getElementById('pm-tooltip');
     if (!tooltip) {

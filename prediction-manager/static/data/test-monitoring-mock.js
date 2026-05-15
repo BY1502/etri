@@ -4,41 +4,45 @@
 const MOCK = {
     // ── Ray 클러스터 ────────────────────────────────────────────────────────
     ray: { status: 'ok', nodes: 4, finished_total: 42 },
-    
+
     // ── AutoML Jobs ────────────────────────────────────────────────────────
-    automl:   [
+    automl: [
         { name: 'xgb-tune-v1',  status: 'SUCCEEDED', submitted_by: 'researcher1@example.com', submitted_at: '2025-05-10 11:20' },
         { name: 'lgbm-search',  status: 'RUNNING',   submitted_by: 'admin@example.com',        submitted_at: '2025-05-11 09:10' },
         { name: 'rf-baseline',  status: 'FAILED',    submitted_by: 'researcher1@example.com',  submitted_at: '2025-05-11 08:00' },
         { name: 'catboost-v2',  status: 'QUEUED',    submitted_by: 'researcher2@example.com',  submitted_at: '2025-05-11 11:30' },
-        { name: 'nn-tabular',   status: 'STOPPED',   submitted_by: 'admin@example.com',         submitted_at: '2025-05-09 15:00' },
+        { name: 'nn-tabular',   status: 'STOPPED',   submitted_by: 'admin@example.com',        submitted_at: '2025-05-09 15:00' },
     ],
-    
-    // ── Kserve 엔드포인트 ────────────────────────────────────────────────────────
+
+    // ── KServe 엔드포인트 (전체 — Admin 뷰용) ────────────────────────────
     kserve: [
-        { name: 'iris-classifier',  namespace: 'kubeflow-user-a', ready: true  },
-        { name: 'fraud-detector',   namespace: 'kubeflow-user-b', ready: true  },
-        { name: 'churn-predictor',  namespace: 'kubeflow-user-a', ready: false },
-        { name: 'sentiment-model',  namespace: 'kubeflow-user-b', ready: true  },
-        { name: 'demand-forecast',  namespace: 'kubeflow-user-c', ready: false },
+        { name: 'iris-classifier',  namespace: 'kubeflow-admin-example-com',       ready: true  },
+        { name: 'fraud-detector',   namespace: 'kubeflow-admin-example-com',       ready: true  },
+        { name: 'churn-predictor',  namespace: 'kubeflow-researcher1-example-com', ready: true  },
+        { name: 'sentiment-model',  namespace: 'kubeflow-researcher1-example-com', ready: false },
+        { name: 'demand-forecast',  namespace: 'kubeflow-researcher2-example-com', ready: true  },
+    ],
+
+    // ── KServe 엔드포인트 (researcher1 namespace만 — 일반 사용자 뷰용) ───
+    kserve_researcher1: [
+        { name: 'churn-predictor', namespace: 'kubeflow-researcher1-example-com', ready: true  },
+        { name: 'sentiment-model', namespace: 'kubeflow-researcher1-example-com', ready: false },
     ],
 
     // ── Jupyter 노트북 리소스 사용량 ───────────────────────────────────────
     jupyterResources: [
-        { time: '2025-05-11 12:00', ns: 'kubeflow-researcher1',   pod: 'jupyter-researcher1-0', cpu: '0.13', mem: '4.50' },
-        { time: '2025-05-11 12:00', ns: 'kubeflow-researcher2',   pod: 'jupyter-researcher2-0', cpu: '0.12', mem: '4.25' },
-        { time: '2025-05-11 12:00', ns: 'kubeflow-admin',         pod: 'jupyter-admin-0',       cpu: '0.15', mem: '4.59' },
-        { time: '2025-05-11 12:00', ns: 'kubeflow-test-test-com', pod: 'jupyter-test-0',        cpu: '0.01', mem: '0.25' },
-        { time: '2025-05-11 11:55', ns: 'kubeflow-researcher1',   pod: 'jupyter-researcher1-0', cpu: '0.11', mem: '4.48' },
-        { time: '2025-05-11 11:55', ns: 'kubeflow-researcher2',   pod: 'jupyter-researcher2-0', cpu: '0.14', mem: '4.22' },
-        { time: '2025-05-11 11:55', ns: 'kubeflow-admin',         pod: 'jupyter-admin-0',       cpu: '0.16', mem: '4.60' },
-        { time: '2025-05-11 11:55', ns: 'kubeflow-test-test-com', pod: 'jupyter-test-0',        cpu: '0.01', mem: '0.25' },
+        { time: '2025-05-11 12:00', ns: 'kubeflow-admin-example-com',       pod: 'jupyter-admin-0',       cpu: '0.15', mem: '4.59' },
+        { time: '2025-05-11 12:00', ns: 'kubeflow-researcher1-example-com', pod: 'jupyter-researcher1-0', cpu: '0.13', mem: '4.50' },
+        { time: '2025-05-11 12:00', ns: 'kubeflow-researcher2-example-com', pod: 'jupyter-researcher2-0', cpu: '0.12', mem: '4.25' },
+        { time: '2025-05-11 11:55', ns: 'kubeflow-admin-example-com',       pod: 'jupyter-admin-0',       cpu: '0.16', mem: '4.60' },
+        { time: '2025-05-11 11:55', ns: 'kubeflow-researcher1-example-com', pod: 'jupyter-researcher1-0', cpu: '0.11', mem: '4.48' },
+        { time: '2025-05-11 11:55', ns: 'kubeflow-researcher2-example-com', pod: 'jupyter-researcher2-0', cpu: '0.14', mem: '4.22' },
     ],
 
     // ── PVC 할당 용량 (사용자별) ──────────────────────────────────────────
     pvcByUser: [
         {
-            ns: 'kubeflow-admin',
+            ns: 'kubeflow-admin-example-com',
             total_gb: 36,
             phase_counts: { Bound: 4, Pending: 1, Lost: 0 },
             pvcs: [
@@ -50,7 +54,7 @@ const MOCK = {
             ],
         },
         {
-            ns: 'kubeflow-researcher1',
+            ns: 'kubeflow-researcher1-example-com',
             total_gb: 31,
             phase_counts: { Bound: 3, Pending: 0, Lost: 1 },
             pvcs: [
@@ -61,7 +65,7 @@ const MOCK = {
             ],
         },
         {
-            ns: 'kubeflow-researcher2',
+            ns: 'kubeflow-researcher2-example-com',
             total_gb: 27,
             phase_counts: { Bound: 4, Pending: 0, Lost: 0 },
             pvcs: [
@@ -71,23 +75,13 @@ const MOCK = {
                 { name: 'prod-automl-61b14f5328-lgbm-pvc', allocated_gb: 1,  phase: 'Bound' },
             ],
         },
-        {
-            ns: 'kubeflow-test-test-com',
-            total_gb: 25,
-            phase_counts: { Bound: 1, Pending: 1, Lost: 0 },
-            pvcs: [
-                { name: 'data-nifi-0',    allocated_gb: 5,  phase: 'Pending' },
-                { name: 'pm-mlflow-data', allocated_gb: 20, phase: 'Bound'   },
-            ],
-        },
     ],
 
     // ── 실행 중인 노트북 ────────────────────────────────────────────────────
     jupyterNotebooks: [
-        { namespace: 'kubeflow-researcher1',   owner_name: 'researcher1', pod: 'jupyter-researcher1-0' },
-        { namespace: 'kubeflow-researcher2',   owner_name: 'researcher2', pod: 'jupyter-researcher2-0' },
-        { namespace: 'kubeflow-admin',         owner_name: 'admin',       pod: 'jupyter-admin-0'       },
-        { namespace: 'kubeflow-test-test-com', owner_name: 'test',        pod: 'jupyter-test-0'        },
+        { namespace: 'kubeflow-admin-example-com',       owner_name: 'admin',       pod: 'jupyter-admin-0'       },
+        { namespace: 'kubeflow-researcher1-example-com', owner_name: 'researcher1', pod: 'jupyter-researcher1-0' },
+        { namespace: 'kubeflow-researcher2-example-com', owner_name: 'researcher2', pod: 'jupyter-researcher2-0' },
     ],
 
     // ── MLflow 전체 통계 ───────────────────────────────────────────────────
@@ -111,9 +105,6 @@ const MOCK = {
         { name: 'bert-base-ner',       versions: 2, stage: 'Staging'    },
     ],
 
-    // ── GPU 사용 추이 (5분 간격, 최근 1시간) ──────────────────────────────
-    gpuUtil: [4, 12, 35, 72, 68, 55, 80, 91, 76, 60, 45, 30, 0],
-
     // ── GPU 사용 추이 API 형식 ─────────────────────────────────────────────
     gpuTrend: (() => {
         const now = Date.now();
@@ -124,29 +115,36 @@ const MOCK = {
         };
     })(),
 
-    // ── KServe 모델 목록 (에러율 차트 공용) ──────────────────────────────
-    kserveModels: ['sklearn-iris', 'xgb-fraud', 'torch-nlp'],
-
-    // ── KServe 에러율 (%, kserveModels 순서와 일치) ───────────────────────
-    kserveErrorRates: [0.4, 6.2, 1.8],
-
-    // ── KServe 에러율 API 형식 ────────────────────────────────────────────
+    // ── KServe 에러율 (전체 — Admin 뷰용) ────────────────────────────────
     kserveErrorRate: {
         status: 'ok',
         models: [
-            { name: 'sklearn-iris (kubeflow-user-a)', error_rate: 0.4  },
-            { name: 'torch-nlp (kubeflow-user-a)',    error_rate: 1.8  },
-            { name: 'xgb-fraud (kubeflow-user-b)',    error_rate: 6.2  },
+            { name: 'iris-classifier (kubeflow-admin)',       error_rate: 0.2  },
+            { name: 'fraud-detector (kubeflow-admin)',        error_rate: 0.8  },
+            { name: 'churn-predictor (kubeflow-researcher1)', error_rate: 1.5  },
+            { name: 'sentiment-model (kubeflow-researcher1)', error_rate: 6.2  },
+            { name: 'demand-forecast (kubeflow-researcher2)', error_rate: 0.0  },
         ],
     },
 
-    // ── KServe 초당 요청 수 (RPS) ─────────────────────────────────────────
+    // ── KServe 에러율 (researcher1 namespace만 — 일반 사용자 뷰용) ────────
+    kserveErrorRate_researcher1: {
+        status: 'ok',
+        models: [
+            { name: 'churn-predictor (kubeflow-researcher1)', error_rate: 1.5 },
+            { name: 'sentiment-model (kubeflow-researcher1)', error_rate: 6.2 },
+        ],
+    },
+
+    // ── KServe RPS (전체 — Admin 뷰용) ───────────────────────────────────
     kserveRps: (() => {
         const now = Date.now();
         const models = [
-            { name: 'sklearn-iris (kubeflow-user-a)', base: 12, noise: 5 },
-            { name: 'xgb-fraud (kubeflow-user-b)',    base: 30, noise: 8 },
-            { name: 'torch-nlp (kubeflow-user-a)',    base: 7,  noise: 3 },
+            { name: 'iris-classifier (kubeflow-admin)',       base: 20, noise: 5 },
+            { name: 'fraud-detector (kubeflow-admin)',        base: 35, noise: 8 },
+            { name: 'churn-predictor (kubeflow-researcher1)', base: 12, noise: 4 },
+            { name: 'sentiment-model (kubeflow-researcher1)', base: 7,  noise: 3 },
+            { name: 'demand-forecast (kubeflow-researcher2)', base: 4,  noise: 2 },
         ];
         return {
             status: 'ok',
@@ -160,13 +158,34 @@ const MOCK = {
         };
     })(),
 
-    // ── KServe 추론 지연시간 p95 (초) ────────────────────────────────────
+    // ── KServe RPS (researcher1 namespace만 — 일반 사용자 뷰용) ──────────
+    kserveRps_researcher1: (() => {
+        const now = Date.now();
+        const models = [
+            { name: 'churn-predictor (kubeflow-researcher1)', base: 12, noise: 4 },
+            { name: 'sentiment-model (kubeflow-researcher1)', base: 7,  noise: 3 },
+        ];
+        return {
+            status: 'ok',
+            series: models.map(m => ({
+                name: m.name,
+                data: Array.from({ length: 31 }, (_, i) => [
+                    now - (30 - i) * 60 * 1000,
+                    parseFloat((m.base + (Math.random() - 0.5) * m.noise * 2).toFixed(4)),
+                ]),
+            })),
+        };
+    })(),
+
+    // ── KServe 지연시간 p95 (전체 — Admin 뷰용) ──────────────────────────
     kserveLatency: (() => {
         const now = Date.now();
         const models = [
-            { name: 'sklearn-iris (kubeflow-user-a)', base: 0.12, noise: 0.05 },
-            { name: 'xgb-fraud (kubeflow-user-b)',    base: 0.45, noise: 0.10 },
-            { name: 'torch-nlp (kubeflow-user-a)',    base: 1.20, noise: 0.30 },
+            { name: 'iris-classifier (kubeflow-admin)',       base: 0.08, noise: 0.02 },
+            { name: 'fraud-detector (kubeflow-admin)',        base: 0.45, noise: 0.10 },
+            { name: 'churn-predictor (kubeflow-researcher1)', base: 0.30, noise: 0.08 },
+            { name: 'sentiment-model (kubeflow-researcher1)', base: 1.20, noise: 0.30 },
+            { name: 'demand-forecast (kubeflow-researcher2)', base: 0.15, noise: 0.05 },
         ];
         return {
             status: 'ok',
@@ -180,21 +199,43 @@ const MOCK = {
         };
     })(),
 
-    // ── Top 5 Latency (p95, ms) — 내림차순 정렬 ──────────────────────────
-    top5Latency: {
-        models: ['torch-nlp', 'xgb-fraud', 'sklearn-iris', 'resnet-50', 'bert-base'],
-        values: [1840, 1230, 870, 640, 410],
-    },
+    // ── KServe 지연시간 p95 (researcher1 namespace만 — 일반 사용자 뷰용) ─
+    kserveLatency_researcher1: (() => {
+        const now = Date.now();
+        const models = [
+            { name: 'churn-predictor (kubeflow-researcher1)', base: 0.30, noise: 0.08 },
+            { name: 'sentiment-model (kubeflow-researcher1)', base: 1.20, noise: 0.30 },
+        ];
+        return {
+            status: 'ok',
+            series: models.map(m => ({
+                name: m.name,
+                data: Array.from({ length: 31 }, (_, i) => [
+                    now - (30 - i) * 60 * 1000,
+                    parseFloat((m.base + (Math.random() - 0.5) * m.noise * 2).toFixed(4)),
+                ]),
+            })),
+        };
+    })(),
 
-    // ── Top 5 Latency API 형식 ────────────────────────────────────────────
+    // ── Top 5 Latency (전체 — Admin 뷰용) ────────────────────────────────
     kserveTop5Latency: {
         status: 'ok',
         models: [
-            { name: 'torch-nlp (kubeflow-user-a)',    latency_ms: 1840 },
-            { name: 'xgb-fraud (kubeflow-user-b)',    latency_ms: 1230 },
-            { name: 'sklearn-iris (kubeflow-user-a)', latency_ms: 870  },
-            { name: 'resnet-50 (kubeflow-user-c)',    latency_ms: 640  },
-            { name: 'bert-base (kubeflow-user-b)',    latency_ms: 410  },
+            { name: 'sentiment-model (kubeflow-researcher1)', latency_ms: 1840 },
+            { name: 'fraud-detector (kubeflow-admin)',        latency_ms: 1230 },
+            { name: 'churn-predictor (kubeflow-researcher1)', latency_ms: 870  },
+            { name: 'demand-forecast (kubeflow-researcher2)', latency_ms: 640  },
+            { name: 'iris-classifier (kubeflow-admin)',       latency_ms: 410  },
+        ],
+    },
+
+    // ── Top 5 Latency (researcher1 namespace만 — 일반 사용자 뷰용) ───────
+    kserveTop5Latency_researcher1: {
+        status: 'ok',
+        models: [
+            { name: 'sentiment-model (kubeflow-researcher1)', latency_ms: 1840 },
+            { name: 'churn-predictor (kubeflow-researcher1)', latency_ms: 870  },
         ],
     },
 };
