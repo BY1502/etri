@@ -159,7 +159,7 @@ async function renderMonitoring() {
 
     ${prometheusWarning}
 
-    <div class="pm-monitor-2col">
+    <div id="section-gpu" class="pm-monitor-2col">
         <div class="pm-monitor-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:20px;">GPU</div>
             <div class="pm-donut-row" style="margin-bottom:20px;">
@@ -237,7 +237,7 @@ async function renderMonitoring() {
         </div>
     </div>
 
-    <div class="pm-monitor-2col" style="margin-bottom:16px;">
+    <div id="section-pvc" class="pm-monitor-2col" style="margin-bottom:16px;">
     <div class="pm-monitor-card pm-fixed-card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
             <div id="pvc-table-title" class="pm-section-title" style="font-size:16px; margin-bottom:0;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}</div>
@@ -340,7 +340,7 @@ async function renderMonitoring() {
 
     <div class="pm-monitor-2col-bottom">
         <div class="pm-monitor-col">
-        <div class="pm-monitor-card pm-fixed-card">
+        <div id="section-ray" class="pm-monitor-card pm-fixed-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
             ${rayStatus === 'error'
                 ? noConnDiv
@@ -360,7 +360,7 @@ async function renderMonitoring() {
         </div>
         </div>
         <div class="pm-monitor-col">
-        <div class="pm-monitor-card pm-fixed-card">
+        <div id="section-automl" class="pm-monitor-card pm-fixed-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
@@ -422,7 +422,7 @@ async function renderMonitoring() {
             </div>
         </div>
 
-        <div class="pm-monitor-card pm-fixed-card">
+        <div id="section-kserve" class="pm-monitor-card pm-fixed-card">
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
@@ -450,7 +450,7 @@ async function renderMonitoring() {
         </div>
     </div>
 
-    <div class="pm-zigzag-section">
+    <div id="section-mlflow" class="pm-zigzag-section">
         <div class="pm-zigzag-col">
             <div style="display:flex; gap:10px; order:1;">
                 ${[
@@ -1065,6 +1065,13 @@ async function setupMonitoringPage() {
             btnAll?.addEventListener('click',  () => switchMode('all'));
             btnMine?.addEventListener('click', () => switchMode('mine'));
         }
+    }
+
+    const scrollTo = new URLSearchParams(window.location.search).get('scrollTo');
+    if (scrollTo) {
+        setTimeout(() => {
+            document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
     }
 }
 

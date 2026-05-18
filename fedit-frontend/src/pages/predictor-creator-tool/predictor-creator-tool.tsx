@@ -8,9 +8,10 @@ import HomePredictionManagerIcon from 'assets/images/home/prediction-manager.svg
 import HomeRayIcon from 'assets/images/home/ray-dashboard.svg';
 import HomeTensorboardIcon from 'assets/images/home/tensorboard.svg';
 import HomeVolumeIcon from 'assets/images/home/volume.svg';
+import AlarmBar from 'components/alarmbar/AlarmBar';
 import Layout from 'components/layout/layout';
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import './predictor-creator-tool.scss';
 
@@ -150,7 +151,7 @@ const services: Service[] = [
   {
     name: 'MLOps 모니터링',
     description: 'GPU/CPU, Ray, AutoML, KServe 상태 모니터링',
-    icon: HomePredictionManagerIcon,
+    icon: HomeGrafanaIcon,
     path: '/monitoring',
     url: '/prediction-manager/?standalone=1#/monitoring',
   },
@@ -237,15 +238,17 @@ function IframePage({ service }: { service: Service }) {
   >([]);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const isPmUrl = (u?: string) => !!u && u.includes('/prediction-manager/');
 
-  const buildPmUrl = (baseUrl: string, ns: string) => {
+  const buildPmUrl = (baseUrl: string, ns: string, scrollTo?: string) => {
     // baseUrl 형식: /prediction-manager/?standalone=1#/automl
     const [beforeHash, hash] = baseUrl.split('#');
     const url = new URL(beforeHash, window.location.origin);
     url.searchParams.set('ns', ns);
+    if (scrollTo) url.searchParams.set('scrollTo', scrollTo);
     return `${url.pathname}${url.search}${hash ? `#${hash}` : ''}`;
   };
 
@@ -265,7 +268,8 @@ function IframePage({ service }: { service: Service }) {
         setAccessibleNs(info.accessible_namespaces || []);
         setNamespace(info.namespace);
         if (isPmUrl(service.url)) {
-          setIframeUrl(buildPmUrl(service.url, info.namespace));
+          const scrollTo = (location.state as any)?.scrollTo as string | undefined;
+          setIframeUrl(buildPmUrl(service.url, info.namespace, scrollTo));
         } else {
           setIframeUrl(service.url);
         }
@@ -414,8 +418,11 @@ function ToolHome() {
   return (
     <div className="predictor-tool__home">
       <div className="predictor-tool__header">
-        <h2>예측기 생성/연동 도구</h2>
-        <p>MLOps 플랫폼 서비스에 접속합니다.</p>
+        <div>
+          <h2>예측기 생성/연동 도구</h2>
+          <p>MLOps 플랫폼 서비스에 접속합니다.</p>
+        </div>
+        <AlarmBar />
       </div>
       <div className="predictor-tool__grid">
         {visibleServices.map((svc) => (
