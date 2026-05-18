@@ -66,6 +66,9 @@ SEARCH_SPACE = {
 }
 
 
+GPU_CAPABLE_MODELS = {"tabnet"}
+
+
 # metric name → sklearn function, mode, task applicability
 METRICS = {
     "mse": (lambda y, p, **kw: mean_squared_error(y, p), "min", {"regression"}),
@@ -216,7 +219,17 @@ def _resolve_metric(task: str, requested: str) -> tuple[str, str]:
     return ("mse", "min") if task == "regression" else ("accuracy", "max")
 
 
-def _train_fn_builder(model_id: str, task: str, data_path: str, target: str, test_size: float, random_state: int):
+def _train_fn_builder(
+    model_id: str,
+    task: str,
+    data_path: str,
+    target: str,
+    test_size: float,
+    random_state: int,
+    mlflow_uri: str | None = None,
+    experiment_name: str | None = None,
+    base_tags: dict | None = None,
+):
     def train_fn(config):
         df = _load_dataset(data_path)
         if target not in df.columns:
@@ -234,13 +247,60 @@ def _train_fn_builder(model_id: str, task: str, data_path: str, target: str, tes
         preds, proba = _fit_predict(model_id, model, X_train, y_train, X_test, task)
         metrics = _score_all(y_test, preds, task, proba=proba)
         metrics["model_id"] = model_id
-        # 모델 pickle을 tempfile에 저장 (head가 접근 가능한 /tmp 공유)
+        # worker local 파일은 driver가 읽을 수 없으므로, worker에서 바로 MLflow에 모델을 남긴다.
         try:
             tmp_dir = tempfile.mkdtemp(prefix=f"automl_{model_id}_")
-            joblib.dump(model, os.path.join(tmp_dir, "model.joblib"))
-            with open(os.path.join(tmp_dir, "features.json"), "w") as f:
+            model_file = os.path.join(tmp_dir, "model.joblib")
+            features_file = os.path.join(tmp_dir, "features.json")
+            joblib.dump(model, model_file)
+            with open(features_file, "w") as f:
                 json.dump({"columns": list(X.columns), "target": target}, f)
             metrics["_model_dir"] = tmp_dir
+            if mlflow_uri and experiment_name:
+                try:
+                    import pandas as _pd
+                    import mlflow as _mlflow
+                    import mlflow.sklearn as _mls
+
+                    _mlflow.set_tracking_uri(mlflow_uri)
+                    _mlflow.set_experiment(experiment_name)
+                    input_example = _pd.DataFrame([{c: 0.0 for c in X.columns}])
+                    with _mlflow.start_run(run_name=f"candidate-{model_id}") as mrun:
+                        tags = dict(base_tags or {})
+                        tags.update({
+                            "automl.model": model_id,
+                            "automl.task": task,
+                            "framework": _MODEL_FRAMEWORK_MAP.get(model_id, "unknown"),
+                            "framework.version": _get_framework_version(model_id),
+                        })
+                        _mlflow.set_tags(tags)
+                        _mlflow.log_params(config)
+                        for k, v in metrics.items():
+                            if k.startswith("_") or not isinstance(v, (int, float)):
+                                continue
+                            try:
+                                _mlflow.log_metric(k, float(v))
+                            except Exception:
+                                pass
+                        model_info = _mls.log_model(
+                            model,
+                            artifact_path="model",
+                            input_example=input_example,
+                        )
+                        _mlflow.log_artifact(model_file, artifact_path="model")
+                        _mlflow.log_artifact(features_file, artifact_path="model")
+                        metrics["_model_run_id"] = mrun.info.run_id
+                        metrics["_model_artifact_uri"] = (
+                            getattr(model_info, "model_uri", None)
+                            or f"runs:/{mrun.info.run_id}/model"
+                        )
+                        print(
+                            f"[AutoML] worker log_model OK for {model_id}: "
+                            f"{metrics['_model_artifact_uri']}",
+                            flush=True,
+                        )
+                except Exception as e:
+                    print(f"[AutoML] worker log_model warning: {e}", flush=True)
         except Exception as e:
             print(f"[AutoML] model save warning: {e}", flush=True)
         tune.report(metrics)
@@ -388,9 +448,24 @@ def run(cfg: dict) -> dict:
 
     all_results = []
     for idx, model_id in enumerate(cfg["models"]):
-        print(f"[AutoML] Starting HPO for {model_id} (metric={primary}, mode={mode}, budget={per_model_budget}s, cpu={cpu_per_trial}, gpu={gpu_per_trial})", flush=True)
+        model_gpu_per_trial = gpu_per_trial if model_id in GPU_CAPABLE_MODELS else 0.0
+        if gpu_per_trial > 0 and model_gpu_per_trial == 0.0:
+            print(
+                f"[AutoML] GPU request ignored for {model_id}: current training path is CPU-only",
+                flush=True,
+            )
+        print(f"[AutoML] Starting HPO for {model_id} (metric={primary}, mode={mode}, budget={per_model_budget}s, cpu={cpu_per_trial}, gpu={model_gpu_per_trial})", flush=True)
         print(f"[AutoML] PROGRESS={json.dumps({'event': 'model_start', 'model_id': model_id, 'model_idx': idx + 1, 'model_total': len(cfg['models'])})}", flush=True)
         search_space = SEARCH_SPACE[model_id](cfg["task"])
+        base_tags = {
+            "automl.metric": primary,
+            "automl.job_id": cfg.get("job_id", ""),
+            "dataset.id": dataset_id,
+            "dataset.rows": str(dataset_rows),
+            "dataset.path": cfg["dataset_path"],
+            "dataset.target": cfg["target_column"],
+            "created_by": cfg.get("submitted_by", ""),
+        }
         train_fn = _train_fn_builder(
             model_id,
             cfg["task"],
@@ -398,11 +473,14 @@ def run(cfg: dict) -> dict:
             cfg["target_column"],
             cfg.get("test_size", 0.2),
             cfg.get("random_state", 42),
+            mlflow_uri=mlflow_uri,
+            experiment_name=cfg["experiment_name"],
+            base_tags=base_tags,
         )
         # 모델별 기본 GPU 사용 - tabnet은 GPU 있으면 자동 사용
         resources = {"cpu": cpu_per_trial, "memory": mem_per_trial_bytes}
-        if gpu_per_trial > 0:
-            resources["gpu"] = gpu_per_trial
+        if model_gpu_per_trial > 0:
+            resources["gpu"] = model_gpu_per_trial
         trainable = tune.with_resources(train_fn, resources)
         tuner = tune.Tuner(
             trainable,
@@ -425,15 +503,9 @@ def run(cfg: dict) -> dict:
                         tags={
                             "automl.model": model_id,
                             "automl.task": cfg["task"],
-                            "automl.metric": primary,
-                            "automl.job_id": cfg.get("job_id", ""),
                             "framework": _MODEL_FRAMEWORK_MAP.get(model_id, "unknown"),
                             "framework.version": _get_framework_version(model_id),
-                            "dataset.id": dataset_id,
-                            "dataset.rows": str(dataset_rows),
-                            "dataset.path": cfg["dataset_path"],
-                            "dataset.target": cfg["target_column"],
-                            "created_by": cfg.get("submitted_by", ""),
+                            **base_tags,
                         },
                     ),
                     ProgressCallback(primary, mode, cfg["num_trials"], model_id, idx + 1, len(cfg["models"])),
@@ -446,25 +518,45 @@ def run(cfg: dict) -> dict:
             # trial 전체 히스토리 수집 (DataFrame)
             top_n = int(cfg.get("top_n", 3))
             trials_info = []
-            for r in results:
+            for trial_index, r in enumerate(results, 1):
                 if r.metrics is None:
                     continue
                 trials_info.append({
+                    "trial_index": trial_index,
                     "trial_id": r.metrics.get("trial_id") or r.path or "",
                     "config": r.config,
                     "score": r.metrics.get(primary),
                     "all_metrics": {k: float(v) for k, v in r.metrics.items() if isinstance(v, (int, float))},
                     "trial_path": str(r.path) if r.path else None,
                     "model_dir": r.metrics.get("_model_dir"),
+                    "model_run_id": r.metrics.get("_model_run_id"),
+                    "model_artifact_uri": r.metrics.get("_model_artifact_uri"),
                 })
             # Top-N sort
             valid_trials = [t for t in trials_info if t["score"] is not None]
-            valid_trials.sort(key=lambda t: t["score"], reverse=(mode == "max"))
-            top_trials = valid_trials[:top_n]
+            ranked_trials = sorted(valid_trials, key=lambda t: t["score"], reverse=(mode == "max"))
+            top_trials = ranked_trials[:top_n]
             # 각 top-N 모델을 MLflow artifact로 업로드 (job-level run)
             saved_models = []
             for rank, t in enumerate(top_trials, 1):
-                artifact_rel = f"automl/{cfg['job_id']}/{model_id}/rank{rank}"
+                if t.get("model_run_id") and t.get("model_artifact_uri"):
+                    try:
+                        client = mlflow.tracking.MlflowClient(tracking_uri=mlflow_uri)
+                        client.set_tag(t["model_run_id"], "automl.rank", str(rank))
+                        client.set_tag(t["model_run_id"], "automl.top_model", "true")
+                    except Exception as _e:
+                        print(f"[AutoML] top model tag update failed: {_e}", flush=True)
+                    saved_models.append({
+                        "rank": rank,
+                        "model_id": model_id,
+                        "score": t["score"],
+                        "metric": primary,
+                        "params": t["config"],
+                        "run_id": t["model_run_id"],
+                        "artifact_path": t["model_artifact_uri"],
+                        "virtual_path": f"/workspace/models/automl/{cfg['job_id']}/{model_id}_rank{rank}",
+                    })
+                    continue
                 try:
                     with mlflow.start_run(run_name=f"top-{model_id}-rank{rank}", nested=False) as mrun:
                         mlflow.set_tag("automl.job_id", cfg["job_id"])
@@ -485,6 +577,7 @@ def run(cfg: dict) -> dict:
                                 mlflow.log_metric(k, v)
                             except Exception:
                                 pass
+                        model_artifact_uri = None
                         # 모델 파일 업로드 (tempfile 경로 우선, fallback: trial_path)
                         # 표준 MLflow flavor (sklearn)로 log_model → MLmodel, conda.yaml,
                         # python_env.yaml, requirements.txt, model.pkl 자동 생성.
@@ -510,20 +603,29 @@ def run(cfg: dict) -> dict:
                                 print(f"[AutoML] input_example build failed: {_e}", flush=True)
 
                             if os.path.isfile(mj):
+                                logged_mlflow_model = False
                                 try:
                                     import joblib as _joblib
                                     import mlflow.sklearn as _mls
                                     _model_obj = _joblib.load(mj)
-                                    _mls.log_model(
+                                    _model_info = _mls.log_model(
                                         _model_obj,
                                         artifact_path="model",
                                         input_example=input_example,
                                     )
+                                    model_artifact_uri = getattr(_model_info, "model_uri", None)
+                                    logged_mlflow_model = True
                                     print(f"[AutoML] log_model(sklearn) OK for {model_id} rank{rank}", flush=True)
                                 except Exception as _e:
                                     # 실패 시 기존 방식(파일 업로드)으로 폴백 → 최소한 재현은 가능
                                     print(f"[AutoML] log_model failed, fallback log_artifact: {_e}", flush=True)
                                     mlflow.log_artifact(mj, artifact_path="model")
+                                if logged_mlflow_model:
+                                    # 노트북 import/기존 후처리 호환용 원본 joblib도 함께 유지
+                                    try:
+                                        mlflow.log_artifact(mj, artifact_path="model")
+                                    except Exception as _e:
+                                        print(f"[AutoML] model.joblib compatibility upload failed: {_e}", flush=True)
                             else:
                                 print(f"[AutoML] no model.joblib at {mj}", flush=True)
                             # features.json은 별도 artifact로 유지 (serving 단계에서 참조)
@@ -536,7 +638,7 @@ def run(cfg: dict) -> dict:
                             "metric": primary,
                             "params": t["config"],
                             "run_id": mrun.info.run_id,
-                            "artifact_path": f"runs:/{mrun.info.run_id}/model",
+                            "artifact_path": model_artifact_uri or f"runs:/{mrun.info.run_id}/model",
                             "virtual_path": f"/workspace/models/automl/{cfg['job_id']}/{model_id}_rank{rank}",
                         })
                 except Exception as e:
@@ -548,7 +650,13 @@ def run(cfg: dict) -> dict:
                 "best_config": best.config,
                 "top_models": saved_models,
                 "trials": [
-                    {"score": t["score"], "config": t["config"], "metrics": t["all_metrics"]}
+                    {
+                        "trial_index": t.get("trial_index"),
+                        "trial_id": t.get("trial_id"),
+                        "score": t["score"],
+                        "config": t["config"],
+                        "metrics": t["all_metrics"],
+                    }
                     for t in valid_trials
                 ],
             })

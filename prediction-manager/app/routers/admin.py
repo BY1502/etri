@@ -4,7 +4,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 from app.auth import is_admin, get_user_email, ADMIN_EMAILS
-from app.services import keycloak_service
+from app.services import keycloak_service, tenant_dashboard_service
 
 try:
     config.load_incluster_config()
@@ -306,7 +306,29 @@ async def create_user(req: UserCreateRequest, request: Request):
             raise HTTPException(status_code=409, detail=f"이미 존재하는 namespace: {namespace}")
         raise HTTPException(status_code=500, detail=f"Profile 생성 실패: {e}")
 
-    return {"status": "created", "email": email, "namespace": namespace}
+    try:
+        tenant_resources = tenant_dashboard_service.ensure_tenant_resources(namespace, email)
+    except Exception as e:
+        try:
+            tenant_dashboard_service.delete_tenant_resources(namespace)
+        except Exception:
+            pass
+        try:
+            custom_api.delete_cluster_custom_object("kubeflow.org", "v1", "profiles", namespace)
+        except Exception:
+            pass
+        try:
+            keycloak_service.delete_user(email)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"사용자별 MLflow/Ray/NiFi 리소스 생성 실패: {e}")
+
+    return {
+        "status": "created",
+        "email": email,
+        "namespace": namespace,
+        "tenant_resources": tenant_resources.resources,
+    }
 
 
 @router.delete("/users/{email}")
@@ -321,7 +343,13 @@ async def delete_user(email: str, request: Request):
 
     namespace = _email_to_namespace(email)
 
-    # 1) Profile 삭제 (namespace + 모든 리소스 삭제됨)
+    # 1) 사용자별 dashboard 리소스 정리
+    try:
+        tenant_resources_deleted = tenant_dashboard_service.delete_tenant_resources(namespace)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"사용자별 MLflow/Ray/NiFi 리소스 삭제 실패: {e}")
+
+    # 2) Profile 삭제 (namespace + 남은 namespaced 리소스 삭제됨)
     try:
         custom_api.delete_cluster_custom_object("kubeflow.org", "v1", "profiles", namespace)
         profile_deleted = True
@@ -331,7 +359,7 @@ async def delete_user(email: str, request: Request):
         else:
             raise HTTPException(status_code=500, detail=f"Profile 삭제 실패: {e}")
 
-    # 2) 다른 namespace에 있는 contributor RoleBinding 정리
+    # 3) 다른 namespace에 있는 contributor RoleBinding 정리
     contributor_bindings_deleted = []
     try:
         profiles = custom_api.list_cluster_custom_object("kubeflow.org", "v1", "profiles")
@@ -354,7 +382,7 @@ async def delete_user(email: str, request: Request):
     except ApiException:
         pass
 
-    # 3) Keycloak 사용자 삭제
+    # 4) Keycloak 사용자 삭제
     try:
         kc_deleted = keycloak_service.delete_user(email)
     except Exception as e:
@@ -368,6 +396,7 @@ async def delete_user(email: str, request: Request):
         "email": email,
         "profile_deleted": profile_deleted,
         "keycloak_deleted": kc_deleted,
+        "tenant_resources_deleted": tenant_resources_deleted,
         "contributor_bindings_deleted": contributor_bindings_deleted,
     }
 

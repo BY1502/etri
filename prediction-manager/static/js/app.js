@@ -3,6 +3,7 @@ const pages = {
     images: renderImages,
     containers: renderContainers,
     'containers-new': renderContainersNew,
+    datasets: renderDatasets,
     automl: renderAutoML,
     models: renderModels,
     admin: renderAdmin,
@@ -24,6 +25,9 @@ async function navigate(page) {
         }
         if (page === 'models' && typeof setupModelsPage === 'function') {
             setupModelsPage();
+        }
+        if (page === 'datasets' && typeof setupDatasetsPage === 'function') {
+            setupDatasetsPage();
         }
         if (page === 'containers-new' && typeof setupContainersNewPage === 'function') {
             setupContainersNewPage();
@@ -48,7 +52,8 @@ async function checkAdminMenu() {
     try {
         const info = await API.get('/api/user-info');
         if (info.is_admin) {
-            document.getElementById('adminMenu').style.display = '';
+            const adminMenu = document.getElementById('adminMenu');
+            if (adminMenu) adminMenu.style.display = '';
         }
     } catch (e) {
         console.error('user-info failed:', e);

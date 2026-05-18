@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -60,6 +61,19 @@ def _owner_values(owner_email: str) -> list[str]:
     return values
 
 
+def _nifi_proxy_headers(namespace: str) -> dict:
+    return {
+        "request": {
+            "set": {
+                "X-ProxyContextPath": _nifi_path(namespace),
+                "X-ProxyHost": _external_host(),
+                "X-ProxyScheme": "https",
+            },
+            "remove": ["authorization", "x-forwarded-access-token"],
+        }
+    }
+
+
 def _statefulset(namespace: str, owner_email: str) -> client.V1StatefulSet:
     path = _nifi_path(namespace)
     host = _external_host()
@@ -112,6 +126,10 @@ sed -i 's|^nifi.cluster.protocol.is.secure=.*|nifi.cluster.protocol.is.secure=fa
                             name="init-conf",
                             image=NIFI_IMAGE,
                             command=["sh", "-c", patch_conf],
+                            resources=client.V1ResourceRequirements(
+                                requests={"cpu": "50m", "memory": "256Mi"},
+                                limits={"cpu": "250m", "memory": "512Mi"},
+                            ),
                             volume_mounts=[
                                 client.V1VolumeMount(name="data", mount_path="/pvc")
                             ],
@@ -136,7 +154,7 @@ sed -i 's|^nifi.cluster.protocol.is.secure=.*|nifi.cluster.protocol.is.secure=fa
                                 limits={"cpu": "1", "memory": "2Gi"},
                             ),
                             startup_probe=client.V1Probe(
-                                http_get=client.V1HTTPGetAction(path=f"{path}/", port=8080),
+                                http_get=client.V1HTTPGetAction(path="/nifi/", port=8080),
                                 initial_delay_seconds=60,
                                 period_seconds=10,
                                 failure_threshold=60,
@@ -211,11 +229,14 @@ def _service(namespace: str, owner_email: str) -> client.V1Service:
 
 def _virtual_service(namespace: str, owner_email: str) -> dict:
     path = _nifi_path(namespace)
+    host = _external_host()
+    referer = f"https://{re.escape(host)}{path}(/.*)?"
+    headers = _nifi_proxy_headers(namespace)
     return {
         "apiVersion": "networking.istio.io/v1",
         "kind": "VirtualService",
         "metadata": {
-            "name": "nifi-user-dashboard",
+            "name": "pm-nifi-dashboard",
             "namespace": namespace,
             "labels": {"app.kubernetes.io/managed-by": "prediction-manager"},
             "annotations": {"prediction-manager.io/owner-email": owner_email},
@@ -226,9 +247,59 @@ def _virtual_service(namespace: str, owner_email: str) -> dict:
             "http": [
                 {
                     "match": [
+                        {"uri": {"exact": f"{path}/nifi-api"}},
+                        {"uri": {"prefix": f"{path}/nifi-api/"}},
+                        {
+                            "uri": {"exact": "/nifi/nifi-api"},
+                            "headers": {"referer": {"regex": referer}},
+                        },
+                        {
+                            "uri": {"prefix": "/nifi/nifi-api/"},
+                            "headers": {"referer": {"regex": referer}},
+                        },
+                    ],
+                    "rewrite": {"uri": "/nifi-api/"},
+                    "headers": headers,
+                    "route": [
+                        {
+                            "destination": {
+                                "host": f"nifi.{namespace}.svc.cluster.local",
+                                "port": {"number": 8080},
+                            }
+                        }
+                    ],
+                },
+                {
+                    "match": [
+                        {"uri": {"exact": f"{path}/nifi-docs"}},
+                        {"uri": {"prefix": f"{path}/nifi-docs/"}},
+                        {
+                            "uri": {"exact": "/nifi/nifi-docs"},
+                            "headers": {"referer": {"regex": referer}},
+                        },
+                        {
+                            "uri": {"prefix": "/nifi/nifi-docs/"},
+                            "headers": {"referer": {"regex": referer}},
+                        },
+                    ],
+                    "rewrite": {"uri": "/nifi-docs/"},
+                    "headers": headers,
+                    "route": [
+                        {
+                            "destination": {
+                                "host": f"nifi.{namespace}.svc.cluster.local",
+                                "port": {"number": 8080},
+                            }
+                        }
+                    ],
+                },
+                {
+                    "match": [
                         {"uri": {"exact": path}},
                         {"uri": {"prefix": f"{path}/"}},
                     ],
+                    "rewrite": {"uri": "/nifi/"},
+                    "headers": headers,
                     "route": [
                         {
                             "destination": {
@@ -245,6 +316,7 @@ def _virtual_service(namespace: str, owner_email: str) -> dict:
 
 def _authorization_policy(namespace: str, owner_email: str) -> dict:
     path = _nifi_path(namespace)
+    host = _external_host()
     allowed = _owner_values(owner_email)
     return {
         "apiVersion": "security.istio.io/v1",
@@ -259,7 +331,9 @@ def _authorization_policy(namespace: str, owner_email: str) -> dict:
             "annotations": {"prediction-manager.io/owner-email": owner_email},
         },
         "spec": {
-            "selector": {"matchLabels": {"app": "istio-ingressgateway"}},
+            "selector": {
+                "matchLabels": {"app": "istio-ingressgateway", "istio": "ingressgateway"}
+            },
             "action": "DENY",
             "rules": [
                 {
@@ -280,7 +354,35 @@ def _authorization_policy(namespace: str, owner_email: str) -> dict:
                             "notValues": allowed,
                         },
                     ],
-                }
+                },
+                {
+                    "to": [
+                        {
+                            "operation": {
+                                "paths": [
+                                    "/nifi/nifi-api",
+                                    "/nifi/nifi-api/*",
+                                    "/nifi/nifi-docs",
+                                    "/nifi/nifi-docs/*",
+                                ],
+                            }
+                        }
+                    ],
+                    "when": [
+                        {
+                            "key": "request.headers[referer]",
+                            "values": [f"https://{host}{path}", f"https://{host}{path}/*"],
+                        },
+                        {
+                            "key": "request.headers[kubeflow-userid]",
+                            "notValues": allowed,
+                        },
+                        {
+                            "key": "request.headers[x-auth-request-email]",
+                            "notValues": allowed,
+                        },
+                    ],
+                },
             ],
         },
     }

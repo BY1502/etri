@@ -101,6 +101,63 @@ def _mlflow_uri_for_job(info: dict) -> str:
     return info.get("mlflow_uri") or tenant_resources.mlflow_tracking_uri(info.get("namespace")) or MLFLOW_URI
 
 
+def _compact_text(text: str | None, limit: int = 1600) -> str:
+    if not text:
+        return ""
+    text = str(text).strip()
+    return text if len(text) <= limit else text[:limit] + "...(truncated)"
+
+
+def _resolve_mlflow_model_artifact_uri(mlflow_uri: str, run_id: str) -> str:
+    """Return a downloadable MLflow model artifact URI for legacy and MLflow 3 runs."""
+    try:
+        run_resp = httpx.get(
+            f"{mlflow_uri}/api/2.0/mlflow/runs/get",
+            params={"run_id": run_id},
+            timeout=10,
+        )
+    except Exception as e:
+        raise RuntimeError(f"MLflow run 확인 실패: {e}") from e
+    if run_resp.status_code != 200:
+        detail = run_resp.text
+        try:
+            detail = run_resp.json().get("message") or detail
+        except Exception:
+            pass
+        raise RuntimeError(
+            f"MLflow run을 찾을 수 없습니다: run_id={run_id}, uri={mlflow_uri}, "
+            f"status={run_resp.status_code}, detail={_compact_text(detail, 500)}"
+        )
+    run = (run_resp.json().get("run") or {})
+    info = run.get("info") or {}
+    if info.get("lifecycle_stage") and info.get("lifecycle_stage") != "active":
+        raise RuntimeError(
+            f"MLflow run이 삭제된 상태입니다: run_id={run_id}, "
+            f"lifecycle_stage={info.get('lifecycle_stage')}. AutoML Job을 다시 실행해 주세요."
+        )
+    for output in ((run.get("outputs") or {}).get("model_outputs") or []):
+        model_id = output.get("model_id")
+        if model_id:
+            return f"models:/{model_id}"
+    try:
+        artifacts_resp = httpx.get(
+            f"{mlflow_uri}/api/2.0/mlflow/artifacts/list",
+            params={"run_id": run_id, "path": "model"},
+            timeout=10,
+        )
+        if artifacts_resp.status_code == 200:
+            files = artifacts_resp.json().get("files") or []
+            paths = {f.get("path") for f in files}
+            if "model/MLmodel" in paths or "model/model.joblib" in paths or "model/model.pkl" in paths:
+                return f"runs:/{run_id}/model"
+    except Exception as e:
+        raise RuntimeError(f"MLflow artifact 확인 실패: {e}") from e
+    raise RuntimeError(
+        f"MLflow 모델 artifact가 없습니다: run_id={run_id}. "
+        "현재 AutoML 결과는 서빙할 수 없으니 AutoML Job을 다시 실행해 주세요."
+    )
+
+
 def _ray_url_for_job(info: dict) -> str:
     return info.get("ray_dashboard_url") or tenant_resources.ray_dashboard_url(info.get("namespace")) or RAY_DASHBOARD_URL
 
@@ -399,6 +456,7 @@ def create_notebook_file(job_id: str, run_id: str, rank: int, model_id: str, nam
 
     job_info = _jobs.get(job_id)
     mlflow_uri = _mlflow_uri_for_job(job_info or {"namespace": namespace})
+    model_artifact_uri = _resolve_mlflow_model_artifact_uri(mlflow_uri, run_id)
 
     # 사용자가 target을 명시했으면 그걸 사용
     if target_namespace and target_notebook:
@@ -444,8 +502,13 @@ def create_notebook_file(job_id: str, run_id: str, rank: int, model_id: str, nam
                 "source": [
                     "import mlflow, os, joblib, json\n",
                     f"mlflow.set_tracking_uri('{mlflow_uri}')\n",
-                    f"local_dir = mlflow.artifacts.download_artifacts(run_id='{run_id}', artifact_path='model')\n",
-                    "model = joblib.load(os.path.join(local_dir, 'model.joblib'))\n",
+                    f"model_artifact_uri = '{model_artifact_uri}'\n",
+                    "local_dir = mlflow.artifacts.download_artifacts(artifact_uri=model_artifact_uri)\n",
+                    "joblib_path = os.path.join(local_dir, 'model.joblib')\n",
+                    "if os.path.exists(joblib_path):\n",
+                    "    model = joblib.load(joblib_path)\n",
+                    "else:\n",
+                    "    model = mlflow.pyfunc.load_model(model_artifact_uri)\n",
                     "with open(os.path.join(local_dir, 'features.json')) as f:\n",
                     "    feats = json.load(f)\n",
                     "print('Features:', feats['columns'])\n",
@@ -525,6 +588,94 @@ async def deploy_to_kserve(
     job_info = _jobs.get(job_id) or {"namespace": namespace}
     mlflow_uri = _mlflow_uri_for_job(job_info)
 
+    def _compact(text: str | None, limit: int = 1600) -> str:
+        return _compact_text(text, limit)
+
+    def _read_helper_logs() -> str:
+        try:
+            return _compact(core_v1.read_namespaced_pod_log(helper_name, namespace, container="copier"))
+        except Exception as e:
+            return f"helper log 조회 실패: {e}"
+
+    def _delete_helper() -> None:
+        try:
+            core_v1.delete_namespaced_pod(helper_name, namespace, grace_period_seconds=0)
+        except Exception:
+            pass
+
+    def _delete_pvc() -> None:
+        try:
+            core_v1.delete_namespaced_persistent_volume_claim(pvc_name, namespace)
+        except Exception:
+            pass
+
+    def _delete_isvc() -> None:
+        try:
+            custom.delete_namespaced_custom_object(
+                "serving.kserve.io", "v1beta1", namespace, "inferenceservices", isvc_name
+            )
+        except Exception:
+            pass
+
+    def _container_state_summary(container_status) -> str:
+        if not container_status:
+            return "kserve-container 상태 없음"
+        state = container_status.state
+        if state and state.waiting:
+            return f"waiting={state.waiting.reason or ''} restarts={container_status.restart_count}"
+        if state and state.terminated:
+            return (
+                f"terminated={state.terminated.reason or ''} "
+                f"exit_code={state.terminated.exit_code} restarts={container_status.restart_count}"
+            )
+        if state and state.running:
+            return f"running ready={container_status.ready} restarts={container_status.restart_count}"
+        return f"ready={container_status.ready} restarts={container_status.restart_count}"
+
+    def _read_pod_logs(pod_name: str) -> str:
+        try:
+            return _compact(core_v1.read_namespaced_pod_log(pod_name, namespace, container="kserve-container"))
+        except Exception as e:
+            return f"predictor log 조회 실패: {e}"
+
+    async def _wait_for_predictor_ready(timeout_seconds: int = 180) -> None:
+        import time as _t
+        deadline = _t.time() + timeout_seconds
+        last_state = "predictor pod 생성 대기"
+        while _t.time() < deadline:
+            try:
+                pods = core_v1.list_namespaced_pod(
+                    namespace,
+                    label_selector=f"serving.kserve.io/inferenceservice={isvc_name}",
+                ).items
+            except Exception as e:
+                last_state = f"predictor pod 조회 실패: {e}"
+                pods = []
+            for pod in pods:
+                statuses = pod.status.container_statuses or []
+                kserve_status = next((s for s in statuses if s.name == "kserve-container"), None)
+                pod_ready = any(
+                    c.type == "Ready" and c.status == "True"
+                    for c in (pod.status.conditions or [])
+                )
+                state_summary = _container_state_summary(kserve_status)
+                last_state = f"{pod.metadata.name}: phase={pod.status.phase}, {state_summary}"
+                if kserve_status and kserve_status.ready and pod_ready:
+                    return
+                waiting_reason = None
+                if kserve_status and kserve_status.state and kserve_status.state.waiting:
+                    waiting_reason = kserve_status.state.waiting.reason
+                if waiting_reason in {
+                    "CrashLoopBackOff",
+                    "ImagePullBackOff",
+                    "ErrImagePull",
+                    "CreateContainerConfigError",
+                }:
+                    logs = _read_pod_logs(pod.metadata.name)
+                    raise RuntimeError(f"KServe predictor가 Ready 되지 않았습니다: {last_state}. logs={logs}")
+            await asyncio.sleep(3)
+        raise RuntimeError(f"KServe predictor Ready 대기 timeout: {last_state}")
+
     short_id = job_id[:8].lower()
     if serving_name:
         # K8s DNS-1123 label: lowercase alphanumeric + hyphens, must start with letter, max 50
@@ -536,8 +687,13 @@ async def deploy_to_kserve(
     else:
         isvc_name = f"automl-{short_id}-{model_id}-r{rank}".lower().replace("_", "-")[:50]
     pvc_name = f"{isvc_name}-pvc"[:60]
+    helper_name = f"{isvc_name}-copy"[:63]
+
+    # 배포 전 MLflow run/model 구조를 먼저 확인한다. 실패하면 K8s 리소스를 만들지 않는다.
+    model_artifact_uri = _resolve_mlflow_model_artifact_uri(mlflow_uri, run_id)
 
     # 1) PVC 생성
+    created_pvc = False
     pvc_body = client.V1PersistentVolumeClaim(
         metadata=client.V1ObjectMeta(name=pvc_name, namespace=namespace),
         spec=client.V1PersistentVolumeClaimSpec(
@@ -547,12 +703,12 @@ async def deploy_to_kserve(
     )
     try:
         core_v1.create_namespaced_persistent_volume_claim(namespace, pvc_body)
+        created_pvc = True
     except client.ApiException as e:
         if e.status != 409:
             raise
 
     # 2) Helper Pod로 MLflow artifact를 PVC에 복사
-    helper_name = f"{isvc_name}-copy"[:63]
     # MLflow 3.x LoggedModels 호환 — MLflow image 사용 (mlflow Python client 사전 설치됨)
     script = f"""
 set -e
@@ -560,15 +716,28 @@ mkdir -p /target/model
 python3 <<'PYEOF'
 import os, shutil, mlflow
 mlflow.set_tracking_uri('{mlflow_uri}')
-# runs:/{run_id}/model 표기는 legacy + LoggedModels 양쪽 자동 해석
-local = mlflow.artifacts.download_artifacts(artifact_uri='runs:/{run_id}/model')
+# MLflow 2 legacy 는 runs:/..., MLflow 3 LoggedModel 은 models:/... 사용
+local = mlflow.artifacts.download_artifacts(artifact_uri='{model_artifact_uri}')
 print('downloaded to', local)
-# /target/model 로 옮기기 (있는 파일 덮어쓰기)
-for f in os.listdir(local):
-    src = os.path.join(local, f)
-    dst = os.path.join('/target/model', f)
+if not local or not os.path.isdir(local):
+    raise RuntimeError(f'MLflow artifact download failed: {{local}}')
+if not os.path.exists(os.path.join(local, 'MLmodel')):
+    raise RuntimeError('MLflow artifact is missing MLmodel')
+# 다운로드 검증 후 기존 파일 제거
+for name in os.listdir('/target/model'):
+    path = os.path.join('/target/model', name)
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    else:
+        os.unlink(path)
+# /target/model 로 옮기기
+for name in os.listdir(local):
+    src = os.path.join(local, name)
+    dst = os.path.join('/target/model', name)
     if os.path.isfile(src):
         shutil.copy2(src, dst)
+    elif os.path.isdir(src):
+        shutil.copytree(src, dst, dirs_exist_ok=True)
 print('files in /target/model:')
 for f in sorted(os.listdir('/target/model')):
     print(' -', f)
@@ -611,12 +780,24 @@ sleep 5
         core_v1.delete_namespaced_pod(helper_name, namespace)
     except client.ApiException:
         pass
-    core_v1.create_namespaced_pod(namespace, pod_body)
+    for _ in range(20):
+        try:
+            core_v1.read_namespaced_pod(helper_name, namespace)
+            await asyncio.sleep(1)
+        except client.ApiException as e:
+            if e.status == 404:
+                break
+    try:
+        core_v1.create_namespaced_pod(namespace, pod_body)
+    except Exception:
+        if created_pvc:
+            _delete_pvc()
+        raise
 
-    # 3) copy 완료 대기 (최대 60초). 최종 phase 추적.
+    # 3) copy 완료 대기 (최대 90초). 실패하면 ISVC를 만들지 않는다.
     import time as _t
     helper_phase = None
-    deadline = _t.time() + 60
+    deadline = _t.time() + 90
     while _t.time() < deadline:
         try:
             p = core_v1.read_namespaced_pod(helper_name, namespace)
@@ -626,6 +807,15 @@ sleep 5
         except Exception:
             pass
         await asyncio.sleep(2)
+    if helper_phase != "Succeeded":
+        logs = _read_helper_logs()
+        _delete_helper()
+        if created_pvc:
+            _delete_pvc()
+        raise RuntimeError(
+            f"모델 artifact 복사 실패: helper pod phase={helper_phase or 'Timeout'}. "
+            f"logs={logs}"
+        )
 
     # 4) InferenceService 생성 (실험용 — scale-to-zero 강제)
     isvc = {
@@ -657,6 +847,15 @@ sleep 5
             }
         },
     }
+    isvc_existed = False
+    try:
+        custom.get_namespaced_custom_object(
+            "serving.kserve.io", "v1beta1", namespace, "inferenceservices", isvc_name
+        )
+        isvc_existed = True
+    except client.ApiException as e:
+        if e.status != 404:
+            raise
     try:
         custom.create_namespaced_custom_object(
             group="serving.kserve.io",
@@ -668,22 +867,41 @@ sleep 5
     except client.ApiException as e:
         if e.status == 409:
             # 이미 있으면 replace
-            existing = custom.get_namespaced_custom_object(
-                "serving.kserve.io", "v1beta1", namespace, "inferenceservices", isvc_name
-            )
-            isvc["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
-            custom.replace_namespaced_custom_object(
-                "serving.kserve.io", "v1beta1", namespace, "inferenceservices", isvc_name, isvc
-            )
+            try:
+                existing = custom.get_namespaced_custom_object(
+                    "serving.kserve.io", "v1beta1", namespace, "inferenceservices", isvc_name
+                )
+                isvc["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
+                custom.replace_namespaced_custom_object(
+                    "serving.kserve.io", "v1beta1", namespace, "inferenceservices", isvc_name, isvc
+                )
+            except Exception:
+                _delete_helper()
+                if created_pvc:
+                    _delete_pvc()
+                raise
         else:
+            _delete_helper()
+            if created_pvc:
+                _delete_pvc()
             raise
+    except Exception:
+        _delete_helper()
+        if created_pvc:
+            _delete_pvc()
+        raise
 
-    # 5) Helper Pod 정리: Succeeded 만 삭제, Failed/타임아웃은 디버깅용 보존
-    if helper_phase == "Succeeded":
-        try:
-            core_v1.delete_namespaced_pod(helper_name, namespace, grace_period_seconds=0)
-        except client.ApiException:
-            pass
+    # 5) Helper Pod 정리
+    _delete_helper()
+
+    try:
+        await _wait_for_predictor_ready()
+    except Exception:
+        if not isvc_existed:
+            _delete_isvc()
+            if created_pvc:
+                _delete_pvc()
+        raise
 
     return {
         "isvc_name": isvc_name,

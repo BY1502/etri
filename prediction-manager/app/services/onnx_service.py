@@ -10,6 +10,7 @@ import joblib
 import mlflow
 
 from app.services import tenant_resources
+from app.services import model_repository_service as model_repo
 
 MLFLOW_URI = os.environ.get("MLFLOW_URI", "http://mlflow-service.ray-system:5000")
 
@@ -88,6 +89,8 @@ def convert_to_onnx(model_name: str, version: str, requester_email: str, namespa
     # 3) ONNX 파일 저장 + MLflow 새 run으로 업로드
     import onnx
     new_run_id = None
+    new_version = None
+    repository = None
     with tempfile.TemporaryDirectory() as tmp:
         onnx_path = os.path.join(tmp, "model.onnx")
         onnx.save(onnx_model, onnx_path)
@@ -181,13 +184,42 @@ def convert_to_onnx(model_name: str, version: str, requester_email: str, namespa
                 timeout=20,
             )
             vr.raise_for_status()
-            print(f"[onnx] registered: {new_name} v{vr.json().get('model_version',{}).get('version')}", flush=True)
+            new_version = vr.json().get("model_version", {}).get("version")
+            print(f"[onnx] registered: {new_name} v{new_version}", flush=True)
+            if new_version:
+                try:
+                    repository = model_repo.materialize_mlflow_model_version(
+                        mlflow_uri=mlflow_uri,
+                        model_name=new_name,
+                        version=new_version,
+                        source_uri=f"runs:/{new_run_id}/model",
+                        run_id=new_run_id,
+                        project=owner_ns,
+                        namespace=owner_ns,
+                        creator=requester_email,
+                        extra_metadata={
+                            "source_model": model_name,
+                            "source_version": version,
+                            "source_model_type": model_type,
+                        },
+                    )
+                except Exception as repo_error:
+                    repository = model_repo.mark_sync_failed(
+                        mlflow_uri=mlflow_uri,
+                        model_name=new_name,
+                        version=new_version,
+                        error=repo_error,
+                    )
+                    if model_repo.MODEL_STORE_STRICT:
+                        raise
         except Exception as e:
             print(f"[onnx] register failed: {e}", flush=True)
 
     return {
         "new_name": new_name,
+        "new_version": new_version,
         "new_run_id": new_run_id,
         "model_type": model_type,
         "n_features": n_features,
+        "repository": repository,
     }

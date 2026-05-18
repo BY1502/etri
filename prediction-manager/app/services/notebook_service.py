@@ -20,6 +20,7 @@ def list_notebooks(namespace: str = None) -> list[dict]:
     results = []
     for nb in resp.get("items", []):
         meta = nb["metadata"]
+        annotations = meta.get("annotations", {}) or {}
         spec = nb["spec"]["template"]["spec"]
         container = spec["containers"][0]
         resources = container.get("resources", {})
@@ -37,17 +38,31 @@ def list_notebooks(namespace: str = None) -> list[dict]:
         else:
             state = "Pending"
 
+        notebook_type = annotations.get("notebooks.kubeflow.org/server-type", "jupyter")
+        base_url = f"{settings.kubeflow_url}/notebook/{ns}/{meta['name']}"
+        if notebook_type == "vscode":
+            open_url = f"{base_url}/?folder=/home/jovyan"
+            open_label = "VSCode"
+        elif notebook_type == "rstudio":
+            open_url = f"{base_url}/"
+            open_label = "RStudio"
+        else:
+            open_url = f"{base_url}/lab"
+            open_label = "Jupyter"
+
         results.append(
             {
                 "name": meta["name"],
                 "namespace": ns,
                 "image": container["image"],
+                "notebook_type": notebook_type,
                 "status": state,
                 "cpu": requests_r.get("cpu", ""),
                 "memory": requests_r.get("memory", ""),
                 "gpu": int(limits.get("nvidia.com/gpu", 0)),
                 "created": meta.get("creationTimestamp", ""),
-                "url": f"{settings.kubeflow_url}/notebook/{ns}/{meta['name']}/lab",
+                "url": open_url,
+                "open_label": open_label,
             }
         )
     return results
@@ -78,8 +93,12 @@ def _is_local_registry_image(name: str) -> bool:
     return "localhost:5000/" in name
 
 
-def _user_namespace_images(ns: str) -> list[str]:
-    """현재 사용자 namespace 의 Registry 이미지를 pod 가 사용 가능한 URL 형식으로."""
+def _shared_user_images() -> list[str]:
+    """모든 사용자 Registry 이미지를 pod 가 사용 가능한 URL 형식으로.
+
+    이미지 삭제/관리는 생성자 namespace 소유자에게만 허용하지만, 컨테이너
+    생성에서는 다른 사용자의 이미지도 선택 가능하게 공유한다.
+    """
     import httpx
     from app.config import settings
     out: list[str] = []
@@ -87,7 +106,8 @@ def _user_namespace_images(ns: str) -> list[str]:
         with httpx.Client(timeout=5) as c:
             cat = c.get(f"{settings.registry_url}/v2/_catalog").json().get("repositories", [])
             for repo in cat:
-                if not repo.startswith(f"{ns}/"):
+                owner_ns = repo.split("/", 1)[0] if "/" in repo else ""
+                if not owner_ns.startswith("kubeflow-"):
                     continue
                 tags = c.get(f"{settings.registry_url}/v2/{repo}/tags/list").json().get("tags") or []
                 for t in tags:
@@ -105,7 +125,7 @@ def get_spawner_config(user_namespace: str | None = None) -> dict:
     kubeflow namespace의 `jupyter-web-app-config*` 이름 패턴 ConfigMap에서
     `spawner_ui_config.yaml` 데이터를 찾고, image options 를 다음과 같이 가공:
       - 시스템 이미지 / orphan 제거
-      - 사용자 namespace 의 Registry 이미지 자동 추가
+      - 사용자 Registry 이미지는 현재 빌더 호환 유형인 Jupyter에만 자동 추가
       - Kubeflow 공식 base 이미지 (`ghcr.io/kubeflow/...`) 보존
     """
     import yaml
@@ -126,7 +146,6 @@ def get_spawner_config(user_namespace: str | None = None) -> dict:
         pass
 
     if cfg:
-        user_imgs = _user_namespace_images(user_namespace) if user_namespace else []
         for key in ("image", "imageGroupOne", "imageGroupTwo"):
             section = cfg.get(key)
             if not isinstance(section, dict):
@@ -135,9 +154,10 @@ def get_spawner_config(user_namespace: str | None = None) -> dict:
             # ConfigMap 의 localhost:5000 옛 옵션은 모두 제거 (시스템·다른 ns·orphan 포함)
             # Kubeflow 공식 ghcr.io base 이미지만 보존
             cleaned = [o for o in opts if not _is_local_registry_image(o)]
-            for u in user_imgs:
-                if u not in cleaned:
-                    cleaned.append(u)
+            if key == "image":
+                for u in _shared_user_images():
+                    if u not in cleaned:
+                        cleaned.append(u)
             section["options"] = cleaned
         return cfg
     # 폴백: 하드코드

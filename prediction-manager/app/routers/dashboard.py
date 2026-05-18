@@ -66,6 +66,14 @@ def _get_user_resource_summary() -> list[dict]:
     return [_get_ns_resource_detail(p["metadata"]["name"]) for p in profiles.get("items", [])]
 
 
+def _count_by(items: list[dict], key: str) -> dict:
+    counts = {}
+    for item in items:
+        value = str(item.get(key) or "Unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
 @router.get("/summary")
 async def get_summary(request: Request):
     admin = is_admin(request)
@@ -100,12 +108,14 @@ async def get_summary(request: Request):
 
     # AutoML 최근 Jobs (admin은 전체, 일반 사용자는 자기 namespace)
     automl_jobs = []
+    automl_status_counts = {}
     try:
         from app.services import automl_service
         jobs = automl_service.list_jobs(
             namespace=None if admin else my_ns,
             is_admin=admin,
         )
+        automl_status_counts = _count_by(jobs, "status")
         automl_jobs = jobs[:5]
     except Exception:
         pass
@@ -118,9 +128,11 @@ async def get_summary(request: Request):
         "gpu_used": gpu["used"],
         "gpu_available": gpu["available"],
         "gpu_hardware": gpu.get("hardware", {}),
+        "notebook_status_counts": _count_by(notebooks, "status"),
         "recent_images": images_with_owner[:5],
         "recent_notebooks": notebooks[:5],
         "user_resources": user_resources,
         "my_resource": my_resource,
+        "automl_status_counts": automl_status_counts,
         "automl_jobs": automl_jobs,
     }

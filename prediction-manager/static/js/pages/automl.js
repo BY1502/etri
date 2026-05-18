@@ -155,7 +155,7 @@ async function renderAutoML() {
             <div class="automl-modal">
                 <h3>새 AutoML Job</h3>
                 <div style="background:#fef3c7; border:1px solid #fcd34d; padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:12px; color:#78350f;">
-                    <b>공용 Ray 클러스터</b> · 여러 사용자가 동시에 제출하면 리소스(CPU/메모리/GPU)가 부족해 Trial이 <b>대기(PENDING)</b> 상태로 머무를 수 있습니다. GPU는 클러스터 전체에서 1개만 가용하므로 GPU job은 순차 실행됩니다.
+                    <b>사용자 Ray 클러스터</b> · 여러 Job을 동시에 제출하면 리소스(CPU/메모리/GPU)가 부족해 Trial이 <b>대기(PENDING)</b> 상태로 머무를 수 있습니다. GPU는 TabNet처럼 GPU 학습 경로가 있는 모델에만 사용됩니다.
                 </div>
                 <div class="automl-form">
                     <label>실험 이름 *</label>
@@ -219,6 +219,7 @@ async function renderAutoML() {
                         <div>
                             <label style="margin-top:2px;">GPU</label>
                             <input id="automl-gpu" type="number" value="0" min="0" max="4" step="0.25" />
+                            <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">RF/XGB/LGBM/MLP는 현재 CPU로 실행</div>
                         </div>
                         <div>
                             <label style="margin-top:2px;">메모리 (GB)</label>
@@ -644,34 +645,59 @@ function renderAutoMLResult(info, el) {
         </tr>
     `).join('');
 
-    // Trial별 메트릭 히스토리 (bar chart with CSS)
+    // Trial별 메트릭 히스토리 (compact horizontal bars)
     const perModelCharts = (r.per_model || []).map(pm => {
-        const trials = (pm.trials || []).map(t => +t.score).filter(s => s !== null && !isNaN(s));
+        const hasTrialIndex = (pm.trials || []).some(t => t.trial_index);
+        const trials = (pm.trials || [])
+            .map((t, i) => ({
+                score: +t.score,
+                label: t.trial_index ? `T${t.trial_index}` : `#${i + 1}`,
+                params: t.config || {},
+            }))
+            .filter(t => !isNaN(t.score));
         if (!trials.length) return '';
-        const maxVal = Math.max(...trials);
-        const minVal = Math.min(...trials);
+        const scores = trials.map(t => t.score);
+        const maxVal = Math.max(...scores);
+        const minVal = Math.min(...scores);
         const range = (maxVal - minVal) || 1;
-        const CHART_H = 110; // px
-        const bars = trials.map((s, i) => {
-            // 낮은 값이 좋은 경우(mode=min) 가장 낮은 값이 100% 높이
+        const bestVal = r.mode === 'max' ? maxVal : minVal;
+        const worstVal = r.mode === 'max' ? minVal : maxVal;
+        const rows = trials.map(t => {
+            const s = t.score;
             const norm = r.mode === 'max' ? (s - minVal) / range : 1 - (s - minVal) / range;
-            const h = Math.max(6, Math.round(norm * (CHART_H - 30)));
-            const isBest = (r.mode === 'max' && s === maxVal) || (r.mode === 'min' && s === minVal);
-            return `<div style="flex:1 1 0; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; min-width:18px; height:100%;">
-                <div style="width:70%; height:${h}px; background:${isBest ? '#28a745' : '#0066cc'}; border-radius:3px 3px 0 0;" title="trial ${i + 1}: ${_fmtScore(s)}"></div>
-                <div style="font-size:9px; color:var(--text-muted); margin-top:3px;">${i + 1}</div>
+            const w = Math.max(5, Math.round(norm * 100));
+            const isBest = s === bestVal;
+            const paramsText = JSON.stringify(t.params || {});
+            const title = `${t.label}: ${_fmtScore(s)}\nparams: ${JSON.stringify(t.params)}`;
+            return `<div style="display:grid; grid-template-columns:42px 88px minmax(180px,1fr) minmax(220px,0.9fr); gap:10px; align-items:center; min-height:30px;" title="${esc(title)}">
+                <div style="font-family:var(--font-mono); font-size:11px; color:${isBest ? '#0d904f' : 'var(--text-muted)'}; font-weight:${isBest ? '700' : '500'};">${esc(t.label)}</div>
+                <div style="font-family:var(--font-mono); font-size:11px; color:${isBest ? '#0d904f' : 'var(--text)'}; text-align:right;">${_fmtScore(s)}</div>
+                <div style="height:12px; background:#edf1f5; border-radius:4px; overflow:hidden;">
+                    <div style="height:100%; width:${w}%; background:${isBest ? '#0d904f' : '#1a73e8'}; border-radius:4px;"></div>
+                </div>
+                <div style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(_truncate(paramsText, 88))}</div>
             </div>`;
         }).join('');
         return `
-            <div style="margin-top:10px; padding:10px; background:#f8f9fa; border:1px solid var(--border); border-radius:6px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <div style="font-size:12px; font-weight:600;">${pm.model_id}</div>
-                    <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">
-                        best=${_fmtScore(pm.best_metric)} · ${trials.length} trials · range [${_fmtScore(minVal)} ~ ${_fmtScore(maxVal)}]
+            <div style="margin-top:10px; padding:12px; background:#f8f9fa; border:1px solid var(--border); border-radius:6px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px;">
+                    <div>
+                        <div style="font-size:12px; font-weight:700;">${pm.model_id}</div>
+                        <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${hasTrialIndex ? '실행 순서' : '기록 순서'} · ${r.mode === 'min' ? '낮은 값 우수' : '높은 값 우수'}</div>
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); text-align:right;">
+                        best=${_fmtScore(bestVal)} · worst=${_fmtScore(worstVal)} · ${trials.length} trials
                     </div>
                 </div>
-                <div style="display:flex; gap:3px; align-items:flex-end; height:${CHART_H}px; border-bottom:1px solid #dee2e6; padding:0 4px;">${bars}</div>
-                <div style="font-size:10px; color:var(--text-muted); text-align:center; margin-top:4px;">시도 번호 (${r.mode === 'min' ? '높은 bar = 낮은 값' : '높은 bar = 높은 값'} = 좋은 성능, 파란색 = 최고)</div>
+                <div style="display:grid; grid-template-columns:42px 88px minmax(180px,1fr) minmax(220px,0.9fr); gap:10px; align-items:center; padding:6px 0; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; color:var(--text-muted); font-size:10px; font-weight:600;">
+                    <div>Trial</div>
+                    <div style="text-align:right;">${esc(r.metric)}</div>
+                    <div>상대 성능</div>
+                    <div>파라미터</div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px; padding-top:8px; max-height:210px; overflow:auto;">
+                    ${rows}
+                </div>
             </div>
         `;
     }).join('');
@@ -696,7 +722,7 @@ function renderAutoMLResult(info, el) {
                 </table>
             </div>
 
-            ${perModelCharts ? `<div style="margin-top:12px; font-weight:600; font-size:12px;">시도별 ${r.metric} 변화</div>${perModelCharts}` : ''}
+            ${perModelCharts ? `<div style="margin-top:12px; font-weight:600; font-size:12px;">Trial별 ${r.metric} 변화</div>${perModelCharts}` : ''}
         </div>
     `;
 

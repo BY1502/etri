@@ -20,7 +20,7 @@ spec:
       serviceAccountName: prediction-manager
       containers:
         - name: prediction-manager
-          image: localhost:5000/prediction-manager-app:latest
+          image: localhost:5000/prediction-manager-app:20260518-datasets-external-entry
           imagePullPolicy: Always
           ports:
             - name: http
@@ -33,10 +33,30 @@ spec:
               value: "localhost:5000"
             - name: DEFAULT_NAMESPACE
               value: "kubeflow-user-example-com"
+            - name: MODEL_STORE_ROOT
+              value: "/models"
+            - name: MODEL_STORE_BACKEND
+              value: "pvc"
+            - name: DATASET_STORE_ROOT
+              value: "/datasets"
+            - name: DATASET_CATALOG_DB
+              value: "/datasets/catalog.db"
+            - name: DATASET_INTERNAL_BASE_URL
+              value: "http://prediction-manager.kubeflow.svc.cluster.local"
           volumeMounts:
+            - name: model-store
+              mountPath: /models
+            - name: dataset-store
+              mountPath: /datasets
             - name: docker-sock
               mountPath: /var/run/docker.sock
       volumes:
+        - name: model-store
+          persistentVolumeClaim:
+            claimName: prediction-manager-model-store
+        - name: dataset-store
+          persistentVolumeClaim:
+            claimName: prediction-manager-dataset-store
         - name: docker-sock
           hostPath:
             path: /var/run/docker.sock

@@ -5,9 +5,10 @@ function _bindContainerActions() {
         btn.addEventListener('click', () => {
             const action = btn.dataset.action;
             const name = btn.dataset.name;
-            if (action === 'stop') stopContainer(name);
-            else if (action === 'start') startContainer(name);
-            else if (action === 'delete') deleteContainer(name);
+            const namespace = btn.dataset.namespace;
+            if (action === 'stop') stopContainer(name, namespace);
+            else if (action === 'start') startContainer(name, namespace);
+            else if (action === 'delete') deleteContainer(name, namespace);
         });
     });
 }
@@ -32,6 +33,7 @@ async function renderContainers() {
         <tbody>
             ${containers.map(c => {
                 const badge = c.status === 'Running' ? 'success' : c.status === 'Stopped' ? 'danger' : 'warning';
+                const openLabel = c.open_label || (c.notebook_type === 'vscode' ? 'VSCode' : c.notebook_type === 'rstudio' ? 'RStudio' : 'Jupyter');
                 return `
                 <tr>
                     <td style="font-weight:500">${esc(c.name)}</td>
@@ -39,17 +41,20 @@ async function renderContainers() {
                     <td class="pm-table-mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(c.image)}">${esc(c.image.split('/').pop())}</td>
                     <td>${esc(c.cpu)} Core</td>
                     <td>${esc(c.memory)}</td>
-                    <td>${c.gpu > 0 ? '🟢 ' + esc(c.gpu) : '-'}</td>
+                    <td>${c.gpu > 0 ? `<span class="pm-badge pm-badge-info">GPU ${esc(c.gpu)}</span>` : '<span style="color:var(--text-muted)">-</span>'}</td>
                     <td style="color:var(--text-muted)">${esc(c.created.split('T')[0])}</td>
                     <td style="text-align:right">
                         <div style="display:flex;gap:4px;justify-content:flex-end">
                             ${c.status === 'Running' ? `
-                                <a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer" class="pm-btn pm-btn-sm pm-btn-primary" style="text-decoration:none">Jupyter</a>
-                                <button class="pm-btn pm-btn-sm pm-btn-ghost container-action-btn" data-action="stop" data-name="${esc(c.name)}">중지</button>
+                                <a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer" class="pm-btn pm-btn-sm pm-btn-primary pm-open-app-btn" title="${esc(openLabel)} 열기">
+                                    <span class="pm-open-default">열기</span>
+                                    <span class="pm-open-type">${esc(openLabel)}</span>
+                                </a>
+                                <button class="pm-btn pm-btn-sm pm-btn-ghost container-action-btn" data-action="stop" data-name="${esc(c.name)}" data-namespace="${esc(c.namespace)}">중지</button>
                             ` : `
-                                <button class="pm-btn pm-btn-sm pm-btn-success container-action-btn" data-action="start" data-name="${esc(c.name)}">시작</button>
+                                <button class="pm-btn pm-btn-sm pm-btn-success container-action-btn" data-action="start" data-name="${esc(c.name)}" data-namespace="${esc(c.namespace)}">시작</button>
                             `}
-                            <button class="pm-btn pm-btn-sm pm-btn-danger container-action-btn" data-action="delete" data-name="${esc(c.name)}">삭제</button>
+                            <button class="pm-btn pm-btn-sm pm-btn-danger container-action-btn" data-action="delete" data-name="${esc(c.name)}" data-namespace="${esc(c.namespace)}">삭제</button>
                         </div>
                     </td>
                 </tr>`;
@@ -66,7 +71,7 @@ async function renderContainersNew() {
         API.get('/api/containers/spawner-config').catch(() => ({})),
         API.get('/api/containers/pvcs').catch(() => []),
         API.get('/api/containers/pod-defaults').catch(() => []),
-        API.get('/api/auth/user-info').catch(() => ({namespace: ''})),
+        API.get('/api/user-info').catch(() => ({namespace: ''})),
     ]);
 
     _cfState = {
@@ -748,19 +753,31 @@ async function createContainer() {
     }
 }
 
-async function stopContainer(name) {
+async function stopContainer(name, namespace) {
     if (!confirm(`${name} 컨테이너를 중지하시겠습니까?`)) return;
-    await API.patch(`/api/containers/${name}/stop`);
-    navigate('containers');
+    try {
+        await API.patch(`/api/containers/${name}/stop`, namespace);
+        navigate('containers');
+    } catch (e) {
+        alert('컨테이너 중지 실패: ' + e.message);
+    }
 }
 
-async function startContainer(name) {
-    await API.patch(`/api/containers/${name}/start`);
-    navigate('containers');
+async function startContainer(name, namespace) {
+    try {
+        await API.patch(`/api/containers/${name}/start`, namespace);
+        navigate('containers');
+    } catch (e) {
+        alert('컨테이너 시작 실패: ' + e.message);
+    }
 }
 
-async function deleteContainer(name) {
+async function deleteContainer(name, namespace) {
     if (!confirm(`${name} 컨테이너를 삭제하시겠습니까?\n워크스페이스 볼륨도 함께 삭제됩니다.`)) return;
-    await API.del(`/api/containers/${name}`);
-    navigate('containers');
+    try {
+        await API.del(`/api/containers/${name}`, namespace);
+        navigate('containers');
+    } catch (e) {
+        alert('컨테이너 삭제 실패: ' + e.message);
+    }
 }

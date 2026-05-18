@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import urllib.request
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 from app.auth import get_user_email, get_user_namespace, is_admin
 from app.models.automl_models import AutoMLJobRequest
 from app.services import automl_service, tenant_resources
+from app.services import model_repository_service as model_repo
 
 router = APIRouter()
 
@@ -176,8 +178,8 @@ async def register_model(job_id: str, req: RegisterRequest, request: Request):
         raise HTTPException(status_code=403, detail="권한이 없습니다")
     import httpx
     MLFLOW = info.get("mlflow_uri") or tenant_resources.mlflow_tracking_uri(info["namespace"])
-    source = f"runs:/{req.run_id}/model"
     try:
+        source = automl_service._resolve_mlflow_model_artifact_uri(MLFLOW, req.run_id)
         # registered model 생성 (없으면)
         httpx.post(
             f"{MLFLOW}/api/2.0/mlflow/registered-models/create",
@@ -205,7 +207,43 @@ async def register_model(job_id: str, req: RegisterRequest, request: Request):
         )
         vr.raise_for_status()
         version = vr.json().get("model_version", {}).get("version")
-        return {"status": "ok", "name": req.registered_name, "version": version}
+        repository = None
+        if version:
+            try:
+                repository = await asyncio.to_thread(
+                    model_repo.materialize_mlflow_model_version,
+                    mlflow_uri=MLFLOW,
+                    model_name=req.registered_name,
+                    version=version,
+                    source_uri=source,
+                    run_id=req.run_id,
+                    project=info.get("namespace"),
+                    namespace=info.get("namespace"),
+                    creator=get_user_email(request),
+                    extra_metadata={
+                        "automl": {
+                            "job_id": job_id,
+                            "model": req.model_id,
+                            "rank": req.rank,
+                            "task": info.get("task"),
+                            "metric": info.get("metric"),
+                        },
+                        "dataset": {
+                            "path": info.get("dataset_path"),
+                            "target": info.get("target_column"),
+                        },
+                    },
+                )
+            except Exception as repo_error:
+                repository = model_repo.mark_sync_failed(
+                    mlflow_uri=MLFLOW,
+                    model_name=req.registered_name,
+                    version=version,
+                    error=repo_error,
+                )
+                if model_repo.MODEL_STORE_STRICT:
+                    raise
+        return {"status": "ok", "name": req.registered_name, "version": version, "repository": repository}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

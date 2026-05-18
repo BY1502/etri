@@ -26,6 +26,11 @@ SYSTEM_IMAGES = {
         "description": "ONNX 변환 모델 서빙용 MLServer. KServe ClusterServingRuntime `kserve-mlserver-onnx` 에서 참조.",
         "protected": True,
     },
+    "label-studio": {
+        "category": "Label Studio",
+        "description": "Label Studio 라벨링 도구. /label-studio/ 경로와 Kubeflow SSO 연동에서 사용.",
+        "protected": True,
+    },
 }
 
 
@@ -56,25 +61,54 @@ def _classify(repo_name: str) -> dict:
     }
 
 
-async def list_repositories(namespace: str = None) -> list[dict]:
+def owner_namespace(repo_name: str) -> str | None:
+    """사용자 이미지 repo prefix 에서 소유 namespace를 추출."""
+    if "/" not in repo_name:
+        return None
+    ns = repo_name.split("/", 1)[0]
+    return ns if ns.startswith("kubeflow-") else None
+
+
+def _repository_info(repo: str, tags: list[str]) -> dict:
+    cls = _classify(repo)
+    compatible_types: list[str] = []
+    if cls.get("type") == "user":
+        # 현재 Prediction Manager 이미지 빌더는 JupyterLab 실행 엔트리포인트를 넣는다.
+        # VSCode/RStudio는 별도 런타임 서버가 필요한 이미지라 자동 호환으로 보지 않는다.
+        compatible_types = ["jupyter"]
+    return {
+        "name": repo,
+        "tags": tags,
+        "owner_namespace": owner_namespace(repo),
+        "compatible_types": compatible_types,
+        **cls,
+    }
+
+
+async def list_repositories(namespace: str = None, include_system: bool = False) -> list[dict]:
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{settings.registry_url}/v2/_catalog")
         repos = resp.json().get("repositories", [])
         result = []
         for repo in repos:
+            cls = _classify(repo)
             # namespace prefix 필터링: "kubeflow-researcher1/my-image"
-            if namespace and "/" in repo:
-                repo_ns = repo.split("/")[0]
-                if repo_ns != namespace:
+            if namespace:
+                if include_system and cls.get("type") == "system":
+                    pass
+                elif "/" in repo:
+                    repo_ns = repo.split("/")[0]
+                    if repo_ns != namespace:
+                        continue
+                else:
+                    # prefix 없는 기존 이미지는 관리자 전체 보기에서만 볼 수 있음.
+                    # 단, include_system=True이면 위에서 시스템 이미지만 허용.
                     continue
-            elif namespace and "/" not in repo:
-                # prefix 없는 기존 이미지는 관리자만 볼 수 있음
-                continue
             tags_resp = await client.get(
                 f"{settings.registry_url}/v2/{repo}/tags/list"
             )
             tags = tags_resp.json().get("tags", []) or []
-            result.append({"name": repo, "tags": tags, **_classify(repo)})
+            result.append(_repository_info(repo, tags))
         return result
 
 
@@ -91,7 +125,32 @@ async def list_all_repositories() -> list[dict]:
             tags = tags_resp.json().get("tags", []) or []
             if not tags:
                 continue
-            result.append({"name": repo, "tags": tags, **_classify(repo)})
+            result.append(_repository_info(repo, tags))
+        return result
+
+
+async def list_shared_repositories() -> list[dict]:
+    """일반 사용자용: 시스템 이미지 + 모든 사용자 이미지.
+
+    사용자 이미지는 컨테이너 생성에서 공유 사용 가능하지만, 삭제 권한은
+    라우터에서 owner namespace 기준으로 별도 계산한다. 미분류 orphan 이미지는
+    일반 사용자에게 노출하지 않는다.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{settings.registry_url}/v2/_catalog")
+        repos = resp.json().get("repositories", [])
+        result = []
+        for repo in repos:
+            cls = _classify(repo)
+            if cls.get("type") not in ("system", "user"):
+                continue
+            tags_resp = await client.get(
+                f"{settings.registry_url}/v2/{repo}/tags/list"
+            )
+            tags = tags_resp.json().get("tags", []) or []
+            if not tags:
+                continue
+            result.append(_repository_info(repo, tags))
         return result
 
 

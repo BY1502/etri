@@ -14,45 +14,78 @@ const API = {
     base: window.location.pathname.replace(/\/$/, ''),
     namespace: new URLSearchParams(window.location.search).get('ns'),
 
-    _headers(extra) {
+    _headers(extra, namespaceOverride) {
         const h = { ...(extra || {}) };
-        if (this.namespace) h['x-pm-namespace'] = this.namespace;
+        const ns = namespaceOverride || this.namespace;
+        if (ns) h['x-pm-namespace'] = ns;
         return h;
     },
 
-    _withNs(path) {
-        if (!this.namespace) return this.base + path;
+    _withNs(path, namespaceOverride) {
+        const ns = namespaceOverride || this.namespace;
+        if (!ns) return this.base + path;
         const sep = path.includes('?') ? '&' : '?';
-        return this.base + path + sep + 'ns=' + encodeURIComponent(this.namespace);
+        return this.base + path + sep + 'ns=' + encodeURIComponent(ns);
     },
 
-    async get(path) {
+    async _json(resp) {
+        const text = await resp.text();
+        let data = {};
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch {
+                data = { detail: text };
+            }
+        }
+        if (!resp.ok) {
+            const msg = data.detail || data.message || resp.statusText || '요청 실패';
+            throw new Error(msg);
+        }
+        return data;
+    },
+
+    async get(path, namespaceOverride) {
+        const resp = await fetch(this._withNs(path, namespaceOverride), { headers: this._headers(null, namespaceOverride) });
+        return this._json(resp);
+    },
+
+    async post(path, data, namespaceOverride) {
+        const resp = await fetch(this._withNs(path, namespaceOverride), {
+            method: 'POST',
+            headers: this._headers({ 'Content-Type': 'application/json' }, namespaceOverride),
+            body: JSON.stringify(data),
+        });
+        return this._json(resp);
+    },
+
+    async del(path, namespaceOverride) {
+        const resp = await fetch(this._withNs(path, namespaceOverride), { method: 'DELETE', headers: this._headers(null, namespaceOverride) });
+        return this._json(resp);
+    },
+
+    async patch(path, namespaceOverride) {
+        const resp = await fetch(this._withNs(path, namespaceOverride), { method: 'PATCH', headers: this._headers(null, namespaceOverride) });
+        return this._json(resp);
+    },
+
+    async put(path, data, namespaceOverride) {
+        const resp = await fetch(this._withNs(path, namespaceOverride), {
+            method: 'PUT',
+            headers: this._headers({ 'Content-Type': 'application/json' }, namespaceOverride),
+            body: JSON.stringify(data),
+        });
+        return this._json(resp);
+    },
+
+    async getRaw(path) {
         const resp = await fetch(this._withNs(path), { headers: this._headers() });
         return resp.json();
     },
 
-    async post(path, data) {
+    async postRaw(path, data) {
         const resp = await fetch(this._withNs(path), {
             method: 'POST',
-            headers: this._headers({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify(data),
-        });
-        return resp.json();
-    },
-
-    async del(path) {
-        const resp = await fetch(this._withNs(path), { method: 'DELETE', headers: this._headers() });
-        return resp.json();
-    },
-
-    async patch(path) {
-        const resp = await fetch(this._withNs(path), { method: 'PATCH', headers: this._headers() });
-        return resp.json();
-    },
-
-    async put(path, data) {
-        const resp = await fetch(this._withNs(path), {
-            method: 'PUT',
             headers: this._headers({ 'Content-Type': 'application/json' }),
             body: JSON.stringify(data),
         });

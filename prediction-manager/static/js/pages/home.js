@@ -73,6 +73,64 @@ async function renderHome() {
     const hw = data.gpu_hardware || {};
     const gpuLabel = hw.model ? `GPU (${esc(hw.model)})` : 'GPU';
     const vramInfo = hw.vram_gb ? `${hw.vram_gb}GB VRAM (공유)` : '';
+    const nbCounts = data.notebook_status_counts || {};
+    const automlCounts = data.automl_status_counts || {};
+    const nbRunning = nbCounts.Running || 0;
+    const nbStopped = nbCounts.Stopped || 0;
+    const nbProblem = Math.max(0, (data.notebook_count || 0) - nbRunning - nbStopped);
+    const automlActive = (automlCounts.RUNNING || 0) + (automlCounts.PENDING || 0) + (automlCounts.QUEUED || 0);
+    const automlFailed = (automlCounts.FAILED || 0) + (automlCounts.STOPPED || 0) + (automlCounts.CANCELED || 0);
+
+    const pct = (used, quota) => quota > 0 ? Math.round((used / quota) * 100) : 0;
+    const resourceAlerts = [];
+    if (data.my_resource) {
+        const r = data.my_resource;
+        const cpuPct = pct(_parseCpu(r.used.cpu), _parseCpu(r.quota.cpu));
+        const memPct = pct(_parseMemBytes(r.used.memory), _parseMemBytes(r.quota.memory));
+        const stPct = pct(_parseMemBytes(r.used.storage || '0'), _parseMemBytes(r.quota.storage || '0'));
+        const pvcPct = pct(parseInt(r.used.pvc) || 0, parseInt(r.quota.pvc) || 0);
+        [
+            ['CPU', cpuPct],
+            ['메모리', memPct],
+            ['스토리지', stPct],
+            ['PVC', pvcPct],
+        ].forEach(([label, value]) => {
+            if (value >= 90) resourceAlerts.push(`${label} 사용률 ${value}%`);
+        });
+    }
+
+    const alerts = [];
+    if (data.gpu_total > 0 && data.gpu_available <= 0) {
+        alerts.push({ level: 'danger', title: 'GPU 여유 없음', desc: `${data.gpu_used}/${data.gpu_total} 사용 중` });
+    } else if (gpuPct >= 75) {
+        alerts.push({ level: 'warning', title: 'GPU 사용률 높음', desc: `${data.gpu_used}/${data.gpu_total} 사용 중` });
+    }
+    if (nbProblem > 0) {
+        alerts.push({ level: 'warning', title: '점검 필요한 컨테이너', desc: `${nbProblem}개가 Running/Stopped 외 상태` });
+    }
+    if (automlFailed > 0) {
+        alerts.push({ level: 'danger', title: '실패 또는 중단된 AutoML', desc: `${automlFailed}개 작업 확인 필요` });
+    }
+    resourceAlerts.forEach((desc) => alerts.push({ level: 'warning', title: '리소스 한도 근접', desc }));
+    if (alerts.length === 0) {
+        alerts.push({ level: 'success', title: '특이사항 없음', desc: '현재 주요 리소스와 작업 상태가 안정적입니다.' });
+    }
+
+    const alertRows = alerts.map(a => `
+        <div class="pm-alert-item ${a.level}">
+            <div>
+                <div class="pm-alert-title">${esc(a.title)}</div>
+                <div class="pm-alert-desc">${esc(a.desc)}</div>
+            </div>
+        </div>
+    `).join('');
+
+    const statusPill = (label, value, kind) => `
+        <div class="pm-status-pill ${kind}">
+            <span>${esc(label)}</span>
+            <strong>${esc(value)}</strong>
+        </div>
+    `;
 
     // 사용자별 리소스 테이블 (admin only)
     const userTable = (data.user_resources || []).map(u => `
@@ -101,69 +159,35 @@ async function renderHome() {
         </tr>
     `).join('');
 
-    // 이미지 테이블 (소유자 포함)
-    const imageRows = (data.recent_images || []).map(img => `
-        <tr>
-            <td style="font-weight:500; font-size:12px;">${esc(img.name)}</td>
-            <td style="font-family:var(--font-mono); font-size:11px;">${esc((img.tags || []).join(', '))}</td>
-            <td style="font-size:11px; color:var(--text-muted);">${esc(img.owner || '-')}</td>
-        </tr>
-    `).join('') || '<tr><td colspan="3" style="color:var(--text-muted); text-align:center; padding:20px;">등록된 이미지 없음</td></tr>';
-
-    // 노트북 테이블
-    const nbRows = (data.recent_notebooks || []).map(nb => {
-        const badge = nb.status === 'Running' ? 'success' : nb.status === 'Stopped' ? 'danger' : 'warning';
-        return `<tr>
-            <td style="font-weight:500; font-size:12px;">${esc(nb.name)}</td>
-            <td><span class="pm-badge pm-badge-${badge}">${esc(nb.status)}</span></td>
-            <td class="pm-table-mono" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">${esc(nb.image.split('/').pop())}</td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="3" style="color:var(--text-muted); text-align:center; padding:20px;">실행 중인 컨테이너 없음</td></tr>';
-
-    // AutoML 최근 jobs
-    const jobRows = (data.automl_jobs || []).map(j => {
-        const st = {QUEUED:'#f5e6ff',PENDING:'#e9ecef',RUNNING:'#e8f4ff',SUCCEEDED:'#d4edda',FAILED:'#f8d7da',STOPPED:'#fff3cd',CANCELED:'#e9ecef'}[j.status] || '#e9ecef';
-        const best = j.best_run?.best;
-        return `<tr>
-            <td style="font-size:12px;">
-                <div style="font-weight:500;">${esc(j.experiment_name?.replace('automl-','').slice(0,30) || j.job_id)}</div>
-                <div style="font-size:10px; color:var(--text-muted);">${esc(j.submitted_by || '-')}</div>
-            </td>
-            <td><span style="padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600; background:${st};">${esc(j.status)}</span></td>
-            <td style="font-family:var(--font-mono); font-size:11px;">${best ? `${esc(best.model_id)} ${esc(j.best_run.metric)}=${(+best.best_metric).toFixed(2)}` : '-'}</td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="3" style="color:var(--text-muted); text-align:center; padding:20px;">AutoML 작업 없음</td></tr>';
-
     return `
     <div class="pm-page-header">
         <div class="pm-page-title">Dashboard</div>
-        <div class="pm-page-desc">예측매니저 시스템 현황</div>
+        <div class="pm-page-desc">주요 지표와 점검이 필요한 상태를 한눈에 봅니다.</div>
     </div>
 
-    ${hw.model ? `
-    <div style="background:#fff8e1; border:1px solid #ffe082; padding:10px 14px; border-radius:8px; font-size:12px; margin-bottom:16px;">
-        <b>GPU 하드웨어</b>: ${esc(hw.model)} · ${esc(hw.vram_gb)}GB VRAM
-        <div style="color:var(--text-muted); margin-top:4px; font-size:11px;">
-            ⓘ GPU 수만큼 동시 작업 가능하지만, ${hw.vram_gb}GB 메모리는 공유되므로 큰 모델을 동시에 올리면 OOM 가능
-        </div>
-    </div>` : ''}
-
-    <div class="pm-grid-3" style="margin-bottom:20px">
+    <div class="pm-grid-4" style="margin-bottom:20px">
         <div class="pm-stat accent">
             <div class="pm-stat-label">IMAGES</div>
             <div class="pm-stat-value">${data.image_count}</div>
+            <div class="pm-stat-sub">등록 이미지</div>
         </div>
         <div class="pm-stat success">
             <div class="pm-stat-label">CONTAINERS</div>
-            <div class="pm-stat-value">${data.notebook_count}</div>
+            <div class="pm-stat-value">${nbRunning} / ${data.notebook_count}</div>
+            <div class="pm-stat-sub">Running / 전체</div>
         </div>
         <div class="pm-stat warning">
             <div class="pm-stat-label">${gpuLabel}</div>
             <div class="pm-stat-value">${data.gpu_used} / ${data.gpu_total}</div>
-            <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${vramInfo}</div>
+            <div class="pm-stat-sub">${esc(vramInfo || '사용 / 전체')}</div>
             <div class="pm-gpu-bar">
                 <div class="pm-gpu-bar-fill" style="width:${gpuPct}%; background:${gpuColor}"></div>
             </div>
+        </div>
+        <div class="pm-stat ${automlFailed > 0 ? 'warning' : 'accent'}">
+            <div class="pm-stat-label">AUTOML</div>
+            <div class="pm-stat-value">${automlActive}</div>
+            <div class="pm-stat-sub">진행 중 · 실패/중단 ${automlFailed}</div>
         </div>
     </div>
 
@@ -188,29 +212,20 @@ async function renderHome() {
     </div>
     ` : ''}
 
-    <div class="pm-grid-2" style="margin-bottom:20px;">
-        <div>
-            <div class="pm-section-title">이미지 목록</div>
-            <table class="pm-table">
-                <thead><tr><th>이름</th><th>태그</th><th>소유자</th></tr></thead>
-                <tbody>${imageRows}</tbody>
-            </table>
+    <div class="pm-grid-2">
+        <div class="pm-panel">
+            <div class="pm-section-title">상태 요약</div>
+            <div class="pm-status-grid">
+                ${statusPill('Running 컨테이너', nbRunning, nbProblem > 0 ? 'warning' : 'success')}
+                ${statusPill('Stopped 컨테이너', nbStopped, 'muted')}
+                ${statusPill('AutoML 진행 중', automlActive, automlActive > 0 ? 'info' : 'muted')}
+                ${statusPill('AutoML 실패/중단', automlFailed, automlFailed > 0 ? 'danger' : 'success')}
+            </div>
         </div>
-        <div>
-            <div class="pm-section-title">실행 중인 컨테이너</div>
-            <table class="pm-table">
-                <thead><tr><th>이름</th><th>상태</th><th>이미지</th></tr></thead>
-                <tbody>${nbRows}</tbody>
-            </table>
+        <div class="pm-panel">
+            <div class="pm-section-title">알림</div>
+            <div class="pm-alert-list">${alertRows}</div>
         </div>
-    </div>
-
-    <div>
-        <div class="pm-section-title">최근 AutoML 작업</div>
-        <table class="pm-table">
-            <thead><tr><th>실험 / 사용자</th><th>상태</th><th>결과</th></tr></thead>
-            <tbody>${jobRows}</tbody>
-        </table>
     </div>
     `;
 }

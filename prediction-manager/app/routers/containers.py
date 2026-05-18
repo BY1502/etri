@@ -1,10 +1,20 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
+from kubernetes.client.rest import ApiException
 
 from app.models.notebook_models import NotebookCreateRequest
 from app.services import notebook_service
 from app.auth import get_user_email, get_user_namespace, is_admin, get_all_kubeflow_namespaces
 
 router = APIRouter()
+
+
+def _raise_notebook_api_error(exc: ApiException, name: str):
+    if exc.status == 404:
+        raise HTTPException(status_code=404, detail=f"컨테이너를 찾을 수 없습니다: {name}")
+    raise HTTPException(
+        status_code=500,
+        detail=f"Kubernetes API 오류: {exc.reason or exc.status}",
+    )
 
 
 @router.get("")
@@ -78,19 +88,28 @@ async def get_pod_defaults(request: Request):
 @router.delete("/{name}")
 async def delete_container(name: str, request: Request):
     ns = get_user_namespace(request)
-    notebook_service.delete_notebook(name, namespace=ns)
+    try:
+        notebook_service.delete_notebook(name, namespace=ns)
+    except ApiException as exc:
+        _raise_notebook_api_error(exc, name)
     return {"status": "deleted", "name": name}
 
 
 @router.patch("/{name}/stop")
 async def stop_container(name: str, request: Request):
     ns = get_user_namespace(request)
-    notebook_service.stop_notebook(name, namespace=ns)
+    try:
+        notebook_service.stop_notebook(name, namespace=ns)
+    except ApiException as exc:
+        _raise_notebook_api_error(exc, name)
     return {"status": "stopped", "name": name}
 
 
 @router.patch("/{name}/start")
 async def start_container(name: str, request: Request):
     ns = get_user_namespace(request)
-    notebook_service.start_notebook(name, namespace=ns)
+    try:
+        notebook_service.start_notebook(name, namespace=ns)
+    except ApiException as exc:
+        _raise_notebook_api_error(exc, name)
     return {"status": "started", "name": name}

@@ -18,3 +18,4 @@ onnxruntime>=1.16
 skl2onnx>=1.16
 onnxmltools>=1.12
 mlflow>=3.0
+Pillow>=10.0

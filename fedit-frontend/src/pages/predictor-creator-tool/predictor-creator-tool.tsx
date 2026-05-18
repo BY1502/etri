@@ -4,6 +4,7 @@ import HomeKserveIcon from 'assets/images/home/kserve.svg';
 import HomeLabelingIcon from 'assets/images/home/labeling.svg';
 import HomeMlflowIcon from 'assets/images/home/mlflow.svg';
 import HomeNifiIcon from 'assets/images/home/nifi.svg';
+import HomeDatasetIcon from 'assets/images/home/object-data-model-management.svg';
 import HomePipelineIcon from 'assets/images/home/pipeline.svg';
 import HomePredictionManagerIcon from 'assets/images/home/prediction-manager.svg';
 import HomeRayIcon from 'assets/images/home/ray-dashboard.svg';
@@ -67,64 +68,11 @@ const services: Service[] = [
     url: '/prediction-manager/',
   },
   {
-    name: 'AutoML',
-    description: 'Ray Tune + Optuna 기반 자동 모델 탐색 / MLflow 연동',
-    icon: HomeKatibIcon,
-    path: '/automl',
-    url: '/prediction-manager/?standalone=1#/automl',
-  },
-  {
-    name: '모델 관리',
-    description: 'MLflow 모델 레지스트리 버전/단계 관리, KServe 운영 배포',
-    icon: HomeMlflowIcon,
-    path: '/models',
-    url: '/prediction-manager/?standalone=1#/models',
-  },
-  {
-    name: '시스템 관리',
-    description: '사용자 계정, 권한, 리소스 할당량 관리 (관리자 전용)',
-    icon: HomePredictionManagerIcon,
-    path: '/system-admin',
-    url: '/prediction-manager/?standalone=1#/admin',
-    adminOnly: true,
-  },
-  {
-    name: '파이프라인',
-    description: 'ML 파이프라인 생성, 실험, 실행 관리',
-    icon: HomePipelineIcon,
-    path: '/pipeline',
-    kubeflowApp: '/pipeline/',
-    needsNamespace: true,
-  },
-  {
-    name: 'MLflow',
-    description: '실험 추적, 모델 레지스트리, 모델 서빙',
-    icon: HomeMlflowIcon,
-    path: '/mlflow',
-    url: '/prediction-manager/api/dashboards/mlflow/launch',
-  },
-  {
-    name: 'Ray 대시보드',
-    description: '분산 컴퓨팅 클러스터, HPO 작업 관리',
-    icon: HomeRayIcon,
-    path: '/ray',
-    url: '/prediction-manager/api/dashboards/ray/launch',
-  },
-  {
-    name: 'KServe 엔드포인트',
-    description: '모델 서빙 엔드포인트 관리',
-    icon: HomeKserveIcon,
-    path: '/kserve',
-    kubeflowApp: '/kserve-endpoints/',
-    needsNamespace: true,
-  },
-  {
-    name: '텐서보드',
-    description: '학습 시각화 대시보드',
-    icon: HomeTensorboardIcon,
-    path: '/tensorboard',
-    kubeflowApp: '/tensorboards/',
-    needsNamespace: true,
+    name: '데이터셋 카탈로그',
+    description: '데이터셋 등록, 전처리, 라벨링 결과, Pipeline 입력 패키지',
+    icon: HomeDatasetIcon,
+    path: '/datasets',
+    url: '/prediction-manager/?standalone=1#/datasets',
   },
   {
     name: '볼륨',
@@ -135,11 +83,70 @@ const services: Service[] = [
     needsNamespace: true,
   },
   {
+    name: 'Apache NiFi',
+    description: '데이터 수집/전처리 파이프라인',
+    icon: HomeNifiIcon,
+    path: '/nifi',
+    url: '/prediction-manager/api/nifi/launch',
+  },
+  {
     name: 'Label Studio',
     description: '학습 데이터 라벨링, 주석 프로젝트, 데이터셋 검수',
     icon: HomeLabelingIcon,
     path: '/label-studio',
     url: '/label-studio/',
+  },
+  {
+    name: '파이프라인',
+    description: 'ML 파이프라인 생성, 실험, 실행 관리',
+    icon: HomePipelineIcon,
+    path: '/pipeline',
+    kubeflowApp: '/pipeline/',
+    needsNamespace: true,
+  },
+  {
+    name: 'AutoML',
+    description: 'Ray Tune + Optuna 기반 자동 모델 탐색 / MLflow 연동',
+    icon: HomeKatibIcon,
+    path: '/automl',
+    url: '/prediction-manager/?standalone=1#/automl',
+  },
+  {
+    name: 'Ray 대시보드',
+    description: '분산 컴퓨팅 클러스터, HPO 작업 관리',
+    icon: HomeRayIcon,
+    path: '/ray',
+    url: '/prediction-manager/api/dashboards/ray/launch',
+  },
+  {
+    name: 'MLflow',
+    description: '실험 추적, 모델 레지스트리, 모델 서빙',
+    icon: HomeMlflowIcon,
+    path: '/mlflow',
+    url: '/prediction-manager/api/dashboards/mlflow/launch',
+  },
+  {
+    name: '텐서보드',
+    description: '학습 시각화 대시보드',
+    icon: HomeTensorboardIcon,
+    path: '/tensorboard',
+    kubeflowApp: '/tensorboards/',
+    needsNamespace: true,
+  },
+  {
+    name: '모델 관리',
+    description: 'MLflow 모델 레지스트리 버전/단계 관리, KServe 운영 배포',
+    icon: HomeMlflowIcon,
+    path: '/models',
+    url: '/prediction-manager/?standalone=1#/models',
+  },
+  {
+    name: 'KServe 엔드포인트',
+    description: '모델 서빙 엔드포인트 관리',
+    icon: HomeKserveIcon,
+    path: '/kserve',
+    kubeflowApp: '/kserve-endpoints/',
+    needsNamespace: true,
   },
   {
     name: 'Grafana 모니터링',
@@ -149,11 +156,12 @@ const services: Service[] = [
     url: '/grafana/d/mlops-overview/?orgId=1&theme=light',
   },
   {
-    name: 'Apache NiFi',
-    description: '데이터 수집/전처리 파이프라인',
-    icon: HomeNifiIcon,
-    path: '/nifi',
-    url: '/prediction-manager/api/nifi/launch',
+    name: '시스템 관리',
+    description: '사용자 계정, 권한, 리소스 할당량 관리 (관리자 전용)',
+    icon: HomePredictionManagerIcon,
+    path: '/system-admin',
+    url: '/prediction-manager/?standalone=1#/admin',
+    adminOnly: true,
   },
 ];
 

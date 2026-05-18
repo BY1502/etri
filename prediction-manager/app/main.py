@@ -12,7 +12,7 @@ from app.auth import (
     is_admin,
     get_user_accessible_namespaces,
 )
-from app.routers import images, containers, dashboard, admin, automl, models, nifi, tenant_dashboards
+from app.routers import images, containers, dashboard, admin, automl, models, datasets, nifi, tenant_dashboards
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("prediction-manager")
@@ -43,6 +43,7 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"]
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(automl.router, prefix="/api/automl", tags=["automl"])
 app.include_router(models.router, prefix="/api/models", tags=["models"])
+app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 app.include_router(nifi.router, prefix="/api/nifi", tags=["nifi"])
 app.include_router(tenant_dashboards.router, prefix="/api/dashboards", tags=["dashboards"])
 

@@ -12,6 +12,316 @@ spec:
     requests:
       storage: 20Gi
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: label-studio-kubeflow-sso
+  namespace: kubeflow
+  labels:
+    app: label-studio
+data:
+  __init__.py: |
+    # Kubeflow SSO extension package for Label Studio.
+  settings.py: |
+    """Label Studio settings with Kubeflow header SSO.
+
+    This mirrors the upstream Label Studio OSS settings module and adds a
+    small middleware hook. Keep the base image pinned when changing this file.
+    """
+    import os
+    import json
+
+    from core.settings.base import *  # noqa: F401,F403
+    from core.utils.secret_key import generate_secret_key_if_missing
+
+    SECRET_KEY = generate_secret_key_if_missing(BASE_DATA_DIR)
+
+    DJANGO_DB = get_env("DJANGO_DB", DJANGO_DB_SQLITE)
+    DATABASES = {"default": DATABASES_ALL[DJANGO_DB]}
+
+    MIDDLEWARE.append("organizations.middleware.DummyGetSessionMiddleware")
+    MIDDLEWARE.append("core.middleware.UpdateLastActivityMiddleware")
+    if INACTIVITY_SESSION_TIMEOUT_ENABLED:
+        MIDDLEWARE.append("core.middleware.InactivitySessionTimeoutMiddleWare")
+
+    ADD_DEFAULT_ML_BACKENDS = False
+
+    LOGGING["root"]["level"] = get_env("LOG_LEVEL", "WARNING")
+
+    DEBUG = get_bool_env("DEBUG", False)
+
+    DEBUG_PROPAGATE_EXCEPTIONS = get_bool_env("DEBUG_PROPAGATE_EXCEPTIONS", False)
+
+    SESSION_COOKIE_SECURE = get_bool_env("SESSION_COOKIE_SECURE", False)
+
+    SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+
+    # Disable the upstream default Sentry DSN unless explicitly configured.
+    SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+    SENTRY_ENVIRONMENT = get_env("SENTRY_ENVIRONMENT", "opensource")
+
+    FRONTEND_SENTRY_DSN = get_env("FRONTEND_SENTRY_DSN", "")
+    FRONTEND_SENTRY_ENVIRONMENT = get_env("FRONTEND_SENTRY_ENVIRONMENT", "opensource")
+
+    EDITOR_KEYMAP = json.dumps(get_env("EDITOR_KEYMAP"))
+
+    from label_studio import __version__
+    from label_studio.core.utils import sentry
+
+    sentry.init_sentry(release_name="label-studio", release_version=__version__)
+
+    from label_studio.core.utils.common import collect_versions
+
+    versions = collect_versions()
+
+    FEATURE_FLAGS_DEFAULT_VALUE = True
+    FEATURE_FLAGS_OFFLINE = get_bool_env("FEATURE_FLAGS_OFFLINE", True)
+
+    FEATURE_FLAGS_FILE = get_env("FEATURE_FLAGS_FILE", "feature_flags.json")
+    FEATURE_FLAGS_FROM_FILE = True
+    try:
+        from core.utils.io import find_node
+
+        find_node("label_studio", FEATURE_FLAGS_FILE, "file")
+    except IOError:
+        FEATURE_FLAGS_FROM_FILE = False
+
+    STORAGE_PERSISTENCE = get_bool_env("STORAGE_PERSISTENCE", True)
+
+    def _bool_env(name, default=False):
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in ("1", "true", "yes", "on")
+
+
+    def _list_env(name, default=None):
+        value = os.getenv(name)
+        if value is None:
+            return list(default or [])
+        return [item.strip() for item in value.split(",") if item.strip()]
+
+
+    KUBEFLOW_SSO_ENABLED = _bool_env("KUBEFLOW_SSO_ENABLED", False)
+    KUBEFLOW_SSO_REQUIRE_HEADER = _bool_env("KUBEFLOW_SSO_REQUIRE_HEADER", False)
+    KUBEFLOW_SSO_STRICT_ORG_ISOLATION = _bool_env("KUBEFLOW_SSO_STRICT_ORG_ISOLATION", True)
+    KUBEFLOW_SSO_ALLOW_USERNAME_FALLBACK = _bool_env("KUBEFLOW_SSO_ALLOW_USERNAME_FALLBACK", False)
+    KUBEFLOW_SSO_DEFAULT_EMAIL_DOMAIN = os.getenv("KUBEFLOW_SSO_DEFAULT_EMAIL_DOMAIN", "kubeflow.local")
+    KUBEFLOW_SSO_ORG_PREFIX = os.getenv("KUBEFLOW_SSO_ORG_PREFIX", "Kubeflow")
+    KUBEFLOW_SSO_USER_HEADERS = _list_env(
+        "KUBEFLOW_SSO_USER_HEADERS",
+        ["HTTP_KUBEFLOW_USERID", "HTTP_X_AUTH_REQUEST_EMAIL", "HTTP_X_AUTH_REQUEST_USER"],
+    )
+    KUBEFLOW_SSO_ADMIN_EMAILS = {email.lower() for email in _list_env("KUBEFLOW_SSO_ADMIN_EMAILS", [])}
+    KUBEFLOW_SSO_SKIP_PATH_PREFIXES = tuple(
+        _list_env(
+        "KUBEFLOW_SSO_SKIP_PATH_PREFIXES",
+            [
+                "/health",
+                "/favicon.ico",
+                "/static/",
+                "/react-app/",
+                "/label-studio-frontend/",
+                "/dm/",
+                "/sw.js",
+                "/sw-fallback.js",
+                "/label-studio/static/",
+                "/label-studio/react-app/",
+                "/label-studio/label-studio-frontend/",
+                "/label-studio/dm/",
+            ],
+        )
+    )
+
+    if KUBEFLOW_SSO_ENABLED:
+        middleware = "kubeflow_sso.middleware.KubeflowHeaderSSOMiddleware"
+        if middleware not in MIDDLEWARE:
+            try:
+                index = MIDDLEWARE.index("jwt_auth.middleware.JWTAuthenticationMiddleware") + 1
+            except ValueError:
+                try:
+                    index = MIDDLEWARE.index("django.contrib.auth.middleware.AuthenticationMiddleware") + 1
+                except ValueError:
+                    index = len(MIDDLEWARE)
+            MIDDLEWARE.insert(index, middleware)
+  middleware.py: |
+    import logging
+    import os
+    import re
+
+    from django.conf import settings
+    from django.db import transaction
+    from django.http import HttpResponseForbidden
+
+    logger = logging.getLogger(__name__)
+
+    EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    USERNAME_RE = re.compile(r"[^a-z0-9_.+-]+")
+    PROJECT_PATH_RE = re.compile(r"^/(?:api/)?projects/(?P<project_id>\d+)(?:/|$)")
+
+
+    class KubeflowHeaderSSOMiddleware:
+        def __init__(self, get_response):
+            self.get_response = get_response
+
+        def __call__(self, request):
+            if self._skip_path(request):
+                return self.get_response(request)
+
+            raw_user = self._get_header_user(request)
+            if not raw_user:
+                if getattr(settings, "KUBEFLOW_SSO_REQUIRE_HEADER", False):
+                    return HttpResponseForbidden("Kubeflow SSO header is required.")
+                return self.get_response(request)
+
+            email = self._normalize_email(raw_user)
+            if not email:
+                return HttpResponseForbidden("Invalid Kubeflow user header.")
+
+            self._ensure_local_files_dir(email)
+
+            if request.user.is_authenticated and request.user.email.lower() == email:
+                user = request.user
+                is_admin = email in settings.KUBEFLOW_SSO_ADMIN_EMAILS
+                needs_sync = (
+                    user.active_organization_id is None
+                    or not user.is_active
+                    or (is_admin and (not user.is_staff or not user.is_superuser))
+                )
+                if needs_sync:
+                    user = self._ensure_user(email)
+            else:
+                user = self._ensure_user(email)
+                from users.functions import login as label_studio_login
+
+                label_studio_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+                request.session["keep_me_logged_in"] = True
+
+            self._activate_project_org_for_admin(request, user)
+
+            return self.get_response(request)
+
+        def _skip_path(self, request):
+            path = request.path_info or request.path or ""
+            return any(path.startswith(prefix) for prefix in settings.KUBEFLOW_SSO_SKIP_PATH_PREFIXES)
+
+        def _get_header_user(self, request):
+            for header in settings.KUBEFLOW_SSO_USER_HEADERS:
+                value = request.META.get(header)
+                if value:
+                    return value.split(",")[0].strip()
+            return ""
+
+        def _normalize_email(self, value):
+            value = value.strip().lower()
+            if not value:
+                return ""
+
+            if "@" not in value:
+                if not getattr(settings, "KUBEFLOW_SSO_ALLOW_USERNAME_FALLBACK", False):
+                    return ""
+                local = USERNAME_RE.sub("-", value).strip(".-+_")
+                if not local:
+                    return ""
+                value = f"{local}@{settings.KUBEFLOW_SSO_DEFAULT_EMAIL_DOMAIN}"
+
+            if len(value) > 254 or not EMAIL_RE.match(value):
+                return ""
+            return value
+
+        def _ensure_local_files_dir(self, email):
+            root = getattr(settings, "LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT", "/label-studio/data")
+            local = USERNAME_RE.sub("-", email.split("@", 1)[0].lower()).strip(".-+_")
+            if not root or not local:
+                return
+            try:
+                path = os.path.join(root, local)
+                os.makedirs(path, mode=0o775, exist_ok=True)
+            except Exception:
+                logger.exception("Failed to create Label Studio local files directory for %s", email)
+
+        def _activate_project_org_for_admin(self, request, user):
+            if not getattr(user, "is_superuser", False):
+                return
+            path = request.path_info or request.path or ""
+            match = PROJECT_PATH_RE.match(path)
+            if not match:
+                return
+            try:
+                from organizations.models import OrganizationMember
+                from projects.models import Project
+
+                project = Project.objects.select_related("organization").get(
+                    pk=int(match.group("project_id"))
+                )
+                org = project.organization
+                if not org.has_user(user):
+                    org.add_user(user)
+                if user.active_organization_id != org.pk:
+                    user.active_organization = org
+                    user.save(update_fields=["active_organization"])
+                logger.info(
+                    "Activated Label Studio project organization for admin: user=%s project=%s org=%s",
+                    user.email,
+                    project.pk,
+                    org.pk,
+                )
+            except Exception:
+                logger.exception("Failed to activate project organization for admin")
+
+        def _ensure_user(self, email):
+            from organizations.models import Organization, OrganizationMember
+            from users.models import User
+
+            username = email.split("@", 1)[0][:256]
+            is_admin = email in settings.KUBEFLOW_SSO_ADMIN_EMAILS
+
+            with transaction.atomic():
+                user = User.objects.select_for_update().filter(email=email).first()
+                if user is None:
+                    user = User(
+                        email=email,
+                        username=username,
+                        allow_newsletters=False,
+                        is_active=True,
+                        is_staff=is_admin,
+                        is_superuser=is_admin,
+                    )
+                    user.set_unusable_password()
+                    user.save()
+                    logger.info("Created Label Studio user from Kubeflow SSO header: %s", email)
+                else:
+                    changed_fields = []
+                    if user.username != username:
+                        user.username = username
+                        changed_fields.append("username")
+                    if not user.is_active:
+                        user.is_active = True
+                        changed_fields.append("is_active")
+                    if is_admin and (not user.is_staff or not user.is_superuser):
+                        user.is_staff = True
+                        user.is_superuser = True
+                        changed_fields.extend(["is_staff", "is_superuser"])
+                    if changed_fields:
+                        user.save(update_fields=sorted(set(changed_fields)))
+
+                org = Organization.objects.filter(created_by=user).first()
+                if org is None:
+                    org_title = f"{settings.KUBEFLOW_SSO_ORG_PREFIX} - {email}"
+                    org = Organization.create_organization(created_by=user, title=org_title[:1000])
+
+                if not org.has_user(user):
+                    org.add_user(user)
+
+                if settings.KUBEFLOW_SSO_STRICT_ORG_ISOLATION and not is_admin:
+                    OrganizationMember.objects.filter(user=user).exclude(organization=org).delete()
+
+                if user.active_organization_id != org.pk:
+                    user.active_organization = org
+                    user.save(update_fields=["active_organization"])
+
+                return user
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,6 +340,7 @@ spec:
         app: label-studio
       annotations:
         sidecar.istio.io/inject: "false"
+        label-studio-kubeflow-sso/revision: "20260513-2"
     spec:
       enableServiceLinks: false
       securityContext:
@@ -43,9 +354,33 @@ spec:
               containerPort: 8080
           env:
             - name: LABEL_STUDIO_HOST
-              value: "https://192.168.0.166:30443/label-studio"
+              value: "https://121.183.206.41:30443/label-studio"
             - name: LABEL_STUDIO_PORT
               value: "8080"
+            - name: PYTHONPATH
+              value: "/opt/label-studio-kubeflow:/label-studio"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "kubeflow_sso.settings"
+            - name: KUBEFLOW_SSO_ENABLED
+              value: "true"
+            - name: KUBEFLOW_SSO_REQUIRE_HEADER
+              value: "true"
+            - name: KUBEFLOW_SSO_STRICT_ORG_ISOLATION
+              value: "true"
+            - name: KUBEFLOW_SSO_USER_HEADERS
+              value: "HTTP_KUBEFLOW_USERID,HTTP_X_AUTH_REQUEST_EMAIL,HTTP_X_AUTH_REQUEST_USER"
+            - name: KUBEFLOW_SSO_ADMIN_EMAILS
+              value: "admin@example.com"
+            - name: DISABLE_SIGNUP_WITHOUT_LINK
+              value: "true"
+            - name: SESSION_COOKIE_SECURE
+              value: "1"
+            - name: LOGOUT_REDIRECT_URL
+              value: "/oauth2/sign_out?rd=/fedit/"
+            - name: LATEST_VERSION_CHECK
+              value: "false"
+            - name: COLLECT_ANALYTICS
+              value: "false"
             - name: LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED
               value: "true"
             - name: LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT
@@ -53,7 +388,7 @@ spec:
             - name: DJANGO_ALLOWED_HOSTS
               value: "*"
             - name: CSRF_TRUSTED_ORIGINS
-              value: "https://192.168.0.166:30443"
+              value: "https://121.183.206.41:30443,https://192.168.0.166:30443"
           resources:
             requests:
               cpu: 250m
@@ -64,6 +399,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /label-studio/data
+            - name: kubeflow-sso
+              mountPath: /opt/label-studio-kubeflow/kubeflow_sso
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
@@ -82,6 +420,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: label-studio-data
+        - name: kubeflow-sso
+          configMap:
+            name: label-studio-kubeflow-sso
 ---
 apiVersion: v1
 kind: Service
@@ -147,6 +488,12 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: istio-system
         - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: kubeflow-profile
+          podSelector:
+            matchLabels:
+              app: pm-user-nifi
 ---
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy

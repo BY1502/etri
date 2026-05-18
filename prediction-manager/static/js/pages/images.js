@@ -30,15 +30,34 @@ async function renderImages() {
     baseOptions = await API.get('/api/images/base-options');
     setTimeout(_bindImageActions, 0);
 
-    const rows = images.flatMap(img =>
-        img.tags.map(tag => ({
-            name: img.name, tag,
+    const rows = images.flatMap(img => {
+        const tags = img.tags || [];
+        const common = {
+            name: img.name,
             type: img.type || 'user',
             category: img.category || '',
             description: img.description || '',
             protected: !!img.protected,
-        }))
-    );
+            owner_namespace: img.owner_namespace || '',
+            compatible_types: img.compatible_types || [],
+            can_delete: !!img.can_delete,
+            can_use: img.can_use !== false,
+        };
+        if ((img.type || 'user') === 'system') {
+            return [{
+                ...common,
+                tag: tags.length === 1 ? tags[0] : `태그 ${tags.length}개`,
+                tags,
+                grouped: tags.length > 1,
+            }];
+        }
+        return tags.map(tag => ({
+            ...common,
+            tag,
+            tags: [tag],
+            grouped: false,
+        }));
+    });
 
     return `
     <div class="pm-page-header" style="display:flex;justify-content:space-between;align-items:center">
@@ -50,7 +69,7 @@ async function renderImages() {
     </div>
 
     <table class="pm-table">
-        <thead><tr><th>이미지 이름</th><th>구분</th><th>태그</th><th>레지스트리</th><th></th></tr></thead>
+        <thead><tr><th>이미지 이름</th><th>구분</th><th>소유</th><th>호환</th><th>태그</th><th>레지스트리</th><th></th></tr></thead>
         <tbody>
             ${rows.map(r => {
                 const badgeMap = {
@@ -61,23 +80,38 @@ async function renderImages() {
                 const b = badgeMap[r.type] || badgeMap.user;
                 const catLabel = r.category ? ` · ${r.category}` : '';
                 const tooltip = r.description || '';
-                // 시스템(보호) 이미지는 삭제 버튼 자체를 렌더 안 함
-                const delButton = r.protected
-                    ? `<span style="color:var(--text-muted); font-size:12px;" title="${esc(tooltip)}">시스템</span>`
-                    : `<button class="pm-btn pm-btn-sm pm-btn-danger image-delete-btn" data-name="${esc(r.name)}" data-tag="${esc(r.tag)}" data-protected="0" data-desc="${esc(tooltip)}">삭제</button>`;
+                const ownerLabel = r.owner_namespace || (r.type === 'system' ? 'system' : '-');
+                const runtimeLabelMap = { jupyter: 'Jupyter', vscode: 'VSCode', rstudio: 'RStudio' };
+                const runtimeLabel = r.compatible_types.length
+                    ? r.compatible_types.map(t => runtimeLabelMap[t] || t).join(', ')
+                    : '-';
+                const tagTitle = r.grouped ? r.tags.join(', ') : '';
+                const registryLabel = r.grouped
+                    ? `localhost:5000/${r.name}`
+                    : `localhost:5000/${r.name}:${r.tag}`;
+                let actionLabel = `<span style="color:var(--text-muted); font-size:12px;" title="${esc(tooltip)}">시스템</span>`;
+                if (!r.protected && r.can_delete) {
+                    actionLabel = `<button class="pm-btn pm-btn-sm pm-btn-danger image-delete-btn" data-name="${esc(r.name)}" data-tag="${esc(r.tag)}" data-protected="0" data-desc="${esc(tooltip)}">삭제</button>`;
+                } else if (!r.protected && r.can_use) {
+                    actionLabel = `<span style="color:var(--success); font-size:12px;" title="호환 유형의 컨테이너 생성에서 사용할 수 있습니다. 삭제는 생성자만 가능합니다.">사용 가능</span>`;
+                } else if (!r.protected) {
+                    actionLabel = `<span style="color:var(--text-muted); font-size:12px;">관리 불가</span>`;
+                }
                 return `
                 <tr>
                     <td style="font-weight:500">${esc(r.name)}</td>
                     <td>
                         <span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; background:${b.color}; color:${b.text};" title="${esc(tooltip)}">${esc(b.label)}${esc(catLabel)}</span>
                     </td>
-                    <td><span class="pm-badge pm-badge-info">${esc(r.tag)}</span></td>
-                    <td class="pm-table-mono" style="color:var(--text-muted)">localhost:5000/${esc(r.name)}:${esc(r.tag)}</td>
+	                    <td style="font-size:12px; color:var(--text-muted);">${esc(ownerLabel)}</td>
+	                    <td style="font-size:12px; color:var(--text-secondary);">${esc(runtimeLabel)}</td>
+	                    <td><span class="pm-badge pm-badge-info" title="${esc(tagTitle)}">${esc(r.tag)}</span></td>
+	                    <td class="pm-table-mono" style="color:var(--text-muted)">${esc(registryLabel)}</td>
                     <td style="text-align:right">
-                        ${delButton}
+                        ${actionLabel}
                     </td>
                 </tr>`;
-            }).join('') || '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:30px">등록된 이미지가 없습니다</td></tr>'}
+            }).join('') || '<tr><td colspan="7" style="color:var(--text-muted);text-align:center;padding:30px">등록된 이미지가 없습니다</td></tr>'}
         </tbody>
     </table>
     `;
