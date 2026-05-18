@@ -11,7 +11,13 @@ import HomeVolumeIcon from 'assets/images/home/volume.svg';
 import AlarmBar from 'components/alarmbar/AlarmBar';
 import Layout from 'components/layout/layout';
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 
 import './predictor-creator-tool.scss';
 
@@ -81,14 +87,6 @@ const services: Service[] = [
     url: '/prediction-manager/?standalone=1#/models',
   },
   {
-    name: '시스템 관리',
-    description: '사용자 계정, 권한, 리소스 할당량 관리 (관리자 전용)',
-    icon: HomePredictionManagerIcon,
-    path: '/system-admin',
-    url: '/prediction-manager/?standalone=1#/admin',
-    adminOnly: true,
-  },
-  {
     name: '파이프라인',
     description: 'ML 파이프라인 생성, 실험, 실행 관리',
     icon: HomePipelineIcon,
@@ -154,6 +152,14 @@ const services: Service[] = [
     icon: HomeGrafanaIcon,
     path: '/monitoring',
     url: '/prediction-manager/?standalone=1#/monitoring',
+  },
+  {
+    name: '시스템 관리',
+    description: '사용자 계정, 권한, 리소스 할당량 관리 (관리자 전용)',
+    icon: HomePredictionManagerIcon,
+    path: '/system-admin',
+    url: '/prediction-manager/?standalone=1#/admin',
+    adminOnly: true,
   },
 ];
 
@@ -268,7 +274,9 @@ function IframePage({ service }: { service: Service }) {
         setAccessibleNs(info.accessible_namespaces || []);
         setNamespace(info.namespace);
         if (isPmUrl(service.url)) {
-          const scrollTo = (location.state as any)?.scrollTo as string | undefined;
+          const scrollTo = (location.state as any)?.scrollTo as
+            | string
+            | undefined;
           setIframeUrl(buildPmUrl(service.url, info.namespace, scrollTo));
         } else {
           setIframeUrl(service.url);

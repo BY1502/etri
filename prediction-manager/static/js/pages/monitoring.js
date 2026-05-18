@@ -1069,9 +1069,11 @@ async function setupMonitoringPage() {
 
     const scrollTo = new URLSearchParams(window.location.search).get('scrollTo');
     if (scrollTo) {
-        setTimeout(() => {
-            document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 300);
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
     }
 }
 
