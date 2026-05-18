@@ -1,3 +1,4 @@
+import BellIcon from 'assets/images/home/bell_icon_steelblue.svg';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AlarmBar.scss';
@@ -287,7 +288,7 @@ export default function AlarmBar() {
           onClick={() => setOpen((o) => !o)}
           title="알람"
         >
-          <span className="alarmbar__bell-icon">🔔</span>
+          <img src={BellIcon} alt="알람" className="alarmbar__bell-icon" />
           {alarms.length > 0 && (
             <span
               className={`alarmbar__badge ${
