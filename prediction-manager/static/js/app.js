@@ -1,3 +1,5 @@
+let _monitoringRefreshTimer = null;
+
 const pages = {
     home: renderHome,
     images: renderImages,
@@ -10,6 +12,9 @@ const pages = {
 };
 
 async function navigate(page) {
+    clearInterval(_monitoringRefreshTimer);
+    _monitoringRefreshTimer = null;
+
     window.location.hash = `#/${page}`;
     const app = document.getElementById('app');
     app.innerHTML = '<div class="pm-spinner">로딩 중...</div>';
@@ -31,6 +36,7 @@ async function navigate(page) {
         }
         if (page === 'monitoring' && typeof setupMonitoringPage === 'function') {
             setupMonitoringPage();
+            _monitoringRefreshTimer = setInterval(refreshMonitoringPage, 10_000);
         }
     } catch (e) {
         app.innerHTML = `

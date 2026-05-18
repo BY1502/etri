@@ -1,4 +1,6 @@
 let _monitoringData = null;
+const _charts = {};
+let _lastSuccessTime = null;
 
 async function renderMonitoring() {
     let data;
@@ -28,8 +30,8 @@ async function renderMonitoring() {
         <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
             <canvas id="${id}" width="160" height="80" data-pct="${pct ?? 0}" data-accent="${accent}"></canvas>
             <div style="display:flex; flex-direction:column; align-items:center; line-height:1.2;">
-                <span style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
-                ${subStr ? `<span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${esc(subStr)}</span>` : ''}
+                <span id="val-${id}" style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
+                ${subStr ? `<span id="sub-${id}" style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${esc(subStr)}</span>` : ''}
             </div>
             <div style="font-size:13px; font-weight:600; color:${accent}; letter-spacing:0.5px; text-transform:uppercase;">${esc(label)}</div>
         </div>`;
@@ -146,7 +148,13 @@ async function renderMonitoring() {
     return `
     <div class="pm-page-header">
         <h1>MLOps 모니터링</h1>
-        <p>GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.</p>
+        <p style="display:flex; align-items:center; gap:10px; margin:0;">
+            GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.
+            <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#16a34a;">
+                <span id="monitoring-conn-dot" style="width:7px; height:7px; border-radius:50%; background:#16a34a; flex-shrink:0;"></span>
+                <span id="monitoring-conn-text">정상</span>
+            </span>
+        </p>
     </div>
 
     ${prometheusWarning}
@@ -178,9 +186,9 @@ async function renderMonitoring() {
                     return `
                     <div style="background:#f3f4f6; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; align-items:center; gap:8px;">
                         <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px;">온도</div>
-                        <div style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:${labelColor}; margin-bottom:6px;">${gpuTemp !== null ? gpuTemp + '°C' : '-'} <span style="font-size:12px;">${label}</span></div>
+                        <div id="stat-gpu-temp-value" style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:${labelColor}; margin-bottom:6px;">${gpuTemp !== null ? gpuTemp + '°C' : '-'} <span style="font-size:12px;">${label}</span></div>
                         <div style="position:relative; width:100%; height:14px; background:#e5e7eb; border-radius:7px; overflow:hidden;">
-                            <div style="position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${fillColor}; border-radius:7px; transition:width 0.4s;"></div>
+                            <div id="bar-gpu-temp-fill" style="position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${fillColor}; border-radius:7px; transition:width 0.4s;"></div>
                             <div style="position:absolute; left:75%; top:0; bottom:0; width:1px; background:rgba(0,0,0,0.2);"></div>
                             <div style="position:absolute; left:85%; top:0; bottom:0; width:1px; background:rgba(0,0,0,0.2);"></div>
                         </div>
@@ -190,7 +198,7 @@ async function renderMonitoring() {
                 <div style="background:#f3f4f6; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; align-items:center;">
                     <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px;">전력</div>
                     <div style="flex:1; display:flex; align-items:center; justify-content:center;">
-                        <div style="font-size:26px; font-weight:700; font-family:var(--font-mono); color:#111827;">${gpuPower !== null ? gpuPower + ' W' : '-'}</div>
+                        <div id="stat-gpu-power-value" style="font-size:26px; font-weight:700; font-family:var(--font-mono); color:#111827;">${gpuPower !== null ? gpuPower + ' W' : '-'}</div>
                     </div>
                 </div>
             </div>
@@ -210,7 +218,7 @@ async function renderMonitoring() {
                     <th style="text-align:right;">Value #B (Memory GB)</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="tbody-notebook-res">
                 ${notebookStatus === 'error'
                     ? noConnTd(isAdminView ? 5 : 4)
                     : notebookStatus === 'empty' || notebookRows.length === 0
@@ -340,11 +348,11 @@ async function renderMonitoring() {
                     ? noDataDiv
                     : `<div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; flex:1;">
                         ${[
-                            { label: '활성 노드', value: ray.nodes ?? '-', color: '#1a56a8', bg: '#e8f4ff' },
-                            { label: '완료 Job', value: ray.finished_total ?? '-', color: '#155724', bg: '#d4edda' },
+                            { id: 'stat-ray-nodes', label: '활성 노드', value: ray.nodes ?? '-', color: '#1a56a8', bg: '#e8f4ff' },
+                            { id: 'stat-ray-jobs',  label: '완료 Job', value: ray.finished_total ?? '-', color: '#155724', bg: '#d4edda' },
                         ].map(s => `
                             <div style="background:${s.bg}; border-radius:8px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
-                                <div style="font-size:48px; font-weight:700; color:${s.color}; font-family:var(--font-mono); line-height:1;">${s.value}</div>
+                                <div id="${s.id}" style="font-size:48px; font-weight:700; color:${s.color}; font-family:var(--font-mono); line-height:1;">${s.value}</div>
                                 <div style="font-size:13px; font-weight:600; color:${s.color};">${s.label}</div>
                             </div>`).join('')}
                     </div>`
@@ -356,20 +364,20 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
-                    { label: '전체',  value: automlError ? '-' : automlDisplayJobs.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: '실행중', value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
-                    { label: '성공',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
-                    { label: '실패',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
+                    { id: 'stat-automl-total',   label: '전체',  value: automlError ? '-' : automlDisplayJobs.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { id: 'stat-automl-running',  label: '실행중', value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
+                    { id: 'stat-automl-success',  label: '성공',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
+                    { id: 'stat-automl-failed',   label: '실패',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
-                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
+                        <div id="${s.id}" style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
                         <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
                     </div>`).join('')}
             </div>
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>${isAdminView ? '이름 / 제출자' : '이름'}</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
-                <tbody>${
+                <tbody id="tbody-automl">${
                     automlError
                         ? noConnTd(3)
                         : automlDisplayJobs.length === 0
@@ -396,7 +404,7 @@ async function renderMonitoring() {
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                     <tr>${isAdminView ? '<th>사용자</th>' : ''}<th>owner_name</th><th>상태</th><th>Pod 이름</th></tr>
                 </thead>
-                <tbody>
+                <tbody id="tbody-running-nb">
                     ${runningNbStatus === 'error'
                         ? noConnTd(isAdminView ? 4 : 3)
                         : runningNbStatus === 'empty' || runningNbs.length === 0
@@ -418,19 +426,19 @@ async function renderMonitoring() {
             <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
-                    { label: '전체',     value: kserveError ? '-' : kserveDisplayEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { label: 'Ready',   value: kserveError ? '-' : kserveDisplayEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
-                    { label: 'Not Ready', value: kserveError ? '-' : kserveDisplayEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
+                    { id: 'stat-kserve-total',    label: '전체',     value: kserveError ? '-' : kserveDisplayEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
+                    { id: 'stat-kserve-ready',    label: 'Ready',   value: kserveError ? '-' : kserveDisplayEndpoints.filter(e => e.ready).length, color: '#155724', bg: '#d4edda' },
+                    { id: 'stat-kserve-notready', label: 'Not Ready', value: kserveError ? '-' : kserveDisplayEndpoints.filter(e => !e.ready).length, color: '#721c24', bg: '#f8d7da' },
                 ].map(s => `
                     <div style="background:${s.bg}; border-radius:8px; padding:12px 16px; text-align:center;">
-                        <div style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
+                        <div id="${s.id}" style="font-size:24px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
                         <div style="font-size:11px; color:${s.color}; margin-top:2px;">${s.label}</div>
                     </div>`).join('')}
             </div>
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table">
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>이름</th>${isAdminView ? '<th>Namespace</th>' : ''}<th>상태</th></tr></thead>
-                <tbody>${
+                <tbody id="tbody-kserve">${
                     kserveError
                         ? noConnTd(isAdminView ? 3 : 2)
                         : kserveDisplayEndpoints.length === 0
@@ -446,13 +454,13 @@ async function renderMonitoring() {
         <div class="pm-zigzag-col">
             <div style="display:flex; gap:10px; order:1;">
                 ${[
-                    { label: 'MLflow Experiments', value: mlflowStats.experiments ?? '-', color: '#16a34a' },
-                    { label: 'Registered Models',  value: mlflowStats.models ?? '-',      color: '#2563eb' },
-                    { label: 'Total Runs',         value: mlflowStats.runs ?? '-',         color: '#9333ea' },
+                    { id: 'stat-mlflow-exp',     label: 'MLflow Experiments', value: mlflowStats.experiments ?? '-', color: '#16a34a' },
+                    { id: 'stat-mlflow-models',  label: 'Registered Models',  value: mlflowStats.models ?? '-',      color: '#2563eb' },
+                    { id: 'stat-mlflow-runs',    label: 'Total Runs',         value: mlflowStats.runs ?? '-',         color: '#9333ea' },
                 ].map(s => `
                 <div class="pm-half-card" style="flex:1;">
                     <div style="font-size:14px; font-weight:600; color:#374151;">${s.label}</div>
-                    <div style="font-size:48px; font-weight:700; font-family:var(--font-mono); color:${s.color}; text-align:center; line-height:1;">${s.value}</div>
+                    <div id="${s.id}" style="font-size:48px; font-weight:700; font-family:var(--font-mono); color:${s.color}; text-align:center; line-height:1;">${s.value}</div>
                     <div></div>
                 </div>`).join('')}
             </div>
@@ -467,7 +475,7 @@ async function renderMonitoring() {
                     <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                         <tr><th>실험명</th><th style="text-align:right;">Run 수</th></tr>
                     </thead>
-                    <tbody>
+                    <tbody id="tbody-mlflow-exp-runs">
                         ${mlflowExpRuns.map(e => `
                         <tr>
                             <td>${esc(e.name)}</td>
@@ -502,7 +510,7 @@ async function renderMonitoring() {
                     <thead style="position:sticky; top:0; background:#fff; z-index:1;">
                         <tr><th>모델명</th><th style="text-align:center;">버전 수</th><th>최신 Stage</th></tr>
                     </thead>
-                    <tbody>
+                    <tbody id="tbody-mlflow-models">
                         ${mlflowModels.map(m => {
                             const stageStyle = m.stage === 'Production'
                                 ? 'background:#e8f4ff; color:#1a56a8;'
@@ -537,6 +545,11 @@ async function renderMonitoring() {
 }
 
 async function setupMonitoringPage() {
+    Object.values(_charts).forEach(c => c?.destroy());
+    Object.keys(_charts).forEach(k => delete _charts[k]);
+
+    Chart.defaults.animation = false;
+
     const isAdminView = _monitoringData?.is_admin_view ?? true;
     const currentNs   = _monitoringData?.namespace     ?? '';
 
@@ -563,28 +576,28 @@ async function setupMonitoringPage() {
         tooltip = document.createElement('div');
         tooltip.id = 'pm-tooltip';
         document.body.appendChild(tooltip);
+        document.addEventListener('mouseover', e => {
+            const el = e.target.closest('[data-tip]');
+            if (!el) return;
+            tooltip.textContent = el.dataset.tip;
+            tooltip.style.display = 'block';
+        });
+        document.addEventListener('mousemove', e => {
+            tooltip.style.left = (e.clientX + 12) + 'px';
+            tooltip.style.top = (e.clientY - 24) + 'px';
+        });
+        document.addEventListener('mouseout', e => {
+            if (!e.target.closest('[data-tip]')) return;
+            tooltip.style.display = 'none';
+        });
     }
-    document.addEventListener('mouseover', e => {
-        const el = e.target.closest('[data-tip]');
-        if (!el) return;
-        tooltip.textContent = el.dataset.tip;
-        tooltip.style.display = 'block';
-    });
-    document.addEventListener('mousemove', e => {
-        tooltip.style.left = (e.clientX + 12) + 'px';
-        tooltip.style.top = (e.clientY - 24) + 'px';
-    });
-    document.addEventListener('mouseout', e => {
-        if (!e.target.closest('[data-tip]')) return;
-        tooltip.style.display = 'none';
-    });
     ['chart-gpu-util', 'chart-gpu-mem', 'chart-cpu', 'chart-mem'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         const pct = parseFloat(el.dataset.pct) || 0;
         const accent = el.dataset.accent;
         const color = pct >= 90 ? '#dc3545' : pct >= 75 ? '#f59e0b' : accent;
-        new Chart(el, {
+        _charts[id] = new Chart(el, {
             type: 'doughnut',
             data: {
                 datasets: [{
@@ -600,7 +613,6 @@ async function setupMonitoringPage() {
                 cutout: '60%',
                 layout: { padding: 0 },
                 plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                animation: { duration: 600 },
             },
         });
     });
@@ -628,7 +640,7 @@ async function setupMonitoringPage() {
         if (kserveTop5Latency.status === 'error') { top5Placeholder('No connection', true); }
         else if (kserveTop5Latency.status === 'empty' || !kserveTop5Latency.models?.length) { top5Placeholder('No data', false); }
         else {
-            new Chart(top5El, {
+            _charts['chart-top5-latency'] = new Chart(top5El, {
                 type: 'bar',
                 data: {
                     labels: kserveTop5Latency.models.map(m => m.name),
@@ -686,7 +698,7 @@ async function setupMonitoringPage() {
             const values = kserveErrorRate.models.map(m => m.error_rate);
             const barColors = values.map(v => v >= 5 ? '#ef4444' : v >= 1 ? '#f59e0b' : '#10b981');
 
-            new Chart(errorRateEl, {
+            _charts['chart-kserve-error-rate'] = new Chart(errorRateEl, {
                 type: 'bar',
                 data: {
                     labels,
@@ -755,7 +767,7 @@ async function setupMonitoringPage() {
                 };
             });
 
-            new Chart(latencyEl, {
+            _charts['chart-kserve-latency'] = new Chart(latencyEl, {
                 type: 'line',
                 data: { datasets },
                 options: {
@@ -824,7 +836,7 @@ async function setupMonitoringPage() {
                 };
             });
 
-            new Chart(rpsEl, {
+            _charts['chart-kserve-rps'] = new Chart(rpsEl, {
                 type: 'line',
                 data: { datasets },
                 options: {
@@ -879,7 +891,7 @@ async function setupMonitoringPage() {
         console.log('[GPU Trend] status:', gpuTrend.status, '| points:', gpuTrend.data.length, '| non-zero:', gpuTrend.data.filter(([,v]) => v > 0));
         const trendPoints = gpuTrend.data.map(([ts, v]) => ({ x: ts, y: v }));
 
-        new Chart(trendEl, {
+        _charts['chart-gpu-trend'] = new Chart(trendEl, {
             type: 'line',
             data: {
                 datasets: [{
@@ -949,7 +961,7 @@ async function setupMonitoringPage() {
 
         if (!initialValues.length || initialValues.every(v => v === 0)) return;
 
-        const chart = new Chart(pvcDonutEl, {
+        const chart = _charts['chart-pvc-donut'] = new Chart(pvcDonutEl, {
             type: 'doughnut',
             data: {
                 labels: initialLabels,
@@ -1053,5 +1065,320 @@ async function setupMonitoringPage() {
             btnAll?.addEventListener('click',  () => switchMode('all'));
             btnMine?.addEventListener('click', () => switchMode('mine'));
         }
+    }
+}
+
+function setMonitoringConnStatus(state) {
+    const dot  = document.getElementById('monitoring-conn-dot');
+    const text = document.getElementById('monitoring-conn-text');
+    if (!dot || !text) return;
+    if (state === 'ok') {
+        dot.style.background  = '#16a34a';
+        text.style.color      = '#16a34a';
+        text.textContent      = '정상';
+    } else {
+        const timeStr = _lastSuccessTime
+            ? _lastSuccessTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            : '-';
+        dot.style.background  = '#f59e0b';
+        text.style.color      = '#f59e0b';
+        text.textContent      = `연결 불안정 (${timeStr} 기준 데이터)`;
+    }
+}
+
+function updateMonitoringInPlace(newData) {
+    _monitoringData = newData;
+
+    const gpu    = newData.gpu    || {};
+    const sys    = newData.system || {};
+    const ray    = newData.ray    || {};
+    const automl = newData.automl || {};
+    const kserve = newData.kserve || {};
+
+    const isAdminView  = newData.is_admin_view ?? true;
+    const currentNs    = newData.namespace     ?? '';
+    const currentEmail = newData.user_email    ?? '';
+
+    const gpuUtil     = gpu.util_pct     ?? null;
+    const gpuMemUsed  = gpu.mem_used_gb  ?? null;
+    const gpuMemTotal = gpu.mem_total_gb ?? null;
+    const gpuMemPct   = gpu.mem_pct      ?? null;
+    const gpuTemp     = gpu.temp_c       ?? null;
+    const gpuPower    = gpu.power_w      ?? null;
+    const cpuCores    = sys.cpu_cores        ?? null;
+    const cpuTotal    = sys.cpu_total_cores  ?? null;
+    const cpuPct      = sys.cpu_pct          ?? null;
+    const memUsedGb   = sys.mem_used_gb      ?? null;
+    const memTotalGb  = sys.mem_total_gb     ?? null;
+    const memPct      = sys.mem_pct          ?? null;
+
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+    // ── 도넛 차트 4개 ──────────────────────────────────────────────
+    [
+        { id: 'chart-gpu-util', pct: gpuUtil,    accent: '#f59e0b', valueStr: gpuUtil    !== null ? gpuUtil + '%'                  : null, subStr: ' ' },
+        { id: 'chart-gpu-mem',  pct: gpuMemPct,  accent: '#ef4444', valueStr: gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB'  : null, subStr: gpuMemTotal !== null ? gpuMemTotal + ' GB' : '' },
+        { id: 'chart-cpu',      pct: cpuPct,     accent: '#3b82f6', valueStr: cpuCores   !== null ? cpuCores.toFixed(2) + ' core'  : null, subStr: cpuTotal    !== null ? cpuTotal + ' core'  : '' },
+        { id: 'chart-mem',      pct: memPct,     accent: '#8b5cf6', valueStr: memUsedGb  !== null ? memUsedGb.toFixed(1) + ' GB'   : null, subStr: memTotalGb  !== null ? memTotalGb + ' GB'  : '' },
+    ].forEach(({ id, pct, accent, valueStr, subStr }) => {
+        const chart = _charts[id];
+        if (chart) {
+            const color = (pct ?? 0) >= 90 ? '#dc3545' : (pct ?? 0) >= 75 ? '#f59e0b' : accent;
+            chart.data.datasets[0].data            = [pct ?? 0, 100 - (pct ?? 0)];
+            chart.data.datasets[0].backgroundColor = [color, '#f3f4f6'];
+            chart.update('none');
+        }
+        setText('val-' + id, valueStr ?? '-');
+        setText('sub-' + id, subStr ?? '');
+    });
+
+    // ── GPU 온도 / 전력 ────────────────────────────────────────────
+    const tempPct       = gpuTemp !== null ? Math.min(100, Math.round(gpuTemp)) : 0;
+    const tempFillColor = tempPct >= 85 ? '#dc3545' : tempPct >= 75 ? '#f59e0b' : '#22c55e';
+    const tempLabel     = gpuTemp === null ? '-' : tempPct >= 85 ? '위험' : tempPct >= 75 ? '주의' : '정상';
+    const tempColor     = tempPct >= 85 ? '#dc3545' : tempPct >= 75 ? '#f59e0b' : '#155724';
+    const tempEl = document.getElementById('stat-gpu-temp-value');
+    if (tempEl) {
+        tempEl.style.color   = tempColor;
+        tempEl.innerHTML     = `${gpuTemp !== null ? gpuTemp + '°C' : '-'} <span style="font-size:12px;">${tempLabel}</span>`;
+    }
+    const barEl = document.getElementById('bar-gpu-temp-fill');
+    if (barEl) { barEl.style.width = tempPct + '%'; barEl.style.background = tempFillColor; }
+    setText('stat-gpu-power-value', gpuPower !== null ? gpuPower + ' W' : '-');
+
+    // ── GPU 추이 차트 ──────────────────────────────────────────────
+    const gpuTrend = newData.gpu_trend || {};
+    if (_charts['chart-gpu-trend'] && gpuTrend.data?.length) {
+        const now = Date.now();
+        _charts['chart-gpu-trend'].data.datasets[0].data = gpuTrend.data.map(([ts, v]) => ({ x: ts, y: v }));
+        _charts['chart-gpu-trend'].update('none');
+    }
+
+    // ── Ray ────────────────────────────────────────────────────────
+    const rayStatus = ray.status ?? 'error';
+    if (rayStatus !== 'error' && rayStatus !== 'empty') {
+        setText('stat-ray-nodes', ray.nodes          ?? '-');
+        setText('stat-ray-jobs',  ray.finished_total ?? '-');
+    }
+
+    // ── AutoML ────────────────────────────────────────────────────
+    const automlError       = automl.error ?? true;
+    const automlJobs        = automl.jobs  || [];
+    const automlDisplayJobs = isAdminView ? automlJobs : automlJobs.filter(j => j.submitted_by === currentEmail);
+    const timeAgo = (dateStr) => {
+        const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+        if (diff < 60) return `${diff}초 전`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+        return `${Math.floor(diff / 86400)}일 전`;
+    };
+    const statusBadge = (status) => {
+        const colors = { SUCCEEDED: { bg: '#d4edda', color: '#155724' }, RUNNING: { bg: '#e8f4ff', color: '#1a56a8' }, FAILED: { bg: '#f8d7da', color: '#721c24' }, STOPPED: { bg: '#fff3cd', color: '#856404' }, QUEUED: { bg: '#f5e6ff', color: '#6f42c1' }, PENDING: { bg: '#e9ecef', color: '#495057' } };
+        const c = colors[status] || { bg: '#e9ecef', color: '#495057' };
+        return `<span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:${c.bg}; color:${c.color};">${esc(status)}</span>`;
+    };
+    const noConnTd = (cols) => `<tr><td colspan="${cols}" style="text-align:center; padding:32px 0; font-size:20px; font-weight:700; color:#ef4444; letter-spacing:0.5px;">No connection</td></tr>`;
+    const noDataTd = (cols) => `<tr><td colspan="${cols}" style="text-align:center; padding:32px 0; font-size:20px; font-weight:700; color:#d1d5db; letter-spacing:0.5px;">No data</td></tr>`;
+
+    setText('stat-automl-total',   automlError ? '-' : automlDisplayJobs.length);
+    setText('stat-automl-running', automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'RUNNING').length);
+    setText('stat-automl-success', automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'SUCCEEDED').length);
+    setText('stat-automl-failed',  automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'FAILED').length);
+    const tbodyAutoml = document.getElementById('tbody-automl');
+    if (tbodyAutoml) {
+        tbodyAutoml.innerHTML = automlError
+            ? noConnTd(3)
+            : automlDisplayJobs.length === 0 ? noDataTd(3)
+            : automlDisplayJobs.map(j => `
+                <tr>
+                    <td>
+                        <div style="font-size:14px; font-weight:500;">${esc(j.name)}</div>
+                        ${isAdminView ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${esc(j.submitted_by)}</div>` : ''}
+                    </td>
+                    <td>${statusBadge(j.status)}</td>
+                    <td>
+                        <div style="font-size:13px; font-weight:500;">${timeAgo(j.submitted_at)}</div>
+                        <div style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-top:2px;">${esc(j.submitted_at)}</div>
+                    </td>
+                </tr>`).join('');
+    }
+
+    // ── KServe ────────────────────────────────────────────────────
+    const kserveError            = kserve.error     ?? true;
+    const kserveEndpoints        = kserve.endpoints || [];
+    const kserveDisplayEndpoints = isAdminView ? kserveEndpoints : kserveEndpoints.filter(e => e.namespace === currentNs);
+
+    setText('stat-kserve-total',    kserveError ? '-' : kserveDisplayEndpoints.length);
+    setText('stat-kserve-ready',    kserveError ? '-' : kserveDisplayEndpoints.filter(e => e.ready).length);
+    setText('stat-kserve-notready', kserveError ? '-' : kserveDisplayEndpoints.filter(e => !e.ready).length);
+    const tbodyKserve = document.getElementById('tbody-kserve');
+    if (tbodyKserve) {
+        tbodyKserve.innerHTML = kserveError
+            ? noConnTd(isAdminView ? 3 : 2)
+            : kserveDisplayEndpoints.length === 0 ? noDataTd(isAdminView ? 3 : 2)
+            : kserveDisplayEndpoints.map(e => `
+                <tr>
+                    <td style="font-size:14px; font-weight:500;">${esc(e.name)}</td>
+                    ${isAdminView ? `<td style="font-size:13px; color:var(--text-muted); font-family:var(--font-mono);">${esc(e.namespace)}</td>` : ''}
+                    <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:${e.ready ? '#d4edda' : '#f8d7da'}; color:${e.ready ? '#155724' : '#721c24'};">${e.ready ? 'Ready' : 'Not Ready'}</span></td>
+                </tr>`).join('');
+    }
+
+    // ── MLflow 통계 ───────────────────────────────────────────────
+    const mlflowStats = newData.mlflow || {};
+    setText('stat-mlflow-exp',    mlflowStats.experiments ?? '-');
+    setText('stat-mlflow-models', mlflowStats.models      ?? '-');
+    setText('stat-mlflow-runs',   mlflowStats.runs        ?? '-');
+
+    // ── 노트북 자원 사용량 테이블 ─────────────────────────────────
+    const notebookStatus = newData.notebook_resources?.status ?? 'error';
+    const notebookRows   = newData.notebook_resources?.rows   ?? [];
+    const tbodyNb = document.getElementById('tbody-notebook-res');
+    if (tbodyNb) {
+        tbodyNb.innerHTML = notebookStatus === 'error'
+            ? noConnTd(isAdminView ? 5 : 4)
+            : notebookRows.length === 0 ? noDataTd(isAdminView ? 5 : 4)
+            : notebookRows.map(r => `
+                <tr>
+                    <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);">${esc(r.time)}</td>
+                    ${isAdminView ? `<td style="font-size:13px;">${esc(r.ns)}</td>` : ''}
+                    <td style="font-size:12px; font-family:var(--font-mono);">${esc(r.pod)}</td>
+                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.cpu))}</td>
+                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.mem))}</td>
+                </tr>`).join('');
+    }
+
+    // ── 실행 중인 노트북 테이블 ───────────────────────────────────
+    const runningNbStatus = newData.running_notebooks?.status    ?? 'error';
+    const runningNbs      = newData.running_notebooks?.notebooks ?? [];
+    const tbodyRunningNb  = document.getElementById('tbody-running-nb');
+    if (tbodyRunningNb) {
+        tbodyRunningNb.innerHTML = runningNbStatus === 'error'
+            ? noConnTd(isAdminView ? 4 : 3)
+            : runningNbs.length === 0 ? noDataTd(isAdminView ? 4 : 3)
+            : runningNbs.map(n => `
+                <tr>
+                    ${isAdminView ? `<td style="font-size:12px; font-family:var(--font-mono);"><span data-tip="${esc(n.namespace)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.namespace)}</span></td>` : ''}
+                    <td style="font-size:13px; font-weight:500;"><span data-tip="${esc(n.owner_name)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.owner_name)}</span></td>
+                    <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:#d4edda; color:#155724;">Running</span></td>
+                    <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);"><span data-tip="${esc(n.pod)}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(n.pod)}</span></td>
+                </tr>`).join('');
+    }
+
+    // ── MLflow 모델 테이블 ────────────────────────────────────────
+    const mlflowModels       = newData.mlflow_models?.models ?? [];
+    const mlflowModelsStatus = newData.mlflow_models?.status ?? 'error';
+    const tbodyMlflowModels  = document.getElementById('tbody-mlflow-models');
+    if (tbodyMlflowModels && mlflowModelsStatus !== 'error') {
+        tbodyMlflowModels.innerHTML = mlflowModels.map(m => {
+            const stageStyle = m.stage === 'Production' ? 'background:#e8f4ff; color:#1a56a8;' : m.stage === 'Staging' ? 'background:#f5e6ff; color:#6f42c1;' : 'background:#e9ecef; color:#495057;';
+            return `<tr>
+                <td>${esc(m.name)}</td>
+                <td style="text-align:center; font-family:var(--font-mono); font-weight:600;">${m.versions}</td>
+                <td><span style="padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; ${stageStyle}">${esc(m.stage)}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    // ── MLflow 실험별 Run 수 테이블 ───────────────────────────────
+    const mlflowExpRunsStatus = newData.mlflow_experiment_runs?.status       ?? 'error';
+    const mlflowExpRuns       = newData.mlflow_experiment_runs?.experiments  ?? [];
+    const tbodyExpRuns        = document.getElementById('tbody-mlflow-exp-runs');
+    if (tbodyExpRuns && mlflowExpRunsStatus !== 'error') {
+        tbodyExpRuns.innerHTML = mlflowExpRuns.map(e => `
+            <tr>
+                <td>${esc(e.name)}</td>
+                <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${e.runs}</td>
+            </tr>`).join('');
+    }
+
+    // ── KServe 시계열 차트 ────────────────────────────────────────
+    const KSERVE_COLORS = [
+        { border: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+        { border: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+        { border: '#f59e0b', bg: 'rgba(245,158,11,0.12)'  },
+        { border: '#ef4444', bg: 'rgba(239,68,68,0.12)'   },
+        { border: '#8b5cf6', bg: 'rgba(139,92,246,0.12)'  },
+    ];
+    const KSERVE_WINDOW_MS  = 30 * 60 * 1000;
+    const now               = Date.now();
+
+    const kserveRps     = newData.kserve_rps          || { status: 'error', series: [] };
+    const kserveLatency = newData.kserve_latency_p95  || { status: 'error', series: [] };
+
+    [
+        { key: 'chart-kserve-rps',     src: kserveRps,     fill: true  },
+        { key: 'chart-kserve-latency', src: kserveLatency, fill: false },
+    ].forEach(({ key, src, fill }) => {
+        const chart = _charts[key];
+        if (!chart || src.status === 'error' || !src.series?.length) return;
+        chart.data.datasets = src.series.map((s, i) => {
+            const color = KSERVE_COLORS[i % KSERVE_COLORS.length];
+            return { label: s.name, data: s.data.map(([ts, v]) => ({ x: ts, y: v })), borderColor: color.border, backgroundColor: fill ? color.bg : color.border, borderWidth: 2, pointRadius: 3, pointBackgroundColor: color.border, tension: 0.4, fill };
+        });
+        chart.options.scales.x.min = now - KSERVE_WINDOW_MS;
+        chart.options.scales.x.max = now;
+        chart.update('none');
+    });
+
+    const kserveErrorRate = newData.kserve_error_rate || { status: 'error', models: [] };
+    const errChart = _charts['chart-kserve-error-rate'];
+    if (errChart && kserveErrorRate.status !== 'error' && kserveErrorRate.models?.length) {
+        const values = kserveErrorRate.models.map(m => m.error_rate);
+        errChart.data.labels                        = kserveErrorRate.models.map(m => m.name);
+        errChart.data.datasets[0].data              = values;
+        errChart.data.datasets[0].backgroundColor   = values.map(v => v >= 5 ? '#ef4444' : v >= 1 ? '#f59e0b' : '#10b981');
+        errChart.update('none');
+    }
+
+    const kserveTop5 = newData.kserve_top5_latency || { status: 'error', models: [] };
+    const top5Chart  = _charts['chart-top5-latency'];
+    if (top5Chart && kserveTop5.status !== 'error' && kserveTop5.models?.length) {
+        top5Chart.data.labels               = kserveTop5.models.map(m => m.name);
+        top5Chart.data.datasets[0].data     = kserveTop5.models.map(m => m.latency_ms);
+        top5Chart.update('none');
+    }
+
+    // ── PVC 도넛 ──────────────────────────────────────────────────
+    const pvcGroups  = newData.pvc?.groups ?? [];
+    const pvcChart   = _charts['chart-pvc-donut'];
+    if (pvcChart && pvcGroups.length) {
+        const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+        const PHASE_COLORS = { Bound: '#3b82f6', Pending: '#f59e0b', Lost: '#ef4444' };
+        const isMineView   = document.getElementById('pvc-view-mine')?.style.display === '';
+
+        let newLabels, newValues, newColors;
+        if (isAdminView && !isMineView) {
+            newLabels = pvcGroups.map(g => g.ns);
+            newValues = pvcGroups.map(g => g.total_gb ?? 0);
+            newColors = CHART_COLORS.slice(0, newLabels.length);
+        } else {
+            const myGroup = pvcGroups.find(g => g.ns === currentNs);
+            const totals  = myGroup?.phase_counts ?? { Bound: 0, Pending: 0, Lost: 0 };
+            const phases  = ['Bound', 'Pending', 'Lost'].filter(k => totals[k] > 0);
+            newLabels = phases;
+            newValues = phases.map(k => totals[k]);
+            newColors = phases.map(k => PHASE_COLORS[k]);
+        }
+        if (newValues.length && !newValues.every(v => v === 0)) {
+            pvcChart.data.labels                    = newLabels;
+            pvcChart.data.datasets[0].data          = newValues;
+            pvcChart.data.datasets[0].backgroundColor = newColors;
+            pvcChart.update('none');
+        }
+    }
+}
+
+async function refreshMonitoringPage() {
+    if (!document.getElementById('monitoring-conn-dot')) return;
+    try {
+        const newData = await API.get('/api/monitoring/summary');
+        if (!document.getElementById('monitoring-conn-dot')) return;
+        updateMonitoringInPlace(newData);
+        _lastSuccessTime = new Date();
+        setMonitoringConnStatus('ok');
+    } catch (e) {
+        console.warn('[monitoring] 리프레시 실패, 기존 데이터 유지:', e);
+        setMonitoringConnStatus('fail');
     }
 }
