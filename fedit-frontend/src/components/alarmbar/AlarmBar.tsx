@@ -162,45 +162,48 @@ function evalAlarms(data: any): Alarm[] {
   return alarms;
 }
 
-const DEV_MOCK_ALARMS: Alarm[] = [
-  {
-    level: 'critical',
-    msg: 'GPU 사용률이 너무 높습니다 (91%)',
-    targetPath: '/monitoring',
-    sectionId: 'section-gpu',
+const DEV_MOCK_SUMMARY = {
+  gpu: { status: 'ok', util_pct: 91, mem_pct: 92, temp_c: 83, power_w: 280 },
+  system: { status: 'ok', cpu_pct: 85, mem_pct: 87 },
+  kserve: {
+    error: false,
+    endpoints: [{ name: 'sentiment-model', namespace: 'ns', ready: false }],
   },
-  {
-    level: 'critical',
-    msg: 'GPU 온도 과열 (83°C)',
-    targetPath: '/monitoring',
-    sectionId: 'section-gpu',
+  kserve_error_rate: {
+    status: 'ok',
+    models: [{ name: 'sentiment-model (ns)', error_rate: 6.2 }],
   },
-  {
-    level: 'warning',
-    msg: 'AutoML 작업 실패: rf-baseline',
-    targetPath: '/monitoring',
-    sectionId: 'section-automl',
+  kserve_top5_latency: {
+    status: 'ok',
+    models: [{ name: 'sentiment-model (ns)', latency_ms: 1840 }],
   },
-  {
-    level: 'critical',
-    msg: 'KServe 에러율 높음: sentiment-model (ns) (6.2%)',
-    targetPath: '/monitoring',
-    sectionId: 'section-kserve',
+  automl: {
+    error: false,
+    jobs: [{ name: 'rf-baseline', status: 'FAILED' }],
   },
-  {
-    level: 'critical',
-    msg: 'PVC 볼륨 손상 감지: kubeflow-researcher1',
-    targetPath: '/monitoring',
-    sectionId: 'section-pvc',
+  pvc: {
+    status: 'ok',
+    groups: [
+      {
+        ns: 'kubeflow-researcher1',
+        pvcs: [],
+        total_gb: 31,
+        phase_counts: { Bound: 3, Pending: 0, Lost: 1 },
+      },
+    ],
   },
-];
+};
+
+// 컴포넌트 언마운트(페이지 이동)해도 유지되는 모듈 레벨 캐시
+let _cachedAlarms: Alarm[] = [];
+const _activeMsgs = new Set<string>();
 
 export default function AlarmBar() {
-  const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [alarms, setAlarms] = useState<Alarm[]>(_cachedAlarms);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const prevMsgsRef = useRef<Set<string>>(new Set());
+  const prevMsgsRef = useRef<Set<string>>(_activeMsgs);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -212,6 +215,7 @@ export default function AlarmBar() {
         if (!resp.ok) return;
         const data = await resp.json();
         const next = evalAlarms(data);
+        _cachedAlarms = next;
         setAlarms(next);
 
         const newToasts = next
@@ -221,7 +225,8 @@ export default function AlarmBar() {
         if (newToasts.length > 0) {
           scheduleToasts(newToasts);
         }
-        prevMsgsRef.current = new Set(next.map((a) => a.msg));
+        prevMsgsRef.current.clear();
+        next.forEach((a) => prevMsgsRef.current.add(a.msg));
       } catch {
         // 네트워크 오류 시 기존 상태 유지
       }
@@ -263,14 +268,14 @@ export default function AlarmBar() {
   };
 
   const fireTestAlarms = () => {
+    const evaluated = evalAlarms(DEV_MOCK_SUMMARY);
     const ts = Date.now();
-    const mockToasts = DEV_MOCK_ALARMS.map((a, i) => ({
-      ...a,
-      id: `${ts}-${i}`,
-    }));
-    setAlarms(DEV_MOCK_ALARMS);
+    const mockToasts = evaluated.map((a, i) => ({ ...a, id: `${ts}-${i}` }));
+    _cachedAlarms = evaluated;
+    setAlarms(evaluated);
     scheduleToasts(mockToasts);
-    prevMsgsRef.current = new Set(DEV_MOCK_ALARMS.map((a) => a.msg));
+    prevMsgsRef.current.clear();
+    evaluated.forEach((a) => prevMsgsRef.current.add(a.msg));
   };
 
   const criticalCount = alarms.filter((a) => a.level === 'critical').length;

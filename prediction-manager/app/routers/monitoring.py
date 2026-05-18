@@ -13,6 +13,40 @@ async def gpu_trend(window_minutes: int = 60, step: str = "1m"):
 
 @router.get("/summary")
 async def summary(request: Request, ns: str | None = None):
+    # ================================================================
+    # 테스트용 MOCK — 배포 전 반드시 다시 주석 처리
+    # ================================================================
+    return {
+        "namespace": "kubeflow-mock", "user_email": "test@example.com",
+        "is_admin": False, "is_admin_view": False,
+        "gpu": {"status": "ok", "util_pct": 91, "mem_pct": 92,
+                "mem_used_gb": 22.1, "mem_total_gb": 24.0, "temp_c": 83, "power_w": 280.0},
+        "system": {"status": "ok", "cpu_pct": 85, "mem_pct": 87,
+                   "cpu_cores": 13.6, "cpu_total_cores": 16,
+                   "mem_used_gb": 55.7, "mem_total_gb": 64.0},
+        "kserve": {"error": False, "endpoints": [
+            {"name": "sentiment-model", "namespace": "kubeflow-user", "ready": False}]},
+        "kserve_error_rate": {"status": "ok",
+            "models": [{"name": "sentiment-model (ns)", "error_rate": 6.2}]},
+        "kserve_top5_latency": {"status": "ok",
+            "models": [{"name": "sentiment-model (ns)", "latency_ms": 1840}]},
+        "automl": {"error": False,
+            "jobs": [{"name": "rf-baseline", "status": "FAILED",
+                      "submitted_by": "test@example.com", "submitted_at": "2025-01-01T00:00:00"}]},
+        "pvc": {"status": "ok", "groups": [
+            {"ns": "kubeflow-researcher1", "pvcs": [], "total_gb": 31,
+             "phase_counts": {"Bound": 3, "Pending": 0, "Lost": 1}}]},
+        "gpu_trend": {"status": "empty", "data": []},
+        "kserve_rps": {"status": "empty", "series": []},
+        "kserve_latency_p95": {"status": "empty", "series": []},
+        "ray": {"status": "empty"}, "mlflow": {"status": "empty"},
+        "mlflow_models": {"status": "empty", "models": []},
+        "mlflow_experiment_runs": {"status": "empty", "experiments": []},
+        "notebook_resources": {"status": "empty", "rows": []},
+        "running_notebooks": {"status": "empty", "notebooks": []},
+    }
+    # ================================================================
+
     namespace = ns or get_user_namespace(request)
     admin = is_admin(request)
     # admin이 자기 namespace(또는 ns 파라미터 없음)를 보는 경우 → 전체 뷰

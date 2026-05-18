@@ -1,6 +1,14 @@
 let _monitoringData = null;
 const _charts = {};
 let _lastSuccessTime = null;
+const _alarmHistory = [];
+
+function _fmtNow() {
+    return new Date().toLocaleString('ko-KR', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    }).replace(/\. /g, '-').replace('.', '');
+}
 
 async function renderMonitoring() {
     let data;
@@ -161,7 +169,13 @@ async function renderMonitoring() {
 
     <div id="section-gpu" class="pm-monitor-2col">
         <div class="pm-monitor-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:20px;">GPU</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">GPU<span id="alarm-ind-gpu" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                <div style="position:relative;">
+                    <button id="alarm-hist-toggle-gpu" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-gpu" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-gpu" style="font-size:9px;margin-left:1px;">▾</span></button>
+                    <div id="alarm-hist-body-gpu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                </div>
+            </div>
             <div class="pm-donut-row" style="margin-bottom:20px;">
                 ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
                 ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
@@ -240,12 +254,18 @@ async function renderMonitoring() {
     <div id="section-pvc" class="pm-monitor-2col" style="margin-bottom:16px;">
     <div class="pm-monitor-card pm-fixed-card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <div id="pvc-table-title" class="pm-section-title" style="font-size:16px; margin-bottom:0;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}</div>
+            <div id="pvc-table-title" class="pm-section-title" style="font-size:16px; margin-bottom:0; display:flex; align-items:center; gap:6px;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}<span id="alarm-ind-pvc" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="position:relative;">
+                <button id="alarm-hist-toggle-pvc" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-pvc" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-pvc" style="font-size:9px;margin-left:1px;">▾</span></button>
+                <div id="alarm-hist-body-pvc" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+            </div>
             ${isAdminView ? `
             <div style="display:flex; gap:4px;">
                 <button id="pvc-left-tab-all"  style="padding:4px 10px; border-radius:6px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;">전체</button>
                 <button id="pvc-left-tab-mine" style="padding:4px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; color:#6b7280; font-size:11px; font-weight:600; cursor:pointer;">내 PVC</button>
             </div>` : ''}
+            </div>
         </div>
         <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px; position:relative;">
         ${(() => {
@@ -361,7 +381,13 @@ async function renderMonitoring() {
         </div>
         <div class="pm-monitor-col">
         <div id="section-automl" class="pm-monitor-card pm-fixed-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">AutoML 최근 Job</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">AutoML 최근 Job<span id="alarm-ind-automl" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                <div style="position:relative;">
+                    <button id="alarm-hist-toggle-automl" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-automl" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-automl" style="font-size:9px;margin-left:1px;">▾</span></button>
+                    <div id="alarm-hist-body-automl" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                </div>
+            </div>
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
                     { id: 'stat-automl-total',   label: '전체',  value: automlError ? '-' : automlDisplayJobs.length, color: '#6b7280', bg: '#f3f4f6' },
@@ -423,7 +449,13 @@ async function renderMonitoring() {
         </div>
 
         <div id="section-kserve" class="pm-monitor-card pm-fixed-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe Endpoint</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">KServe Endpoint<span id="alarm-ind-kserve" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                <div style="position:relative;">
+                    <button id="alarm-hist-toggle-kserve" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve" style="font-size:9px;margin-left:1px;">▾</span></button>
+                    <div id="alarm-hist-body-kserve" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                </div>
+            </div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
                     { id: 'stat-kserve-total',    label: '전체',     value: kserveError ? '-' : kserveDisplayEndpoints.length, color: '#6b7280', bg: '#f3f4f6' },
@@ -1067,6 +1099,8 @@ async function setupMonitoringPage() {
         }
     }
 
+    setupAlarmHistoryCards();
+
     const scrollTo = new URLSearchParams(window.location.search).get('scrollTo');
     if (scrollTo) {
         requestAnimationFrame(() => {
@@ -1075,6 +1109,118 @@ async function setupMonitoringPage() {
             });
         });
     }
+}
+
+function updateAlarmIndicators(data) {
+    const CHECKS = [
+        {
+            key: 'gpu',
+            check: (d) => {
+                const msgs = [];
+                if (d.gpu?.status === 'error' || d.system?.status === 'error') msgs.push('모니터링 데이터 수집 실패');
+                if (d.gpu?.status === 'ok') {
+                    if (d.gpu.util_pct > 85) msgs.push(`GPU 사용률이 너무 높습니다 (${d.gpu.util_pct}%)`);
+                    else if (d.gpu.util_pct > 70) msgs.push(`GPU 사용률이 높습니다 (${d.gpu.util_pct}%)`);
+                    if (d.gpu.mem_pct > 90) msgs.push(`GPU 메모리가 부족합니다 (${d.gpu.mem_pct}%)`);
+                    else if (d.gpu.mem_pct > 80) msgs.push(`GPU 메모리 사용량이 높습니다 (${d.gpu.mem_pct}%)`);
+                    if (d.gpu.temp_c > 80) msgs.push(`GPU 온도 과열 (${d.gpu.temp_c}°C)`);
+                }
+                if (d.system?.status === 'ok') {
+                    if (d.system.cpu_pct > 80) msgs.push(`CPU 사용률이 높습니다 (${d.system.cpu_pct}%)`);
+                    if (d.system.mem_pct > 85) msgs.push(`시스템 메모리 부족 (${d.system.mem_pct}%)`);
+                }
+                return msgs;
+            },
+        },
+        {
+            key: 'kserve',
+            check: (d) => {
+                const msgs = [];
+                if (!d.kserve?.error) {
+                    (d.kserve?.endpoints ?? []).forEach(ep => { if (!ep.ready) msgs.push(`엔드포인트 비정상: ${ep.name}`); });
+                }
+                if (d.kserve_error_rate?.status === 'ok') {
+                    (d.kserve_error_rate.models ?? []).forEach(m => { if (m.error_rate > 5) msgs.push(`KServe 에러율 높음: ${m.name} (${m.error_rate.toFixed(1)}%)`); });
+                }
+                if (d.kserve_top5_latency?.status === 'ok') {
+                    (d.kserve_top5_latency.models ?? []).forEach(m => { if (m.latency_ms > 1000) msgs.push(`응답 지연: ${m.name} (${Math.round(m.latency_ms)}ms)`); });
+                }
+                return msgs;
+            },
+        },
+        {
+            key: 'automl',
+            check: (d) => {
+                const msgs = [];
+                if (!d.automl?.error) {
+                    (d.automl?.jobs ?? []).forEach(j => { if (j.status === 'FAILED') msgs.push(`AutoML 작업 실패: ${j.name}`); });
+                }
+                return msgs;
+            },
+        },
+        {
+            key: 'pvc',
+            check: (d) => {
+                const msgs = [];
+                if (d.pvc?.status === 'ok') {
+                    (d.pvc.groups ?? []).forEach(g => { if ((g.phase_counts?.Lost ?? 0) > 0) msgs.push(`PVC 볼륨 손상 감지: ${g.ns}`); });
+                }
+                return msgs;
+            },
+        },
+    ];
+
+    CHECKS.forEach(({ key, check }) => {
+        const indId = `alarm-ind-${key}`;
+        const activeAlarms = check(data);
+        const indEl = document.getElementById(indId);
+
+        if (activeAlarms.length > 0) {
+            activeAlarms.forEach(msg => {
+                const existing = _alarmHistory.find(h => h.key === indId && h.msg === msg && !h.resolvedAt);
+                if (!existing) _alarmHistory.push({ key: indId, msg, triggeredAt: _fmtNow(), resolvedAt: null });
+            });
+            if (indEl) {
+                indEl.style.display = 'inline-flex';
+                indEl.querySelector('[data-tip]').setAttribute('data-tip', activeAlarms.join('\n'));
+            }
+        } else {
+            _alarmHistory.filter(h => h.key === indId && !h.resolvedAt).forEach(h => { h.resolvedAt = _fmtNow(); });
+            if (indEl) indEl.style.display = 'none';
+        }
+
+        const sectionHistory = _alarmHistory.filter(h => h.key === indId);
+        const histCount = document.getElementById(`alarm-hist-count-${key}`);
+        const histBody  = document.getElementById(`alarm-hist-body-${key}`);
+        if (histCount) histCount.textContent = sectionHistory.length;
+        if (histBody) {
+            histBody.innerHTML = sectionHistory.length === 0
+                ? '<div style="padding:8px;color:#aaa;font-size:12px;">이력 없음</div>'
+                : sectionHistory.slice().reverse().map(h => `
+                    <div style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;">
+                        <span style="font-weight:600;color:${h.resolvedAt ? '#155724' : '#e53935'};">${h.resolvedAt ? '✓ 해결' : '⚠ 진행 중'}</span>
+                        <span style="margin-left:6px;color:#333;">${h.msg}</span>
+                        <div style="color:#999;font-size:10px;margin-top:2px;">
+                            발생: ${h.triggeredAt}${h.resolvedAt ? ` → 해결: ${h.resolvedAt}` : ''}
+                        </div>
+                    </div>`).join('');
+        }
+    });
+}
+
+function setupAlarmHistoryCards() {
+    ['gpu', 'kserve', 'automl', 'pvc'].forEach(key => {
+        const toggle = document.getElementById(`alarm-hist-toggle-${key}`);
+        if (!toggle) return;
+        toggle.addEventListener('click', () => {
+            const body  = document.getElementById(`alarm-hist-body-${key}`);
+            const arrow = document.getElementById(`alarm-hist-arrow-${key}`);
+            if (!body) return;
+            const isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : 'block';
+            if (arrow) arrow.textContent = isOpen ? '▾' : '▴';
+        });
+    });
 }
 
 function setMonitoringConnStatus(state) {
@@ -1376,6 +1522,8 @@ function updateMonitoringInPlace(newData) {
             pvcChart.update('none');
         }
     }
+
+    updateAlarmIndicators(newData);
 }
 
 async function refreshMonitoringPage() {
