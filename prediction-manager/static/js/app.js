@@ -9,8 +9,18 @@ const pages = {
     admin: renderAdmin,
 };
 
+function notifyParentRoute(page) {
+    if (window.parent === window) return;
+    try {
+        window.parent.postMessage({ type: 'prediction-manager-route', page }, window.location.origin);
+    } catch (e) {
+        console.error('parent route sync failed:', e);
+    }
+}
+
 async function navigate(page) {
     window.location.hash = `#/${page}`;
+    notifyParentRoute(page);
     const app = document.getElementById('app');
     app.innerHTML = '<div class="pm-spinner">로딩 중...</div>';
 

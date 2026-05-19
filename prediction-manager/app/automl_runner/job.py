@@ -644,7 +644,7 @@ def run(cfg: dict) -> dict:
                 except Exception as e:
                     print(f"[AutoML] save rank{rank} {model_id} failed: {e}", flush=True)
 
-            all_results.append({
+            model_result = {
                 "model_id": model_id,
                 "best_metric": best.metrics.get(primary),
                 "best_config": best.config,
@@ -659,8 +659,22 @@ def run(cfg: dict) -> dict:
                     }
                     for t in valid_trials
                 ],
-            })
+            }
+            all_results.append(model_result)
+            done_trials = len(trials_info) or len(valid_trials) or int(cfg["num_trials"])
             print(f"[AutoML] {model_id} best {primary}={best.metrics.get(primary)}, top-{len(saved_models)} saved", flush=True)
+            progress_payload = {
+                "event": "model_done",
+                "model_id": model_id,
+                "model_idx": idx + 1,
+                "model_total": len(cfg["models"]),
+                "trial_done": min(done_trials, int(cfg["num_trials"])),
+                "trial_total": int(cfg["num_trials"]),
+                "metric": primary,
+                "mode": mode,
+                "best_score": best.metrics.get(primary),
+            }
+            print(f"[AutoML] PROGRESS={json.dumps(progress_payload)}", flush=True)
         except Exception as e:
             print(f"[AutoML] {model_id} failed: {e}", flush=True)
             all_results.append({"model_id": model_id, "best_metric": None, "best_config": None, "error": str(e), "top_models": [], "trials": []})
@@ -671,6 +685,18 @@ def run(cfg: dict) -> dict:
     valid.sort(key=lambda r: r["best_metric"], reverse=reverse)
     overall_best = valid[0] if valid else None
     print(f"[AutoML] Overall best: {overall_best}", flush=True)
+    done_payload = {
+        "event": "done",
+        "models": cfg["models"],
+        "num_trials": int(cfg["num_trials"]),
+        "done_trials": int(cfg["num_trials"]) * len(cfg["models"]),
+        "total_trials": int(cfg["num_trials"]) * len(cfg["models"]),
+        "metric": primary,
+        "mode": mode,
+        "best_score": overall_best.get("best_metric") if overall_best else None,
+        "best_model": overall_best.get("model_id") if overall_best else "",
+    }
+    print(f"[AutoML] PROGRESS={json.dumps(done_payload)}", flush=True)
     return {"per_model": all_results, "best": overall_best, "metric": primary, "mode": mode}
 
 

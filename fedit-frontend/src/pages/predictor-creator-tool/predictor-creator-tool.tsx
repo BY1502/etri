@@ -165,6 +165,17 @@ const services: Service[] = [
   },
 ];
 
+const PM_PAGE_SERVICE_PATHS: Record<string, string> = {
+  home: '/prediction-manager',
+  images: '/prediction-manager',
+  containers: '/prediction-manager',
+  'containers-new': '/prediction-manager',
+  datasets: '/datasets',
+  automl: '/automl',
+  models: '/models',
+  admin: '/system-admin',
+};
+
 interface UserInfo {
   email: string;
   namespace: string;
@@ -247,6 +258,24 @@ function IframePage({ service }: { service: Service }) {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const handlePredictionManagerRoute = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const data = event.data as { type?: string; page?: string };
+      if (data?.type !== 'prediction-manager-route') return;
+      const page = String(data.page || '').replace(/^#?\//, '');
+      const nextPath = PM_PAGE_SERVICE_PATHS[page];
+      if (nextPath && nextPath !== service.path) {
+        navigate(`/predictor-creator-tool${nextPath}`, { replace: true });
+      }
+    };
+
+    window.addEventListener('message', handlePredictionManagerRoute);
+    return () => {
+      window.removeEventListener('message', handlePredictionManagerRoute);
+    };
+  }, [navigate, service.path]);
 
   const isPmUrl = (u?: string) => !!u && u.includes('/prediction-manager/');
 
@@ -453,8 +482,8 @@ function ToolHome() {
             <div className="card__icon-div">
               <img className="card__icon" src={svc.icon} alt={svc.name} />
             </div>
-            <p className="card__subtitle">{svc.description}</p>
             <p className="card__title">{svc.name}</p>
+            <p className="card__subtitle">{svc.description}</p>
           </div>
         ))}
       </div>

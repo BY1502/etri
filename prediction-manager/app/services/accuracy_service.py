@@ -9,14 +9,24 @@ import json
 import math
 import os
 import re
+import secrets
 import sqlite3
 import threading
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote
+
+from fastapi.responses import FileResponse
 
 DB_PATH = os.environ.get("AUTOML_DB_PATH", "/data/automl.db")
+FEEDBACK_DATASET_ROOT = Path(os.environ.get("FEEDBACK_DATASET_ROOT", "/data/feedback-datasets"))
+FEEDBACK_DATASET_INTERNAL_BASE_URL = os.environ.get(
+    "DATASET_INTERNAL_BASE_URL",
+    "http://prediction-manager.kubeflow.svc.cluster.local",
+).rstrip("/")
 _lock = threading.Lock()
 
 
@@ -287,6 +297,156 @@ def recent_predictions(model_name: str, limit: int = 20) -> dict:
     }
 
 
+
+
+def _percentile(values: list[float], pct: float) -> float | None:
+    vals = sorted(float(v) for v in values if v is not None and math.isfinite(float(v)))
+    if not vals:
+        return None
+    if len(vals) == 1:
+        return vals[0]
+    rank = (len(vals) - 1) * pct
+    lo = math.floor(rank)
+    hi = math.ceil(rank)
+    if lo == hi:
+        return vals[int(rank)]
+    return vals[lo] + (vals[hi] - vals[lo]) * (rank - lo)
+
+
+def _latency_stats(values: list[float]) -> dict:
+    vals = [float(v) for v in values if v is not None and math.isfinite(float(v))]
+    if not vals:
+        return {
+            "avg_latency_ms": None,
+            "p50_latency_ms": None,
+            "p95_latency_ms": None,
+            "max_latency_ms": None,
+        }
+    return {
+        "avg_latency_ms": sum(vals) / len(vals),
+        "p50_latency_ms": _percentile(vals, 0.50),
+        "p95_latency_ms": _percentile(vals, 0.95),
+        "max_latency_ms": max(vals),
+    }
+
+
+def _monitoring_summary(rows: list[sqlite3.Row]) -> dict:
+    request_count = len(rows)
+    success_count = sum(1 for row in rows if bool(row["ok"]))
+    error_count = request_count - success_count
+    status_codes: dict[str, int] = {}
+    versions: dict[str, dict] = {}
+    latencies: list[float] = []
+    for row in rows:
+        code = str(row["status_code"] if row["status_code"] is not None else "unknown")
+        status_codes[code] = status_codes.get(code, 0) + 1
+        version = str(row["model_version"] or "-")
+        item = versions.setdefault(version, {"version": version, "request_count": 0, "success_count": 0, "error_count": 0})
+        item["request_count"] += 1
+        if bool(row["ok"]):
+            item["success_count"] += 1
+        else:
+            item["error_count"] += 1
+        if row["elapsed_ms"] is not None:
+            latencies.append(float(row["elapsed_ms"]))
+    summary = {
+        "request_count": request_count,
+        "success_count": success_count,
+        "error_count": error_count,
+        "success_rate": (success_count / request_count) if request_count else None,
+        "status_codes": dict(sorted(status_codes.items(), key=lambda item: item[0])),
+        "versions": sorted(
+            (
+                {
+                    **item,
+                    "success_rate": (item["success_count"] / item["request_count"]) if item["request_count"] else None,
+                }
+                for item in versions.values()
+            ),
+            key=lambda item: item["request_count"],
+            reverse=True,
+        ),
+    }
+    summary.update(_latency_stats(latencies))
+    return summary
+
+
+def production_metrics(
+    model_name: str,
+    *,
+    namespace: str | None = None,
+    hours: int = 72,
+    bucket_minutes: int = 60,
+    limit: int = 20,
+) -> dict:
+    hours = max(1, min(int(hours or 72), 24 * 30))
+    bucket_minutes = max(1, min(int(bucket_minutes or 60), 24 * 60))
+    limit = max(1, min(int(limit or 20), 100))
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    where = ["p.model_name=?", "p.created_at>=?"]
+    params: list[Any] = [model_name, cutoff.isoformat()]
+    if namespace:
+        where.append("(p.namespace=? OR p.namespace='')")
+        params.append(namespace)
+    with _lock:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            f"""
+            SELECT
+                p.prediction_id, p.model_name, p.model_version, p.namespace,
+                p.y_pred, p.ok, p.status_code, p.elapsed_ms, p.created_by, p.created_at,
+                EXISTS (
+                    SELECT 1 FROM feedback f
+                    WHERE f.prediction_id = p.prediction_id
+                ) AS has_feedback
+            FROM prediction_log p
+            WHERE {' AND '.join(where)}
+            ORDER BY p.created_at ASC
+            """,
+            params,
+        ).fetchall()
+        conn.close()
+
+    buckets: dict[str, list[sqlite3.Row]] = {}
+    for row in rows:
+        try:
+            bucket = _bucket_iso(row["created_at"], bucket_minutes)
+        except Exception:
+            continue
+        buckets.setdefault(bucket, []).append(row)
+
+    bucket_list = []
+    for bucket in sorted(buckets):
+        summary = _monitoring_summary(buckets[bucket])
+        summary["bucket"] = bucket
+        bucket_list.append(summary)
+
+    latest_rows = sorted(rows, key=lambda row: str(row["created_at"] or ""), reverse=True)[:limit]
+    return {
+        "model_name": model_name,
+        "namespace": namespace or "",
+        "hours": hours,
+        "bucket_minutes": bucket_minutes,
+        "overall": _monitoring_summary(rows),
+        "buckets": bucket_list,
+        "latest": [
+            {
+                "prediction_id": row["prediction_id"],
+                "model_version": row["model_version"],
+                "namespace": row["namespace"],
+                "y_pred": row["y_pred"],
+                "ok": bool(row["ok"]),
+                "status_code": row["status_code"],
+                "elapsed_ms": row["elapsed_ms"],
+                "created_by": row["created_by"],
+                "created_at": row["created_at"],
+                "has_feedback": bool(row["has_feedback"]),
+            }
+            for row in latest_rows
+        ],
+    }
+
 def submit_feedback(
     model_name: str,
     entries: list[dict],
@@ -451,6 +611,365 @@ def submit_feedback_csv(
         "errors": errors[:20],
         "error_count": len(errors),
     }
+
+
+def list_feedback(model_name: str, limit: int = 50) -> dict:
+    limit = max(1, min(int(limit or 50), 200))
+    with _lock:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT id, model_version, task, prediction_id, y_true, y_pred, submitted_by, submitted_at
+            FROM feedback
+            WHERE model_name = ?
+            ORDER BY submitted_at DESC, id DESC
+            LIMIT ?
+            """,
+            (model_name, limit),
+        ).fetchall()
+        conn.close()
+    return {
+        "model_name": model_name,
+        "feedback": [
+            {
+                "id": row["id"],
+                "model_version": row["model_version"],
+                "task": row["task"],
+                "prediction_id": row["prediction_id"],
+                "y_true": row["y_true"],
+                "y_pred": row["y_pred"],
+                "submitted_by": row["submitted_by"],
+                "submitted_at": row["submitted_at"],
+            }
+            for row in rows
+        ],
+    }
+
+
+def delete_feedback(model_name: str, feedback_id: int) -> int:
+    with _lock:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        c = conn.execute(
+            "DELETE FROM feedback WHERE model_name=? AND id=?",
+            (model_name, feedback_id),
+        )
+        conn.commit()
+        deleted = c.rowcount
+        conn.close()
+    return deleted
+
+
+def _safe_segment(value: Any, fallback: str) -> str:
+    text = str(value or fallback).strip()
+    text = re.sub(r"[^A-Za-z0-9._-]+", "-", text).strip(".-")
+    if not text or text in {".", ".."}:
+        text = fallback
+    return text[:120]
+
+
+def _flatten_values(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        out: list[Any] = []
+        for item in value:
+            out.extend(_flatten_values(item))
+        return out
+    return [value]
+
+
+def _coerce_feature_value(value: Any) -> Any:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (str, int, float)) or value is None:
+        return value
+    return _json_dumps(value)
+
+
+def _rows_from_instances(instances: Any, feature_columns: list[str]) -> list[dict[str, Any]]:
+    if not isinstance(instances, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in instances:
+        if isinstance(item, dict):
+            rows.append({str(k): _coerce_feature_value(v) for k, v in item.items()})
+        elif isinstance(item, list):
+            names = feature_columns if len(feature_columns) == len(item) else [f"feature_{i}" for i in range(len(item))]
+            rows.append({names[i]: _coerce_feature_value(v) for i, v in enumerate(item)})
+        else:
+            rows.append({"feature_0": _coerce_feature_value(item)})
+    return rows
+
+
+def _rows_from_kserve_inputs(inputs: Any, feature_columns: list[str]) -> list[dict[str, Any]]:
+    if not isinstance(inputs, list) or not inputs:
+        return []
+
+    if len(inputs) == 1:
+        item = inputs[0] if isinstance(inputs[0], dict) else {}
+        data = _flatten_values(item.get("data", []))
+        shape = item.get("shape") if isinstance(item.get("shape"), list) else []
+        row_count = int(shape[0]) if shape and isinstance(shape[0], int) and shape[0] > 0 else 1
+        if row_count > 1 and len(data) % row_count == 0:
+            col_count = len(data) // row_count
+        else:
+            row_count = 1
+            col_count = len(data)
+        raw_name = str(item.get("name") or "input")
+        if feature_columns and len(feature_columns) == col_count:
+            names = feature_columns
+        elif col_count == 1 and raw_name and not raw_name.startswith("input-"):
+            names = [raw_name]
+        else:
+            names = [f"feature_{i}" for i in range(col_count)]
+        rows = []
+        for row_idx in range(row_count):
+            start = row_idx * col_count
+            chunk = data[start:start + col_count]
+            rows.append({names[i]: _coerce_feature_value(v) for i, v in enumerate(chunk)})
+        return rows
+
+    row_count = 1
+    prepared: list[tuple[str, list[Any]]] = []
+    for idx, item in enumerate(inputs):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or f"feature_{idx}")
+        values = _flatten_values(item.get("data", []))
+        shape = item.get("shape") if isinstance(item.get("shape"), list) else []
+        if shape and isinstance(shape[0], int) and shape[0] > 0:
+            row_count = max(row_count, int(shape[0]))
+        else:
+            row_count = max(row_count, len(values) or 1)
+        prepared.append((name, values))
+    rows = [dict() for _ in range(row_count)]
+    for name, values in prepared:
+        for i in range(row_count):
+            value = values[i] if i < len(values) else (values[0] if values else None)
+            rows[i][name] = _coerce_feature_value(value)
+    return rows
+
+
+def _feature_rows_from_payload(payload: Any, feature_columns: list[str]) -> list[dict[str, Any]]:
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            return []
+    if not isinstance(payload, dict):
+        return []
+    if isinstance(payload.get("inputs"), list):
+        rows = _rows_from_kserve_inputs(payload.get("inputs"), feature_columns)
+        if rows:
+            return rows
+    if isinstance(payload.get("instances"), list):
+        rows = _rows_from_instances(payload.get("instances"), feature_columns)
+        if rows:
+            return rows
+    scalar_items = {
+        str(k): _coerce_feature_value(v)
+        for k, v in payload.items()
+        if not isinstance(v, (dict, list))
+    }
+    return [scalar_items] if scalar_items else []
+
+
+def _feedback_dataset_dir(model_name: str) -> Path:
+    return FEEDBACK_DATASET_ROOT / _safe_segment(model_name, "model")
+
+
+def feedback_ids(model_name: str) -> list[int]:
+    with _lock:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        rows = conn.execute(
+            "SELECT id FROM feedback WHERE model_name=? ORDER BY id",
+            (model_name,),
+        ).fetchall()
+        conn.close()
+    return [int(row[0]) for row in rows]
+
+
+def list_feedback_retrain_exports(model_name: str, stale_only: bool = False) -> list[dict]:
+    root = _feedback_dataset_dir(model_name)
+    if not root.exists():
+        return []
+    exports = []
+    for meta_path in sorted(root.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        try:
+            metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if stale_only and not metadata.get("stale"):
+            continue
+        exports.append({k: v for k, v in metadata.items() if k != "token"})
+    return exports
+
+
+def mark_feedback_retrain_exports_stale(
+    model_name: str,
+    feedback_ids_to_check: list[int],
+    *,
+    stale_by: str = "",
+    force_all: bool = False,
+) -> list[dict]:
+    root = _feedback_dataset_dir(model_name)
+    if not root.exists():
+        return []
+    deleted_ids = {int(v) for v in feedback_ids_to_check if str(v).strip()}
+    stale_exports = []
+    for meta_path in sorted(root.glob("*.json")):
+        try:
+            metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        source_ids = {int(v) for v in metadata.get("source_feedback_ids") or [] if str(v).strip()}
+        matched_ids = sorted(source_ids & deleted_ids)
+        should_mark = bool(matched_ids) or (force_all and (metadata.get("model_name") == model_name))
+        if not should_mark:
+            continue
+        existing = {int(v) for v in metadata.get("stale_feedback_ids") or [] if str(v).strip()}
+        metadata["stale"] = True
+        metadata["stale_reason"] = "feedback_deleted"
+        metadata["stale_feedback_ids"] = sorted(existing | set(matched_ids) | (deleted_ids if force_all else set()))
+        metadata["stale_at"] = _now()
+        metadata["stale_by"] = stale_by
+        meta_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        stale_exports.append({k: v for k, v in metadata.items() if k != "token"})
+    return stale_exports
+
+
+def create_feedback_retrain_dataset(
+    *,
+    model_name: str,
+    model_version: str | None,
+    target_column: str,
+    feature_columns: list[str] | None = None,
+    include_all_versions: bool = False,
+    min_rows: int = 1,
+    created_by: str = "",
+) -> dict:
+    target_column = str(target_column or "target").strip() or "target"
+    feature_columns = [str(c) for c in (feature_columns or []) if str(c or "").strip()]
+    version_filter = str(model_version or "").strip()
+    with _lock:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        where = ["f.model_name=?", "f.prediction_id IS NOT NULL", "f.prediction_id != ''"]
+        params: list[Any] = [model_name]
+        if version_filter and not include_all_versions:
+            where.append("(f.model_version=? OR (f.model_version='' AND p.model_version=?))")
+            params.extend([version_filter, version_filter])
+        rows = conn.execute(
+            f"""
+            SELECT
+                f.id, f.prediction_id, f.model_version AS feedback_version,
+                f.task, f.y_true, f.submitted_at,
+                p.model_version AS prediction_version,
+                p.namespace, p.request_payload, p.created_at AS prediction_at
+            FROM feedback f
+            JOIN prediction_log p
+              ON p.prediction_id = f.prediction_id
+             AND p.model_name = f.model_name
+            WHERE {' AND '.join(where)}
+            ORDER BY f.submitted_at ASC, f.id ASC
+            """,
+            params,
+        ).fetchall()
+        conn.close()
+
+    output_rows: list[dict[str, Any]] = []
+    used_feedback_ids: list[int] = []
+    skipped_no_features = 0
+    skipped_multirow_payload = 0
+    tasks: set[str] = set()
+    versions: set[str] = set()
+    for row in rows:
+        tasks.add(str(row["task"] or ""))
+        version = str(row["feedback_version"] or row["prediction_version"] or "")
+        if version:
+            versions.add(version)
+        feature_rows = _feature_rows_from_payload(row["request_payload"], feature_columns)
+        if not feature_rows:
+            skipped_no_features += 1
+            continue
+        if len(feature_rows) > 1:
+            skipped_multirow_payload += len(feature_rows) - 1
+        features = dict(feature_rows[0])
+        features.pop(target_column, None)
+        if not features:
+            skipped_no_features += 1
+            continue
+        features[target_column] = row["y_true"]
+        output_rows.append(features)
+        used_feedback_ids.append(int(row["id"]))
+
+    if len(output_rows) < max(1, int(min_rows or 1)):
+        raise ValueError(
+            f"재학습 데이터가 부족합니다: {len(output_rows)}건 "
+            f"(최소 {max(1, int(min_rows or 1))}건). "
+            "운영 테스트 Prediction ID와 실제값 피드백이 연결된 데이터가 필요합니다."
+        )
+
+    feature_order = [c for c in feature_columns if c != target_column]
+    for row in output_rows:
+        for key in row.keys():
+            if key != target_column and key not in feature_order:
+                feature_order.append(key)
+    header = feature_order + [target_column]
+
+    export_id = f"fb-{uuid.uuid4().hex[:12]}"
+    token = secrets.token_urlsafe(24)
+    root = _feedback_dataset_dir(model_name)
+    root.mkdir(parents=True, exist_ok=True)
+    csv_path = root / f"{export_id}.csv"
+    meta_path = root / f"{export_id}.json"
+    with csv_path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=header, extrasaction="ignore")
+        writer.writeheader()
+        for row in output_rows:
+            writer.writerow(row)
+    metadata = {
+        "export_id": export_id,
+        "token": token,
+        "model_name": model_name,
+        "model_version": version_filter,
+        "include_all_versions": include_all_versions,
+        "target_column": target_column,
+        "feature_columns": feature_order,
+        "row_count": len(output_rows),
+        "source_feedback_count": len(rows),
+        "source_feedback_ids": used_feedback_ids,
+        "skipped_no_features": skipped_no_features,
+        "skipped_multirow_payload": skipped_multirow_payload,
+        "tasks": sorted(t for t in tasks if t),
+        "versions": sorted(versions, key=lambda v: (0, int(v)) if str(v).isdigit() else (1, str(v))),
+        "created_by": created_by,
+        "created_at": _now(),
+        "file_name": csv_path.name,
+        "size_bytes": csv_path.stat().st_size,
+    }
+    meta_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    dataset_url = (
+        f"{FEEDBACK_DATASET_INTERNAL_BASE_URL}/api/models/{quote(model_name)}/feedback-datasets/{quote(export_id)}/download"
+        f"?token={quote(token)}"
+    )
+    return {k: v for k, v in {**metadata, "dataset_url": dataset_url, "file_path": str(csv_path)}.items() if k != "token"}
+
+
+def feedback_retrain_dataset_download_response(model_name: str, export_id: str, token: str):
+    safe_export = _safe_segment(export_id, "export")
+    root = _feedback_dataset_dir(model_name)
+    meta_path = root / f"{safe_export}.json"
+    csv_path = root / f"{safe_export}.csv"
+    if not meta_path.exists() or not csv_path.exists():
+        raise FileNotFoundError("feedback retrain dataset not found")
+    metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    if not token or token != metadata.get("token"):
+        raise PermissionError("invalid feedback dataset token")
+    return FileResponse(
+        csv_path,
+        media_type="text/csv",
+        filename=metadata.get("file_name") or csv_path.name,
+    )
 
 
 def _bucket_iso(ts_iso: str, bucket_minutes: int) -> str:

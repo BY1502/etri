@@ -42,6 +42,80 @@ function _fmtTs(ts) {
     return new Date(+ts).toLocaleString('ko-KR', { hour12: false });
 }
 
+function _fmtDeploymentTs(value) {
+    if (!value) return "-";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleString("ko-KR", { hour12: false });
+}
+
+function _deploymentEventLabel(type) {
+    return ({
+        deploy: "운영 배포",
+        rollback: "롤백",
+        undeploy: "운영 중단",
+    })[type] || type || "-";
+}
+
+function _deploymentVersionLabel(e) {
+    const current = e.model_version ? `v${e.model_version}` : "-";
+    if (e.event_type === "rollback" && e.previous_version) {
+        return `v${e.previous_version} → ${current}`;
+    }
+    if (e.previous_version && e.previous_version !== e.model_version) {
+        return `v${e.previous_version} → ${current}`;
+    }
+    return current;
+}
+
+function _renderDeploymentHistory(events) {
+    const rows = (events || []).slice(0, 12);
+    const body = rows.map(e => {
+        const outcome = e.outcome === "failed" ? "failed" : "success";
+        const detail = e.error || e.reason || e.isvc_url || e.isvc_name || "";
+        const target = e.target_namespace || e.namespace || "-";
+        return `
+            <tr>
+                <td>${esc(_fmtDeploymentTs(e.created_at))}</td>
+                <td><span class="deploy-event deploy-event-${esc(e.event_type || "unknown")}">${esc(_deploymentEventLabel(e.event_type))}</span></td>
+                <td><span class="deploy-outcome deploy-outcome-${outcome}">${outcome === "success" ? "성공" : "실패"}</span></td>
+                <td class="deploy-version">${esc(_deploymentVersionLabel(e))}</td>
+                <td title="${esc(target)}">${esc(target)}</td>
+                <td title="${esc(e.actor || "-")}">${esc(e.actor || "-")}</td>
+                <td class="deploy-detail" title="${esc(detail || "-")}">${esc(detail || "-")}</td>
+            </tr>
+        `;
+    }).join("");
+    return `
+        <div class="deployment-history">
+            <div class="deployment-history-head">
+                <div>
+                    <div class="deployment-history-title">운영 배포 이력</div>
+                    <div class="deployment-history-sub">최근 ${rows.length}건</div>
+                </div>
+            </div>
+            ${rows.length ? `
+                <div class="deployment-history-table-wrap">
+                    <table class="deployment-history-table">
+                        <thead>
+                            <tr>
+                                <th>시간</th>
+                                <th>작업</th>
+                                <th>결과</th>
+                                <th>버전</th>
+                                <th>Namespace</th>
+                                <th>작업자</th>
+                                <th>상세</th>
+                            </tr>
+                        </thead>
+                        <tbody>${body}</tbody>
+                    </table>
+                </div>
+            ` : `<div class="deployment-history-empty">아직 운영 배포 이력이 없습니다</div>`}
+        </div>
+    `;
+}
+
 function _fmtBytes(n) {
     if (n >= 1024**3) return (n / 1024**3).toFixed(2) + ' GiB';
     if (n >= 1024**2) return (n / 1024**2).toFixed(1) + ' MiB';
@@ -410,6 +484,24 @@ async function renderModels() {
         .compare-chip { padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700; color:#075985; background:#e0f2fe; }
         .metric-dir { color:var(--text-muted); font-weight:700; }
         .best-metric { color:#166534; background:#dcfce7; font-family:var(--font-mono); font-weight:800; }
+        .deployment-history { margin:0 0 12px; border:1px solid var(--border); border-radius:8px; background:#fff; overflow:hidden; }
+        .deployment-history-head { padding:10px 12px; border-bottom:1px solid #eef2f7; display:flex; justify-content:space-between; align-items:center; gap:10px; background:#f8fafc; }
+        .deployment-history-title { font-size:13px; font-weight:800; color:var(--text-primary); }
+        .deployment-history-sub { margin-top:2px; font-size:10px; color:var(--text-muted); }
+        .deployment-history-table-wrap { overflow:auto; }
+        .deployment-history-table { width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed; }
+        .deployment-history-table th { text-align:left; padding:8px 10px; color:var(--text-muted); font-weight:800; border-bottom:1px solid #eef2f7; white-space:nowrap; }
+        .deployment-history-table td { padding:8px 10px; border-bottom:1px solid #f1f5f9; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .deployment-history-table tbody tr:last-child td { border-bottom:0; }
+        .deploy-event, .deploy-outcome { display:inline-flex; align-items:center; height:20px; padding:0 7px; border-radius:4px; font-size:10px; font-weight:800; white-space:nowrap; }
+        .deploy-event { background:#e0f2fe; color:#075985; }
+        .deploy-event-rollback { background:#fef3c7; color:#78350f; }
+        .deploy-event-undeploy { background:#f1f5f9; color:#475569; }
+        .deploy-outcome-success { background:#dcfce7; color:#166534; }
+        .deploy-outcome-failed { background:#fee2e2; color:#b91c1c; }
+        .deploy-version { font-family:var(--font-mono); font-weight:800; color:var(--text-primary); }
+        .deploy-detail { color:var(--text-muted); }
+        .deployment-history-empty { padding:18px 12px; text-align:center; font-size:12px; color:var(--text-muted); }
         .version-meta-sections { display:grid; gap:8px; margin-top:10px; }
         .version-meta-section { border-top:1px solid #eef2f7; padding-top:8px; }
         .version-meta-title { cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; font-weight:800; color:var(--text-secondary); }
@@ -746,6 +838,14 @@ async function loadModelDetail(name) {
         } catch (e) {}
     }
 
+    let deploymentHistory = [];
+    if (nsGuess) {
+        try {
+            const h = await API.get(`/api/models/${encodeURIComponent(name)}/deployment-history?namespace=${encodeURIComponent(nsGuess)}&limit=20`);
+            deploymentHistory = h.events || [];
+        } catch (e) {}
+    }
+    const deploymentHistoryHtml = _renderDeploymentHistory(deploymentHistory);
     const comparisonHtml = _renderVersionComparison(data.versions || []);
     const versionCards = data.versions.map(v => {
         const metricsHtml = Object.entries(v.metrics || {}).slice(0, 8).map(([k, val]) => `
@@ -773,6 +873,7 @@ async function loadModelDetail(name) {
                     </select>
                     <button class="pm-btn pm-btn-sm repo-sync-btn" data-version="${ver}" title="이 버전의 artifact를 표준 모델 저장소 경로로 동기화">저장소 동기화</button>
                     <button class="pm-btn pm-btn-sm retrain-btn" data-version="${ver}" title="이 버전의 학습 설정을 기반으로 AutoML 재학습 Job 생성">재학습</button>
+                    <button class="pm-btn pm-btn-sm feedback-retrain-btn" data-version="${ver}" title="Prediction ID 피드백으로 AutoML 재학습 Job 생성">피드백 재학습</button>
                     <button class="pm-btn pm-btn-sm onnx-btn" data-version="${ver}" title="이 모델을 ONNX로 변환 (추론 속도 향상)">ONNX 변환</button>
                     <button class="pm-btn pm-btn-sm download-btn" data-version="${ver}" title="모델 artifact를 zip으로 다운로드">다운로드</button>
                     <button class="pm-btn pm-btn-sm pm-btn-danger delete-version-btn" data-version="${ver}" data-status="${esc(status)}" title="이 버전 삭제 (Registry + 저장소)">버전 삭제</button>
@@ -795,6 +896,7 @@ async function loadModelDetail(name) {
                     <button class="pm-btn pm-btn-sm" id="repo-check-btn" title="Registry 메타데이터와 /models 파일 정합성 검사">정합성 검사</button>
                     <button class="pm-btn pm-btn-sm" id="repo-repair-btn" title="정합성이 깨진 버전을 MLflow artifact에서 다시 복구">저장소 복구</button>
                     <span class="model-toolbar-divider"></span>
+                    <button class="pm-btn pm-btn-sm" id="monitoring-btn" title="운영 요청 수, 성공률, 지연시간 보기">모니터링</button>
                     <button class="pm-btn pm-btn-sm" id="accuracy-btn" title="시간별 정확도 추이 보기">정확도</button>
                     <button class="pm-btn pm-btn-sm" id="feedback-btn" title="실제 값과 예측 값을 업로드">피드백</button>
                     <span class="model-toolbar-divider"></span>
@@ -803,6 +905,7 @@ async function loadModelDetail(name) {
                 </div>
             </div>
             ${prodStatusHtml}
+            ${deploymentHistoryHtml}
             ${comparisonHtml}
             <div>${versionCards || '<div style="text-align:center; padding:40px; color:var(--text-muted);">버전이 없습니다</div>'}</div>
         </div>
@@ -895,6 +998,14 @@ async function loadModelDetail(name) {
             const version = btn.dataset.version;
             const versionInfo = (data.versions || []).find(v => String(v.version) === String(version));
             openRetrainModal(name, versionInfo || { version });
+        });
+    });
+
+    panel.querySelectorAll('.feedback-retrain-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const version = btn.dataset.version;
+            const versionInfo = (data.versions || []).find(v => String(v.version) === String(version));
+            openFeedbackRetrainModal(name, versionInfo || { version });
         });
     });
 
@@ -1009,6 +1120,7 @@ async function loadModelDetail(name) {
         });
     });
 
+    document.getElementById('monitoring-btn').addEventListener('click', () => loadProductionMetricsPanel(name));
     document.getElementById('accuracy-btn').addEventListener('click', () => loadAccuracyPanel(name));
     document.getElementById('feedback-btn').addEventListener('click', () => openFeedbackModal(name));
 
@@ -1185,6 +1297,137 @@ function openProductionTestModal(name, namespace, productionStatus, versionInfo)
     };
 }
 
+function _fmtMs(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '-';
+    return `${Math.round(n).toLocaleString('ko-KR')}ms`;
+}
+
+function _fmtPct(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '-';
+    return `${(n * 100).toFixed(1)}%`;
+}
+
+function _metricCard(label, value, sub = '', tone = 'blue') {
+    const colors = {
+        blue: ['#e8f4ff', '#0066cc'],
+        green: ['#dcfce7', '#166534'],
+        amber: ['#fef3c7', '#92400e'],
+        red: ['#fee2e2', '#b91c1c'],
+        gray: ['#f1f5f9', '#475569'],
+    }[tone] || ['#f1f5f9', '#475569'];
+    return `
+        <div style="background:${colors[0]}; padding:10px 12px; border-radius:6px; min-width:0;">
+            <div style="font-size:10px; color:${colors[1]}; text-transform:uppercase; font-weight:800;">${esc(label)}</div>
+            <div style="font-size:18px; font-weight:800; color:var(--text-primary); margin-top:3px;">${esc(value)}</div>
+            ${sub ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${esc(sub)}">${esc(sub)}</div>` : ''}
+        </div>
+    `;
+}
+
+async function loadProductionMetricsPanel(name) {
+    const modal = document.createElement('div');
+    modal.className = 'automl-modal-bg';
+    modal.innerHTML = `
+        <div class="automl-modal" style="width:min(960px, calc(100vw - 48px)); min-width:0; max-height:calc(100vh - 64px); overflow:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px;">
+                <h3 style="margin:0;">운영 모니터링: ${esc(name)}</h3>
+                <button class="pm-btn" id="mon-close">닫기</button>
+            </div>
+            <div id="mon-body">로딩 중...</div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const cleanup = () => modal.remove();
+    modal.querySelector('#mon-close').onclick = cleanup;
+    modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+
+    const body = modal.querySelector('#mon-body');
+    let data = null;
+    try {
+        data = await API.get(`/api/models/${encodeURIComponent(name)}/production-metrics?hours=72&bucket_minutes=60&limit=20`);
+    } catch (e) {
+        body.innerHTML = `<div style="padding:14px; color:#dc3545;">로드 실패: ${esc(e.message)}</div>`;
+        return;
+    }
+
+    const overall = data.overall || {};
+    if (!overall.request_count) {
+        body.innerHTML = `
+            <div style="padding:14px; background:#f8f9fa; border:1px solid var(--border); border-radius:8px; font-size:12px; color:var(--text-muted);">
+                아직 운영 요청 로그가 없습니다. 운영 테스트 요청을 보내면 요청 수, 성공률, 지연시간이 여기에 표시됩니다.
+            </div>`;
+        return;
+    }
+
+    const cards = [
+        _metricCard('Requests', String(overall.request_count || 0), `최근 ${data.hours}시간`, 'blue'),
+        _metricCard('Success Rate', _fmtPct(overall.success_rate), `${overall.success_count || 0} 성공 / ${overall.error_count || 0} 실패`, overall.error_count ? 'amber' : 'green'),
+        _metricCard('P95 Latency', _fmtMs(overall.p95_latency_ms), `평균 ${_fmtMs(overall.avg_latency_ms)}`, 'blue'),
+        _metricCard('Max Latency', _fmtMs(overall.max_latency_ms), `P50 ${_fmtMs(overall.p50_latency_ms)}`, 'gray'),
+        _metricCard('Errors', String(overall.error_count || 0), Object.entries(overall.status_codes || {}).map(([k, v]) => `${k}:${v}`).join(' · '), overall.error_count ? 'red' : 'green'),
+    ].join('');
+
+    const buckets = data.buckets || [];
+    const maxReq = Math.max(...buckets.map(b => b.request_count || 0), 1);
+    const bars = buckets.map(b => {
+        const reqH = Math.max(4, Math.round(((b.request_count || 0) / maxReq) * 120));
+        const okPct = Number.isFinite(Number(b.success_rate)) ? Math.round(b.success_rate * 100) : 0;
+        const time = new Date(b.bucket).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit' });
+        const bg = (b.error_count || 0) ? '#f59e0b' : '#0066cc';
+        return `<div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; min-width:34px;">
+            <div style="font-size:9px; color:var(--text-muted);">${b.request_count || 0}</div>
+            <div style="width:70%; height:${reqH}px; background:${bg}; border-radius:3px 3px 0 0;" title="${esc(time)} · 요청 ${b.request_count || 0} · 성공률 ${okPct}% · p95 ${_fmtMs(b.p95_latency_ms)}"></div>
+            <div style="font-size:9px; color:var(--text-muted); margin-top:3px; transform:rotate(-30deg); transform-origin:top left; white-space:nowrap;">${esc(time)}</div>
+        </div>`;
+    }).join('');
+
+    const versionRows = (overall.versions || []).map(v => `
+        <tr>
+            <td>v${esc(v.version || '-')}</td>
+            <td>${esc(v.request_count || 0)}</td>
+            <td>${esc(_fmtPct(v.success_rate))}</td>
+            <td>${esc(v.error_count || 0)}</td>
+        </tr>
+    `).join('');
+    const latestRows = (data.latest || []).map(p => `
+        <tr>
+            <td title="${esc(p.prediction_id || '-')}">${esc(p.prediction_id || '-')}</td>
+            <td>v${esc(p.model_version || '-')}</td>
+            <td>${p.ok ? '<span style="color:#166534; font-weight:800;">OK</span>' : '<span style="color:#b91c1c; font-weight:800;">FAIL</span>'}</td>
+            <td>${esc(p.status_code ?? '-')}</td>
+            <td>${esc(_fmtMs(p.elapsed_ms))}</td>
+            <td>${p.has_feedback ? '있음' : '-'}</td>
+            <td title="${esc(p.created_at || '-')}">${esc(p.created_at ? new Date(p.created_at).toLocaleString('ko-KR', { hour12: false }) : '-')}</td>
+        </tr>
+    `).join('');
+
+    body.innerHTML = `
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">최근 ${data.hours}시간 · ${data.bucket_minutes}분 단위 · Namespace ${esc(data.namespace || '-')}</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; margin-bottom:16px;">${cards}</div>
+        <div style="display:flex; gap:4px; align-items:flex-end; height:170px; border-bottom:1px solid #dee2e6; overflow-x:auto; padding:0 6px; margin-bottom:18px;">${bars}</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; align-items:start;">
+            <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+                <div style="padding:9px 11px; background:#f8fafc; border-bottom:1px solid var(--border); font-size:12px; font-weight:800;">버전별 요청</div>
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <thead><tr><th style="text-align:left; padding:7px 9px;">버전</th><th style="text-align:left; padding:7px 9px;">요청</th><th style="text-align:left; padding:7px 9px;">성공률</th><th style="text-align:left; padding:7px 9px;">오류</th></tr></thead>
+                    <tbody>${versionRows || '<tr><td colspan="4" style="padding:12px; color:var(--text-muted);">버전 정보 없음</td></tr>'}</tbody>
+                </table>
+            </div>
+            <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden; min-width:0;">
+                <div style="padding:9px 11px; background:#f8fafc; border-bottom:1px solid var(--border); font-size:12px; font-weight:800;">최근 요청</div>
+                <div style="overflow:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:11px; min-width:620px;">
+                        <thead><tr><th style="text-align:left; padding:7px 9px;">Prediction ID</th><th style="text-align:left; padding:7px 9px;">버전</th><th style="text-align:left; padding:7px 9px;">결과</th><th style="text-align:left; padding:7px 9px;">HTTP</th><th style="text-align:left; padding:7px 9px;">Latency</th><th style="text-align:left; padding:7px 9px;">피드백</th><th style="text-align:left; padding:7px 9px;">시간</th></tr></thead>
+                        <tbody>${latestRows}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 async function loadAccuracyPanel(name) {
     // 모달로 열기
     const modal = document.createElement('div');
@@ -1298,6 +1541,20 @@ pred-abc123,42.5
 pred-def456,39.1</pre>
                 <div id="fb-csv-hint" style="font-size:11px; color:var(--text-muted); margin-top:6px;">운영 테스트 요청으로 생성된 Prediction ID와 실제값을 매칭합니다. 이미 피드백이 있는 Prediction ID는 건너뜁니다.</div>
             </div>
+            <div style="margin-top:12px; padding:10px; border:1px solid #dbe4ef; border-radius:6px; background:#ffffff;">
+                <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:12px; font-weight:700; color:#1f2937;">최근 피드백</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">잘못 올린 실제값/예측값은 여기에서 삭제합니다.</div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <button class="pm-btn pm-btn-sm" id="fb-refresh-list" type="button">새로고침</button>
+                        <button class="pm-btn pm-btn-sm pm-btn-danger" id="fb-clear-all" type="button">전체 삭제</button>
+                    </div>
+                </div>
+                <div id="fb-list" style="max-height:220px; overflow:auto; display:flex; flex-direction:column; gap:6px;">불러오는 중...</div>
+                <div id="fb-related-automl" style="margin-top:10px;"></div>
+            </div>
             <label style="font-size:12px; color:var(--text-secondary); margin:8px 0 4px 0; display:block;">모델 버전 (선택)</label>
             <input id="fb-version" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; box-sizing:border-box;" placeholder="예: 3" />
             <div id="fb-err" style="color:#dc3545; font-size:12px; margin-top:8px; min-height:18px;"></div>
@@ -1310,6 +1567,137 @@ pred-def456,39.1</pre>
     document.body.appendChild(modal);
     const cleanup = () => modal.remove();
     modal.querySelector('#fb-cancel').onclick = cleanup;
+    const feedbackListEl = modal.querySelector('#fb-list');
+    const relatedAutomlEl = modal.querySelector('#fb-related-automl');
+    const formatFeedbackValue = (value) => {
+        if (value === null || value === undefined || value === '') return '-';
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toLocaleString('ko-KR', { maximumFractionDigits: 6 }) : String(value);
+    };
+    const renderRelatedAutoml = (jobs) => {
+        const related = (jobs || []).filter(j => j.feedback_dataset_stale || j.stale_reason);
+        if (!related.length) {
+            relatedAutomlEl.innerHTML = '';
+            return;
+        }
+        const deletable = related.filter(j => j.can_delete);
+        relatedAutomlEl.innerHTML = `
+            <div style="border:1px solid #fde68a; background:#fffbeb; border-radius:6px; padding:10px;">
+                <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:12px; font-weight:800; color:#92400e;">피드백 변경 영향 AutoML</div>
+                        <div style="font-size:11px; color:#92400e; margin-top:3px;">삭제된 피드백을 사용한 재학습 Job입니다. 종료된 Job만 삭제할 수 있습니다.</div>
+                    </div>
+                    <button class="pm-btn pm-btn-sm pm-btn-danger" id="fb-delete-related-automl" type="button" ${deletable.length ? '' : 'disabled'}>선택 삭제</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    ${related.map((job) => {
+                        const checked = job.can_delete ? 'checked' : '';
+                        const disabled = job.can_delete ? '' : 'disabled';
+                        const statusText = job.can_delete ? '삭제 가능' : '실행 중/대기 중';
+                        return `
+                            <label style="display:flex; gap:8px; align-items:flex-start; padding:7px 8px; border:1px solid #fcd34d; border-radius:5px; background:#ffffff; font-size:11px; color:#475569;">
+                                <input class="fb-related-job-check" type="checkbox" value="${esc(job.job_id)}" ${checked} ${disabled} style="margin-top:2px;" />
+                                <span style="min-width:0;">
+                                    <b style="font-size:12px; color:#1f2937;">${esc(job.experiment_name || job.job_id)}</b>
+                                    <span style="color:#92400e;"> · ${esc(job.status || '-')} · ${statusText}</span>
+                                    <span style="display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">export ${esc(job.feedback_export_id || '-')} · Job ${esc(job.job_id)}</span>
+                                </span>
+                            </label>`;
+                    }).join('')}
+                </div>
+            </div>`;
+    };
+    const deleteSelectedRelatedAutoml = async () => {
+        const selected = [...relatedAutomlEl.querySelectorAll('.fb-related-job-check:checked')].map(input => input.value);
+        if (!selected.length) {
+            modal.querySelector('#fb-err').textContent = '삭제할 AutoML Job을 선택하세요';
+            return;
+        }
+        const msg = `선택한 AutoML Job ${selected.length}개를 완전 삭제합니다.\n\nMLflow Experiment/Run, Artifact, 예측매니저 Job 기록도 함께 삭제됩니다. 계속할까요?`;
+        if (!confirm(msg)) return;
+        const btn = relatedAutomlEl.querySelector('#fb-delete-related-automl');
+        btn.disabled = true;
+        try {
+            const r = await API.post(`/api/models/${encodeURIComponent(name)}/feedback/related-automl/delete`, { job_ids: selected });
+            await renderFeedbackList();
+            alert(`관련 AutoML 삭제 완료: ${r.deleted || 0}건`);
+        } catch (e) {
+            modal.querySelector('#fb-err').textContent = e.message;
+            btn.disabled = false;
+        }
+    };
+    const renderFeedbackList = async () => {
+        feedbackListEl.innerHTML = '<div style="padding:10px; font-size:12px; color:var(--text-muted); text-align:center;">불러오는 중...</div>';
+        try {
+            const data = await API.get(`/api/models/${encodeURIComponent(name)}/feedback?limit=50`);
+            renderRelatedAutoml(data.related_automl_jobs || []);
+            const rows = data.feedback || [];
+            if (!rows.length) {
+                feedbackListEl.innerHTML = '<div style="padding:12px; border:1px dashed #dbe4ef; border-radius:6px; font-size:12px; color:var(--text-muted); text-align:center;">등록된 피드백이 없습니다.</div>';
+                return;
+            }
+            feedbackListEl.innerHTML = rows.map((row) => {
+                const when = row.submitted_at ? new Date(row.submitted_at).toLocaleString('ko-KR', { hour12: false }) : '-';
+                const prediction = row.prediction_id || '직접 입력';
+                const version = row.model_version ? `v${esc(row.model_version)}` : '버전 없음';
+                const task = row.task === 'classification' ? '분류' : '회귀';
+                return `
+                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; padding:8px 10px; border:1px solid #e5e7eb; border-radius:6px; background:#f8fafc;">
+                        <div style="min-width:0;">
+                            <div style="font-size:12px; font-weight:700; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(prediction)}</div>
+                            <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">실제 ${esc(formatFeedbackValue(row.y_true))} · 예측 ${esc(formatFeedbackValue(row.y_pred))} · ${version} · ${task}</div>
+                            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${esc(when)} · ${esc(row.submitted_by || '-')}</div>
+                        </div>
+                        <button class="pm-btn pm-btn-sm pm-btn-danger fb-delete-one" type="button" data-feedback-id="${esc(row.id)}">삭제</button>
+                    </div>`;
+            }).join('');
+        } catch (e) {
+            relatedAutomlEl.innerHTML = '';
+            feedbackListEl.innerHTML = `<div style="padding:10px; font-size:12px; color:var(--danger);">${esc(e.message)}</div>`;
+        }
+    };
+    relatedAutomlEl.addEventListener('click', (ev) => {
+        const btn = ev.target instanceof Element ? ev.target.closest('#fb-delete-related-automl') : null;
+        if (btn) deleteSelectedRelatedAutoml();
+    });
+    modal.querySelector('#fb-refresh-list').onclick = renderFeedbackList;
+    modal.querySelector('#fb-clear-all').onclick = async () => {
+        const btn = modal.querySelector('#fb-clear-all');
+        if (!confirm('이 모델의 피드백을 모두 삭제할까요?')) return;
+        btn.disabled = true;
+        try {
+            const r = await API.del(`/api/models/${encodeURIComponent(name)}/feedback`);
+            await renderFeedbackList();
+            loadAccuracyPanel(name);
+            const relatedCount = (r.related_automl_jobs || []).length;
+            const suffix = relatedCount ? `\n관련 AutoML Job ${relatedCount}개가 피드백 변경 상태로 표시되었습니다.` : '';
+            alert(`삭제 완료: ${r.deleted || 0}건${suffix}`);
+        } catch (e) {
+            modal.querySelector('#fb-err').textContent = e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    };
+    feedbackListEl.addEventListener('click', async (ev) => {
+        const btn = ev.target instanceof Element ? ev.target.closest('.fb-delete-one') : null;
+        if (!btn) return;
+        const feedbackId = btn.dataset.feedbackId;
+        if (!feedbackId || !confirm('이 피드백을 삭제할까요?')) return;
+        btn.disabled = true;
+        try {
+            const r = await API.del(`/api/models/${encodeURIComponent(name)}/feedback/${encodeURIComponent(feedbackId)}`);
+            await renderFeedbackList();
+            loadAccuracyPanel(name);
+            if ((r.related_automl_jobs || []).length) {
+                modal.querySelector('#fb-err').textContent = `관련 AutoML Job ${(r.related_automl_jobs || []).length}개가 피드백 변경 상태로 표시되었습니다.`;
+            }
+        } catch (e) {
+            modal.querySelector('#fb-err').textContent = e.message;
+            btn.disabled = false;
+        }
+    });
+    renderFeedbackList();
     const predSelect = modal.querySelector('#fb-pred-select');
     const predHint = modal.querySelector('#fb-pred-hint');
     API.get(`/api/models/${encodeURIComponent(name)}/predictions?limit=20`).then((data) => {
@@ -1442,6 +1830,171 @@ function _safeRetrainJobName(value) {
         .replace(/[^A-Za-z0-9._-]+/g, '-')
         .replace(/^[._-]+|[._-]+$/g, '')
         .slice(0, 80) || 'retrain-job';
+}
+
+function openFeedbackRetrainModal(name, versionInfo) {
+    const version = String(versionInfo?.version || '');
+    const tags = versionInfo?.tags || {};
+    const params = versionInfo?.params || {};
+    const modelId = _inferRetrainModel(tags, params);
+    const task = ['regression', 'classification'].includes(String(tags['automl.task'] || '').toLowerCase())
+        ? String(tags['automl.task']).toLowerCase()
+        : 'regression';
+    const metric = String(tags['automl.metric'] || 'auto').toLowerCase();
+    const targetColumn = tags['dataset.target'] || 'target';
+    const ts = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+    const defaultJobName = _safeRetrainJobName(`feedback-retrain-${name}-v${version}-${ts}`);
+    const modelOptions = [
+        ['rf', 'Random Forest'],
+        ['xgb', 'XGBoost'],
+        ['lgbm', 'LightGBM'],
+        ['mlp', 'MLP'],
+        ['tabnet', 'TabNet'],
+    ];
+    const selectedModels = new Set([modelId]);
+    const modal = document.createElement('div');
+    modal.className = 'automl-modal-bg';
+    modal.innerHTML = `
+        <div class="automl-modal retrain-modal">
+            <div class="mu-header">
+                <div>
+                    <h3 class="mu-title">피드백 재학습 Job 생성</h3>
+                    <div style="font-size:12px; color:var(--text-muted); margin-top:4px;"><b>${esc(name)}</b> v${esc(version)} · Prediction ID 피드백 기반</div>
+                </div>
+                <button class="pm-btn pm-btn-sm" id="frt-cancel-top" title="닫기">닫기</button>
+            </div>
+            <div class="retrain-body">
+                <div class="rt-section">
+                    <div class="rt-section-title">피드백 데이터</div>
+                    <div class="rt-grid">
+                        <label class="rt-field">타깃 컬럼
+                            <input id="frt-target" class="mu-input" value="${esc(targetColumn)}" placeholder="target" />
+                        </label>
+                        <label class="rt-field">작업 유형
+                            <select id="frt-task" class="mu-input">
+                                <option value="regression" ${task === 'regression' ? 'selected' : ''}>회귀</option>
+                                <option value="classification" ${task === 'classification' ? 'selected' : ''}>분류</option>
+                            </select>
+                        </label>
+                        <label class="rt-field">최소 행 수
+                            <input id="frt-min-rows" class="mu-input" type="number" min="1" max="1000000" value="1" />
+                        </label>
+                        <label class="rt-field" style="justify-content:flex-end; padding-bottom:8px;">
+                            <span style="display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-secondary);">
+                                <input id="frt-all-versions" type="checkbox" style="margin:0;" /> 모든 버전 포함
+                            </span>
+                        </label>
+                    </div>
+                    <div class="rt-warning" style="margin-top:10px;">Prediction ID가 연결된 피드백만 학습 데이터로 사용됩니다.</div>
+                </div>
+                <div class="rt-section">
+                    <div class="rt-section-title">AutoML 탐색 설정</div>
+                    <label class="rt-field rt-field-full" style="margin-bottom:10px;">모델 후보
+                        <div class="rt-model-grid" id="frt-model-grid">
+                            ${modelOptions.map(([id, label]) => `
+                                <label class="rt-model-option ${selectedModels.has(id) ? 'selected' : ''}">
+                                    <input type="checkbox" name="frt-model" value="${id}" ${selectedModels.has(id) ? 'checked' : ''} />
+                                    <span title="${esc(label)}">${esc(id)}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </label>
+                    <div class="rt-tuning-grid">
+                        <label class="rt-field">탐색 횟수
+                            <input id="frt-trials" class="mu-input" type="number" min="1" max="200" value="10" />
+                        </label>
+                        <label class="rt-field">제한 시간(분)
+                            <input id="frt-timeout" class="mu-input" type="number" min="1" max="720" value="60" />
+                        </label>
+                        <label class="rt-field">Top-N 저장
+                            <input id="frt-topn" class="mu-input" type="number" min="1" max="10" value="3" />
+                        </label>
+                    </div>
+                    <details class="rt-advanced">
+                        <summary>고급 설정</summary>
+                        <div class="rt-grid" style="margin-top:10px;">
+                            <label class="rt-field">Job 이름
+                                <input id="frt-job-name" class="mu-input" value="${esc(defaultJobName)}" />
+                            </label>
+                            <label class="rt-field">평가 지표
+                                <select id="frt-metric" class="mu-input">
+                                    ${['auto','mse','rmse','mae','r2','accuracy','f1','precision','recall','roc_auc'].map(m => `<option value="${m}" ${m === metric ? 'selected' : ''}>${m}</option>`).join('')}
+                                </select>
+                            </label>
+                            <label class="rt-field">Trial CPU
+                                <input id="frt-cpu" class="mu-input" type="number" min="0.1" max="16" step="0.1" value="1" />
+                            </label>
+                            <label class="rt-field">Trial GPU
+                                <input id="frt-gpu" class="mu-input" type="number" min="0" max="4" step="0.25" value="0" />
+                            </label>
+                            <label class="rt-field rt-field-full">Trial Memory(GB)
+                                <input id="frt-memory" class="mu-input" type="number" min="0.5" max="128" step="0.5" value="2" />
+                            </label>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            <div class="rt-footer">
+                <div id="frt-err" class="rt-error"></div>
+                <div style="display:flex; gap:8px; justify-content:flex-end; flex-shrink:0;">
+                    <button class="pm-btn" id="frt-cancel">취소</button>
+                    <button class="pm-btn pm-btn-primary" id="frt-submit">피드백으로 재학습 시작</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const cleanup = () => modal.remove();
+    modal.querySelector('#frt-cancel').onclick = cleanup;
+    modal.querySelector('#frt-cancel-top').onclick = cleanup;
+    modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
+    modal.querySelectorAll('input[name="frt-model"]').forEach(input => {
+        input.addEventListener('change', () => {
+            input.closest('.rt-model-option')?.classList.toggle('selected', input.checked);
+        });
+    });
+    modal.querySelector('#frt-submit').onclick = async () => {
+        const errEl = modal.querySelector('#frt-err');
+        errEl.textContent = '';
+        const models = [...modal.querySelectorAll('input[name="frt-model"]:checked')].map(input => input.value);
+        const payload = {
+            job_name: modal.querySelector('#frt-job-name').value.trim(),
+            target_column: modal.querySelector('#frt-target').value.trim() || 'target',
+            task: modal.querySelector('#frt-task').value,
+            models,
+            metric: modal.querySelector('#frt-metric').value,
+            num_trials: Number(modal.querySelector('#frt-trials').value) || 10,
+            timeout_minutes: Number(modal.querySelector('#frt-timeout').value) || 60,
+            top_n: Number(modal.querySelector('#frt-topn').value) || 3,
+            cpu_per_trial: Number(modal.querySelector('#frt-cpu').value) || 1,
+            gpu_per_trial: Number(modal.querySelector('#frt-gpu').value) || 0,
+            memory_per_trial_gb: Number(modal.querySelector('#frt-memory').value) || 2,
+            include_all_versions: modal.querySelector('#frt-all-versions').checked,
+            min_rows: Number(modal.querySelector('#frt-min-rows').value) || 1,
+        };
+        if (!payload.target_column) { errEl.textContent = '타깃 컬럼을 입력하세요'; return; }
+        if (!models.length) { errEl.textContent = '모델 후보를 최소 1개 선택하세요'; return; }
+        const btn = modal.querySelector('#frt-submit');
+        btn.disabled = true; btn.textContent = '생성 중...';
+        try {
+            const r = await API.post(`/api/models/${encodeURIComponent(name)}/versions/${encodeURIComponent(version)}/retrain-from-feedback`, payload);
+            cleanup();
+            const job = r.job || {};
+            const ds = r.feedback_dataset || {};
+            const lines = [
+                '✅ 피드백 재학습 Job 생성 완료',
+                `Job ID: ${job.job_id || '-'}`,
+                `학습 행 수: ${ds.row_count ?? '-'}`,
+                ds.skipped_no_features ? `feature 없음 제외: ${ds.skipped_no_features}건` : '',
+                `Experiment: ${job.experiment_name || '-'}`,
+            ].filter(Boolean);
+            alert(lines.join('\n'));
+            if (confirm('AutoML 화면으로 이동할까요?')) navigate('automl');
+        } catch (e) {
+            errEl.textContent = e.message;
+            btn.disabled = false; btn.textContent = '피드백으로 재학습 시작';
+        }
+    };
 }
 
 function openRetrainModal(name, versionInfo) {

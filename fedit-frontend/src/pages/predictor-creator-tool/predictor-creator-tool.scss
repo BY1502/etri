@@ -28,6 +28,14 @@
     display: grid;
     gap: 16px;
     grid-template-columns: 1fr 1fr 1fr;
+
+    .card__title {
+      margin-bottom: 8px;
+    }
+
+    .card__subtitle {
+      margin-bottom: 0;
+    }
   }
 
   &__iframe-wrapper {

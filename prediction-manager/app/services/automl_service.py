@@ -197,7 +197,7 @@ async def _get_ray_job_logs(ray_dashboard_url: str, submission_id: str) -> str:
     return await asyncio.to_thread(_get_ray_job_logs_sync, ray_dashboard_url, submission_id)
 
 
-async def submit(req: AutoMLJobRequest, user_email: str, namespace: str) -> dict:
+async def submit(req: AutoMLJobRequest, user_email: str, namespace: str, extra: dict | None = None) -> dict:
     global _next_priority
     job_id = uuid.uuid4().hex[:10]
     experiment_name = f"automl-{namespace}-{req.name}"
@@ -234,6 +234,10 @@ async def submit(req: AutoMLJobRequest, user_email: str, namespace: str) -> dict
         "best_run": None,
         "message": None,
     }
+    if extra:
+        for key, value in extra.items():
+            if key not in {"job_id", "ray_job_id", "submitted_by", "namespace", "status", "priority", "submitted_at"}:
+                info[key] = value
     _persist(info)
     return info
 
@@ -1134,6 +1138,82 @@ def promote(job_id: str, requester_email: str, is_admin_user: bool) -> bool:
     job["message"] = f"관리자 {requester_email}가 우선순위 상향"
     _persist(job)
     return True
+
+
+def _terminal_status(status: str | None) -> bool:
+    return str(status or "").upper() in {"SUCCEEDED", "FAILED", "STOPPED", "CANCELED"}
+
+
+def _feedback_ids_set(values) -> set[int]:
+    out: set[int] = set()
+    for value in values or []:
+        try:
+            out.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _feedback_job_summary(job: dict) -> dict:
+    return {
+        "job_id": job.get("job_id"),
+        "experiment_name": job.get("experiment_name"),
+        "status": job.get("status"),
+        "submitted_at": job.get("submitted_at"),
+        "finished_at": job.get("finished_at"),
+        "source": job.get("source"),
+        "source_model": job.get("source_model"),
+        "source_version": job.get("source_version"),
+        "feedback_export_id": job.get("feedback_export_id"),
+        "source_feedback_ids": job.get("source_feedback_ids") or [],
+        "feedback_dataset_stale": bool(job.get("feedback_dataset_stale") or job.get("stale")),
+        "stale_reason": job.get("stale_reason"),
+        "stale_at": job.get("stale_at"),
+        "stale_feedback_ids": job.get("stale_feedback_ids") or [],
+        "can_delete": _terminal_status(job.get("status")),
+    }
+
+
+def feedback_jobs_for_model(model_name: str, stale_only: bool = False) -> list[dict]:
+    rows = []
+    for job in _jobs.values():
+        if job.get("source") != "feedback" or job.get("source_model") != model_name:
+            continue
+        if stale_only and not (job.get("feedback_dataset_stale") or job.get("stale")):
+            continue
+        rows.append(_feedback_job_summary(job))
+    return sorted(rows, key=lambda j: j.get("submitted_at") or "", reverse=True)
+
+
+def mark_feedback_jobs_stale(
+    model_name: str,
+    *,
+    feedback_ids: list[int] | None = None,
+    export_ids: list[str] | None = None,
+    stale_by: str = "",
+    force_all: bool = False,
+) -> list[dict]:
+    deleted_ids = _feedback_ids_set(feedback_ids)
+    export_set = {str(v) for v in (export_ids or []) if str(v or "").strip()}
+    touched = []
+    for job in list(_jobs.values()):
+        if job.get("source") != "feedback" or job.get("source_model") != model_name:
+            continue
+        source_ids = _feedback_ids_set(job.get("source_feedback_ids") or [])
+        matched_ids = sorted(source_ids & deleted_ids)
+        export_match = bool(job.get("feedback_export_id") and job.get("feedback_export_id") in export_set)
+        if not (matched_ids or export_match or force_all):
+            continue
+        existing = _feedback_ids_set(job.get("stale_feedback_ids") or [])
+        job["feedback_dataset_stale"] = True
+        job["stale"] = True
+        job["stale_reason"] = "feedback_deleted"
+        job["stale_feedback_ids"] = sorted(existing | set(matched_ids) | (deleted_ids if force_all else set()))
+        job["stale_at"] = _now()
+        job["stale_by"] = stale_by
+        _persist(job)
+        touched.append(_feedback_job_summary(job))
+    return sorted(touched, key=lambda j: j.get("submitted_at") or "", reverse=True)
 
 
 def list_jobs(namespace: str | None = None, is_admin: bool = False) -> list[dict]:

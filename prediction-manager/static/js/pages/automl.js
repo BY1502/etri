@@ -66,6 +66,10 @@ function _renderRows(jobs) {
         const best = j.best_run?.best;
         const bestText = best ? `${esc(best.model_id)} ${esc(j.best_run.metric)}=${(+best.best_metric).toFixed(4)}` : '-';
         const qpos = j.queue_position ? `<div style="font-size:10px; color:var(--text-muted);">대기열 #${esc(j.queue_position)}</div>` : '';
+        const feedbackStale = j.source === 'feedback' && (j.feedback_dataset_stale || j.stale);
+        const feedbackText = j.source === 'feedback'
+            ? `<div style="font-size:10px; color:${feedbackStale ? '#b45309' : 'var(--text-muted)'}; margin-top:2px;">피드백 재학습${feedbackStale ? ' · 피드백 변경됨' : ''}</div>`
+            : '';
         const jid = esc(j.job_id);
         const stopBtn = (j.status === 'RUNNING' || j.status === 'PENDING') ? `<button class="pm-btn pm-btn-sm pm-btn-danger automl-stop-btn" data-id="${jid}">중지</button>` : '';
         const cancelBtn = j.status === 'QUEUED' ? `<button class="pm-btn pm-btn-sm automl-cancel-btn" data-id="${jid}">취소</button>` : '';
@@ -76,6 +80,7 @@ function _renderRows(jobs) {
             <td>
                 <div style="font-weight:600;">${esc(j.experiment_name)}</div>
                 <div style="font-size:11px; color:var(--text-muted);">${esc(j.submitted_by)} · ${esc(j.task)}</div>
+                ${feedbackText}
             </td>
             <td>${_statusBadge(j.status)}${qpos}</td>
             <td style="font-family:var(--font-mono); font-size:11px;">${esc((j.models||[]).join(', '))}</td>
@@ -532,19 +537,45 @@ async function openAutoMLLog(jobId) {
     const progBest = document.getElementById('automl-progress-best');
     const progDetail = document.getElementById('automl-progress-detail');
     progPanel.style.display = 'none';
-    let progState = { total_trials: 0, done_trials: 0, total_models: 1, cur_model_idx: 0, cur_model: '', best_score: null, best_model: '', metric: '', mode: 'min' };
+    let progState = { total_trials: 0, done_trials: 0, total_models: 1, cur_model_idx: 0, cur_model: '', best_score: null, best_model: '', metric: '', mode: 'min', done: false };
+
+    function _overallTotal() {
+        const models = progState.total_models || (info.models || []).length || 1;
+        const trials = progState.total_trials || Number(info.num_trials || 0);
+        return trials * models;
+    }
+
+    function _markProgressDone(bestRun) {
+        const overallTotal = _overallTotal();
+        if (overallTotal > 0) {
+            progState.done_trials = overallTotal;
+        }
+        progState.total_trials = progState.total_trials || Number(info.num_trials || 0);
+        progState.total_models = progState.total_models || (info.models || []).length || 1;
+        progState.cur_model_idx = progState.total_models;
+        progState.done = true;
+        const best = bestRun?.best || bestRun;
+        if (best?.best_metric !== undefined && best?.best_metric !== null) {
+            progState.best_score = Number(best.best_metric);
+            progState.best_model = best.model_id || progState.best_model;
+        }
+        progState.metric = bestRun?.metric || progState.metric;
+        progState.mode = bestRun?.mode || progState.mode;
+    }
 
     function _updateProgressUI() {
-        const overallTotal = progState.total_trials * progState.total_models;
-        const pct = overallTotal > 0 ? Math.min(100, Math.round((progState.done_trials / overallTotal) * 100)) : 0;
+        const overallTotal = _overallTotal();
+        const pct = progState.done ? 100 : (overallTotal > 0 ? Math.min(100, Math.round((progState.done_trials / overallTotal) * 100)) : 0);
         progBar.style.width = pct + '%';
-        progLabel.textContent = progState.cur_model
-            ? `탐색 중: ${progState.cur_model} (${progState.cur_model_idx}/${progState.total_models}) · ${pct}%`
-            : `대기 중 · ${pct}%`;
-        progBest.textContent = progState.best_score !== null
+        progLabel.textContent = progState.done
+            ? `완료 · ${pct}%`
+            : (progState.cur_model
+                ? `탐색 중: ${progState.cur_model} (${progState.cur_model_idx}/${progState.total_models}) · ${pct}%`
+                : `대기 중 · ${pct}%`);
+        progBest.textContent = progState.best_score !== null && !Number.isNaN(+progState.best_score)
             ? `베스트: ${progState.best_model || ''} ${progState.metric}=${(+progState.best_score).toFixed(4)}`
             : '';
-        progDetail.textContent = `완료 시도: ${progState.done_trials} / ${overallTotal}  (모델당 ${progState.total_trials}회)`;
+        progDetail.textContent = `완료 시도: ${progState.done_trials} / ${overallTotal}  (모델당 ${progState.total_trials || Number(info.num_trials || 0)}회)`;
     }
 
     automlLogEs = API.sse(`/api/automl/jobs/${jobId}/logs`, (data) => {
@@ -560,10 +591,21 @@ async function openAutoMLLog(jobId) {
                 progState.total_models = (p.models || []).length;
                 progState.metric = p.metric || '';
                 progState.mode = p.mode || 'min';
+                progState.done = false;
             } else if (p.event === 'model_start') {
                 progState.cur_model = p.model_id;
                 progState.cur_model_idx = p.model_idx;
                 progState.total_models = p.model_total;
+                progState.done = false;
+            } else if (p.event === 'done') {
+                progState.total_trials = p.num_trials || progState.total_trials;
+                progState.total_models = (p.models || []).length || progState.total_models;
+                progState.done_trials = p.done_trials || p.total_trials || _overallTotal();
+                progState.metric = p.metric || progState.metric;
+                progState.mode = p.mode || progState.mode;
+                progState.best_score = typeof p.best_score === 'number' ? p.best_score : progState.best_score;
+                progState.best_model = p.best_model || progState.best_model;
+                progState.done = true;
             } else {
                 // trial completion event
                 if (p.model_id) progState.cur_model = p.model_id;
@@ -595,6 +637,11 @@ async function openAutoMLLog(jobId) {
         if (data.status) {
             pane.textContent += `\n=== ${data.status} ===\n`;
             if (data.message) pane.textContent += data.message + '\n';
+            if (data.status === 'SUCCEEDED') {
+                progPanel.style.display = '';
+                _markProgressDone(data.best);
+                _updateProgressUI();
+            }
             // 최종 정보 refresh
             API.get(`/api/automl/jobs/${jobId}`).then(updated => {
                 meta.innerHTML = `
@@ -603,6 +650,11 @@ async function openAutoMLLog(jobId) {
                     · 제출: ${_fmtTime(updated.submitted_at)}
                     · 경과: ${_fmtDuration(updated.started_at || updated.submitted_at, updated.finished_at)}
                 `;
+                if (updated.status === 'SUCCEEDED') {
+                    progPanel.style.display = '';
+                    _markProgressDone(updated.best_run);
+                    _updateProgressUI();
+                }
                 // 마지막 div (결과)만 재렌더
                 const boxes = resultEl.children;
                 if (boxes.length >= 2) {

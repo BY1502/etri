@@ -151,13 +151,25 @@ data:
 
     from django.conf import settings
     from django.db import transaction
-    from django.http import HttpResponseForbidden
+    from django.http import HttpResponse, HttpResponseForbidden
 
     logger = logging.getLogger(__name__)
 
     EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     USERNAME_RE = re.compile(r"[^a-z0-9_.+-]+")
     PROJECT_PATH_RE = re.compile(r"^/(?:api/)?projects/(?P<project_id>\d+)(?:/|$)")
+    LEGACY_JS_ASSET_PATHS = {
+        "/app.bundle.js",
+        "/app.bundle.js/",
+        "/webcomponentsjs/webcomponents-loader.js",
+        "/webcomponentsjs/webcomponents-loader.js/",
+        "/webcomponentsjs/custom-elements-es5-adapter.js",
+        "/webcomponentsjs/custom-elements-es5-adapter.js/",
+    }
+    LEGACY_CSS_ASSET_PATHS = {
+        "/app.css",
+        "/app.css/",
+    }
 
 
     class KubeflowHeaderSSOMiddleware:
@@ -165,6 +177,10 @@ data:
             self.get_response = get_response
 
         def __call__(self, request):
+            legacy_asset_response = self._legacy_asset_response(request)
+            if legacy_asset_response is not None:
+                return legacy_asset_response
+
             if self._skip_path(request):
                 return self.get_response(request)
 
@@ -200,6 +216,20 @@ data:
             self._activate_project_org_for_admin(request, user)
 
             return self.get_response(request)
+
+        def _legacy_asset_response(self, request):
+            path = request.path_info or request.path or ""
+            if path in LEGACY_JS_ASSET_PATHS:
+                return HttpResponse(
+                    "/* legacy Label Studio asset shim for sub-path deployment */\n",
+                    content_type="application/javascript",
+                )
+            if path in LEGACY_CSS_ASSET_PATHS:
+                return HttpResponse(
+                    "/* legacy Label Studio asset shim for sub-path deployment */\n",
+                    content_type="text/css",
+                )
+            return None
 
         def _skip_path(self, request):
             path = request.path_info or request.path or ""
