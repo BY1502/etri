@@ -59,12 +59,12 @@ function evalAlarms(data: any): Alarm[] {
         sectionId: 'section-gpu',
       });
     }
-    if (data.gpu.temp_c > 80) {
+    if (data.gpu.temp_c > 85) {
       alarms.push({
         level: 'critical',
         msg: `GPU 온도 과열 (${data.gpu.temp_c}°C)`,
         targetPath: '/monitoring',
-        sectionId: 'section-gpu',
+        sectionId: 'section-gpu-temp',
       });
     }
   }
@@ -76,7 +76,7 @@ function evalAlarms(data: any): Alarm[] {
         level: 'warning',
         msg: `CPU 사용률이 높습니다 (${data.system.cpu_pct}%)`,
         targetPath: '/monitoring',
-        sectionId: 'section-gpu',
+        sectionId: 'section-system',
       });
     }
     if (data.system.mem_pct > 85) {
@@ -84,7 +84,7 @@ function evalAlarms(data: any): Alarm[] {
         level: 'warning',
         msg: `시스템 메모리 부족 (${data.system.mem_pct}%)`,
         targetPath: '/monitoring',
-        sectionId: 'section-gpu',
+        sectionId: 'section-system',
       });
     }
   }
@@ -111,7 +111,7 @@ function evalAlarms(data: any): Alarm[] {
           level: 'critical',
           msg: `KServe 에러율 높음: ${m.name} (${m.error_rate.toFixed(1)}%)`,
           targetPath: '/monitoring',
-          sectionId: 'section-kserve',
+          sectionId: 'section-kserve-error',
         });
       }
     });
@@ -125,7 +125,7 @@ function evalAlarms(data: any): Alarm[] {
           level: 'warning',
           msg: `응답 지연 감지: ${m.name} (${Math.round(m.latency_ms)}ms)`,
           targetPath: '/monitoring',
-          sectionId: 'section-kserve',
+          sectionId: 'section-kserve-latency',
         });
       }
     });

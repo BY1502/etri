@@ -180,16 +180,28 @@ async function renderMonitoring() {
                 ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
                 ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
             </div>
-            <div style="border-top:1px solid #e5e7eb; padding-top:16px;">
-                <div class="pm-section-title" style="font-size:16px; margin-bottom:20px;">시스템</div>
+            <div id="section-system" style="border-top:1px solid #e5e7eb; padding-top:16px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                    <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">시스템<span id="alarm-ind-system" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                    <div style="position:relative;">
+                        <button id="alarm-hist-toggle-system" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-system" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-system" style="font-size:9px;margin-left:1px;">▾</span></button>
+                        <div id="alarm-hist-body-system" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                    </div>
+                </div>
                 <div class="pm-donut-row">
                     ${donutChart('chart-cpu', 'CPU', cpuCores !== null ? cpuCores.toFixed(2) + ' core' : null, cpuTotal !== null ? cpuTotal + ' core' : '', cpuPct, '#3b82f6')}
                     ${donutChart('chart-mem', '메모리', memUsedGb !== null ? memUsedGb.toFixed(1) + ' GB' : null, memTotalGb !== null ? memTotalGb + ' GB' : '', memPct, '#8b5cf6')}
                 </div>
             </div>
         </div>
-        <div class="pm-monitor-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">GPU 사용 추이</div>
+        <div id="section-gpu-temp" class="pm-monitor-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                <div class="pm-section-title" style="font-size:16px;">GPU 사용 추이</div>
+                <div style="position:relative;">
+                    <button id="alarm-hist-toggle-gpu-temp" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-gpu-temp" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-gpu-temp" style="font-size:9px;margin-left:1px;">▾</span></button>
+                    <div id="alarm-hist-body-gpu-temp" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                </div>
+            </div>
             <canvas id="chart-gpu-trend" height="120"></canvas>
             <div style="border-top:1px solid #e5e7eb; margin-top:16px; padding-top:16px; display:grid; grid-template-columns:7fr 3fr; gap:10px;">
                 ${(() => {
@@ -199,7 +211,7 @@ async function renderMonitoring() {
                     const labelColor = pct >= 85 ? '#dc3545' : pct >= 75 ? '#f59e0b' : '#155724';
                     return `
                     <div style="background:#f3f4f6; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; align-items:center; gap:8px;">
-                        <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px;">온도</div>
+                        <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">온도<span id="alarm-ind-gpu-temp" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e53935;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
                         <div id="stat-gpu-temp-value" style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:${labelColor}; margin-bottom:6px;">${gpuTemp !== null ? gpuTemp + '°C' : '-'} <span style="font-size:12px;">${label}</span></div>
                         <div style="position:relative; width:100%; height:14px; background:#e5e7eb; border-radius:7px; overflow:hidden;">
                             <div id="bar-gpu-temp-fill" style="position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${fillColor}; border-radius:7px; transition:width 0.4s;"></div>
@@ -523,8 +535,14 @@ async function renderMonitoring() {
                     <canvas id="chart-kserve-latency"></canvas>
                 </div>
             </div>
-            <div class="pm-monitor-card pm-fixed-card" style="order:7;">
-                <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Top 5 Latency (p95, ms)</div>
+            <div id="section-kserve-latency" class="pm-monitor-card pm-fixed-card" style="order:7;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                    <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">Top 5 Latency (p95, ms)<span id="alarm-ind-kserve-latency" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                    <div style="position:relative;">
+                        <button id="alarm-hist-toggle-kserve-latency" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve-latency" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve-latency" style="font-size:9px;margin-left:1px;">▾</span></button>
+                        <div id="alarm-hist-body-kserve-latency" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                    </div>
+                </div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-top5-latency"></canvas>
                 </div>
@@ -565,8 +583,14 @@ async function renderMonitoring() {
                     <canvas id="chart-kserve-rps"></canvas>
                 </div>
             </div>
-            <div class="pm-monitor-card pm-fixed-card" style="order:6;">
-                <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 에러율 (%) - 5xx</div>
+            <div id="section-kserve-error" class="pm-monitor-card pm-fixed-card" style="order:6;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                    <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">KServe 에러율 (%) - 5xx<span id="alarm-ind-kserve-error" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                    <div style="position:relative;">
+                        <button id="alarm-hist-toggle-kserve-error" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve-error" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve-error" style="font-size:9px;margin-left:1px;">▾</span></button>
+                        <div id="alarm-hist-body-kserve-error" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                    </div>
+                </div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-kserve-error-rate"></canvas>
                 </div>
@@ -1105,7 +1129,7 @@ async function setupMonitoringPage() {
     if (scrollTo) {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             });
         });
     }
@@ -1123,12 +1147,26 @@ function updateAlarmIndicators(data) {
                     else if (d.gpu.util_pct > 70) msgs.push(`GPU 사용률이 높습니다 (${d.gpu.util_pct}%)`);
                     if (d.gpu.mem_pct > 90) msgs.push(`GPU 메모리가 부족합니다 (${d.gpu.mem_pct}%)`);
                     else if (d.gpu.mem_pct > 80) msgs.push(`GPU 메모리 사용량이 높습니다 (${d.gpu.mem_pct}%)`);
-                    if (d.gpu.temp_c > 80) msgs.push(`GPU 온도 과열 (${d.gpu.temp_c}°C)`);
                 }
+                return msgs;
+            },
+        },
+        {
+            key: 'system',
+            check: (d) => {
+                const msgs = [];
                 if (d.system?.status === 'ok') {
                     if (d.system.cpu_pct > 80) msgs.push(`CPU 사용률이 높습니다 (${d.system.cpu_pct}%)`);
                     if (d.system.mem_pct > 85) msgs.push(`시스템 메모리 부족 (${d.system.mem_pct}%)`);
                 }
+                return msgs;
+            },
+        },
+        {
+            key: 'gpu-temp',
+            check: (d) => {
+                const msgs = [];
+                if (d.gpu?.status === 'ok' && d.gpu.temp_c > 80) msgs.push(`GPU 온도 과열 (${d.gpu.temp_c}°C)`);
                 return msgs;
             },
         },
@@ -1139,9 +1177,23 @@ function updateAlarmIndicators(data) {
                 if (!d.kserve?.error) {
                     (d.kserve?.endpoints ?? []).forEach(ep => { if (!ep.ready) msgs.push(`엔드포인트 비정상: ${ep.name}`); });
                 }
+                return msgs;
+            },
+        },
+        {
+            key: 'kserve-error',
+            check: (d) => {
+                const msgs = [];
                 if (d.kserve_error_rate?.status === 'ok') {
                     (d.kserve_error_rate.models ?? []).forEach(m => { if (m.error_rate > 5) msgs.push(`KServe 에러율 높음: ${m.name} (${m.error_rate.toFixed(1)}%)`); });
                 }
+                return msgs;
+            },
+        },
+        {
+            key: 'kserve-latency',
+            check: (d) => {
+                const msgs = [];
                 if (d.kserve_top5_latency?.status === 'ok') {
                     (d.kserve_top5_latency.models ?? []).forEach(m => { if (m.latency_ms > 1000) msgs.push(`응답 지연: ${m.name} (${Math.round(m.latency_ms)}ms)`); });
                 }
@@ -1209,7 +1261,7 @@ function updateAlarmIndicators(data) {
 }
 
 function setupAlarmHistoryCards() {
-    ['gpu', 'kserve', 'automl', 'pvc'].forEach(key => {
+    ['gpu', 'system', 'gpu-temp', 'kserve', 'kserve-error', 'kserve-latency', 'automl', 'pvc'].forEach(key => {
         const toggle = document.getElementById(`alarm-hist-toggle-${key}`);
         if (!toggle) return;
         toggle.addEventListener('click', () => {
