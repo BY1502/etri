@@ -196,14 +196,16 @@ const DEV_MOCK_SUMMARY = {
 
 // 컴포넌트 언마운트(페이지 이동)해도 유지되는 모듈 레벨 캐시
 let _cachedAlarms: Alarm[] = [];
-const _activeMsgs = new Set<string>();
+
+// 리마운트(페이지 이동 후 복귀) 시에도 토스트 중복 발화를 막기 위해 모듈 레벨로 유지
+const _seenMsgs = new Set<string>();
 
 export default function AlarmBar() {
   const [alarms, setAlarms] = useState<Alarm[]>(_cachedAlarms);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const prevMsgsRef = useRef<Set<string>>(_activeMsgs);
+  const prevMsgsRef = useRef<Set<string>>(_seenMsgs);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -256,7 +258,7 @@ export default function AlarmBar() {
   const scheduleToasts = (next: Toast[]) => {
     setToasts((prev) => [...prev, ...next]);
     next.forEach((t) => {
-      setTimeout(() => dismissToast(t.id), 4000);
+      setTimeout(() => dismissToast(t.id), 4300);
     });
   };
 
