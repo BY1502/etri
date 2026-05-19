@@ -3,6 +3,7 @@ const _charts = {};
 let _lastSuccessTime = null;
 const _alarmHistory = [];
 
+// 알람 이력 저장 함수에 필요한 시간 포맷터
 function _fmtNow() {
     return new Date().toLocaleString('ko-KR', {
         year: 'numeric', month: '2-digit', day: '2-digit',
@@ -944,7 +945,6 @@ async function setupMonitoringPage() {
         if (gpuTrend.status === 'error') { chartPlaceholder('연결 오류'); }
         else if (gpuTrend.status === 'empty' || !gpuTrend.data?.length) { chartPlaceholder('데이터 없음'); }
         else {
-        console.log('[GPU Trend] status:', gpuTrend.status, '| points:', gpuTrend.data.length, '| non-zero:', gpuTrend.data.filter(([,v]) => v > 0));
         const trendPoints = gpuTrend.data.map(([ts, v]) => ({ x: ts, y: v }));
 
         _charts['chart-gpu-trend'] = new Chart(trendEl, {
@@ -1015,7 +1015,7 @@ async function setupMonitoringPage() {
         const initialValues = isAdminView ? storageValues : statusValues;
         const initialColors = isAdminView ? storageColors : statusColors;
 
-        if (!initialValues.length || initialValues.every(v => v === 0)) return;
+        if (initialValues.length && !initialValues.every(v => v === 0)) {
 
         const chart = _charts['chart-pvc-donut'] = new Chart(pvcDonutEl, {
             type: 'doughnut',
@@ -1121,6 +1121,7 @@ async function setupMonitoringPage() {
             btnAll?.addEventListener('click',  () => switchMode('all'));
             btnMine?.addEventListener('click', () => switchMode('mine'));
         }
+        } // if (initialValues.length && ...)
     }
 
     setupAlarmHistoryCards();
@@ -1167,7 +1168,7 @@ function updateAlarmIndicators(data) {
             key: 'gpu-temp',
             check: (d) => {
                 const msgs = [];
-                if (d.gpu?.status === 'ok' && d.gpu.temp_c > 80) msgs.push(`GPU 온도 과열 (${d.gpu.temp_c}°C)`);
+                if (d.gpu?.status === 'ok' && d.gpu.temp_c > 85) msgs.push(`GPU 온도 과열 (${d.gpu.temp_c}°C)`);
                 return msgs;
             },
         },
@@ -1231,7 +1232,13 @@ function updateAlarmIndicators(data) {
         if (activeAlarms.length > 0) {
             activeAlarms.forEach(msg => {
                 const existing = _alarmHistory.find(h => h.key === indId && h.msg === msg && !h.resolvedAt);
-                if (!existing) _alarmHistory.push({ key: indId, msg, triggeredAt: _fmtNow(), resolvedAt: null });
+                if (!existing) {
+                    _alarmHistory.push({ key: indId, msg, triggeredAt: _fmtNow(), resolvedAt: null });
+                    const keyHistory = _alarmHistory.filter(h => h.key === indId);
+                    if (keyHistory.length > 30) {
+                        _alarmHistory.splice(_alarmHistory.indexOf(keyHistory[0]), 1);
+                    }
+                }
             });
             if (indEl) {
                 indEl.style.display = 'inline-flex';
@@ -1252,7 +1259,7 @@ function updateAlarmIndicators(data) {
                 : sectionHistory.slice().reverse().map(h => `
                     <div style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;">
                         <span style="font-weight:600;color:${h.resolvedAt ? '#155724' : '#e53935'};">${h.resolvedAt ? '✓ 해결' : '⚠ 진행 중'}</span>
-                        <span style="margin-left:6px;color:#333;">${h.msg}</span>
+                        <span style="margin-left:6px;color:#333;">${esc(h.msg)}</span>
                         <div style="color:#999;font-size:10px;margin-top:2px;">
                             발생: ${h.triggeredAt}${h.resolvedAt ? ` → 해결: ${h.resolvedAt}` : ''}
                         </div>

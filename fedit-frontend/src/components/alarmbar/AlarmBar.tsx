@@ -232,7 +232,7 @@ export default function AlarmBar() {
       }
     };
     poll();
-    const timer = setInterval(poll, 30_000);
+    const timer = setInterval(poll, 10_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -311,12 +311,6 @@ export default function AlarmBar() {
           <div className="alarmbar__dropdown">
             <div className="alarmbar__dropdown-header">
               <span>알람 ({alarms.length})</span>
-              <button
-                className="alarmbar__clear-btn"
-                onClick={() => setAlarms([])}
-              >
-                모두 닫기
-              </button>
             </div>
             {alarms.length === 0 ? (
               <div className="alarmbar__empty">현재 알람이 없습니다.</div>
