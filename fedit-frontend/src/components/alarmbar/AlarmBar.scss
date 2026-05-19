@@ -3,21 +3,6 @@
   display: inline-flex;
   align-items: center;
 
-  &__dev-btn {
-    font-size: 11px;
-    padding: 4px 8px;
-    border: 1px dashed #aaa;
-    border-radius: 4px;
-    background: #fffde7;
-    color: #555;
-    cursor: pointer;
-    margin-right: 6px;
-
-    &:hover {
-      background: #fff9c4;
-    }
-  }
-
   &__bell {
     position: relative;
     display: inline-flex;

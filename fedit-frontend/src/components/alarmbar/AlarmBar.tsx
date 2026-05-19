@@ -162,38 +162,6 @@ function evalAlarms(data: any): Alarm[] {
   return alarms;
 }
 
-const DEV_MOCK_SUMMARY = {
-  gpu: { status: 'ok', util_pct: 91, mem_pct: 92, temp_c: 83, power_w: 280 },
-  system: { status: 'ok', cpu_pct: 85, mem_pct: 87 },
-  kserve: {
-    error: false,
-    endpoints: [{ name: 'sentiment-model', namespace: 'ns', ready: false }],
-  },
-  kserve_error_rate: {
-    status: 'ok',
-    models: [{ name: 'sentiment-model (ns)', error_rate: 6.2 }],
-  },
-  kserve_top5_latency: {
-    status: 'ok',
-    models: [{ name: 'sentiment-model (ns)', latency_ms: 1840 }],
-  },
-  automl: {
-    error: false,
-    jobs: [{ name: 'rf-baseline', status: 'FAILED' }],
-  },
-  pvc: {
-    status: 'ok',
-    groups: [
-      {
-        ns: 'kubeflow-researcher1',
-        pvcs: [],
-        total_gb: 31,
-        phase_counts: { Bound: 3, Pending: 0, Lost: 1 },
-      },
-    ],
-  },
-};
-
 // 컴포넌트 언마운트(페이지 이동)해도 유지되는 모듈 레벨 캐시
 let _cachedAlarms: Alarm[] = [];
 
@@ -221,14 +189,16 @@ export default function AlarmBar() {
         setAlarms(next);
 
         const newToasts = next
-          .filter((a) => !prevMsgsRef.current.has(a.msg))
+          .filter((a) => !prevMsgsRef.current.has(`${a.sectionId}-${a.level}`))
           .map((a) => ({ ...a, id: `${Date.now()}-${a.msg}` }));
 
         if (newToasts.length > 0) {
           scheduleToasts(newToasts);
         }
         prevMsgsRef.current.clear();
-        next.forEach((a) => prevMsgsRef.current.add(a.msg));
+        next.forEach((a) =>
+          prevMsgsRef.current.add(`${a.sectionId}-${a.level}`),
+        );
       } catch {
         // 네트워크 오류 시 기존 상태 유지
       }
@@ -269,27 +239,11 @@ export default function AlarmBar() {
     });
   };
 
-  const fireTestAlarms = () => {
-    const evaluated = evalAlarms(DEV_MOCK_SUMMARY);
-    const ts = Date.now();
-    const mockToasts = evaluated.map((a, i) => ({ ...a, id: `${ts}-${i}` }));
-    _cachedAlarms = evaluated;
-    setAlarms(evaluated);
-    scheduleToasts(mockToasts);
-    prevMsgsRef.current.clear();
-    evaluated.forEach((a) => prevMsgsRef.current.add(a.msg));
-  };
-
   const criticalCount = alarms.filter((a) => a.level === 'critical').length;
 
   return (
     <>
       <div className="alarmbar" ref={wrapperRef}>
-        {process.env.NODE_ENV === 'development' && (
-          <button className="alarmbar__dev-btn" onClick={fireTestAlarms}>
-            🧪 테스트
-          </button>
-        )}
         <button
           className={`alarmbar__bell ${alarms.length > 0 ? 'alarmbar__bell--active' : ''}`}
           onClick={() => setOpen((o) => !o)}
@@ -318,9 +272,8 @@ export default function AlarmBar() {
               <div className="alarmbar__empty">현재 알람이 없습니다.</div>
             ) : (
               <ul className="alarmbar__list">
-                {alarms.map((alarm, i) => (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <li key={`${alarm.level}-${i}`}>
+                {alarms.map((alarm) => (
+                  <li key={alarm.msg}>
                     <button
                       type="button"
                       className={`alarmbar__item alarmbar__item--${alarm.level}`}

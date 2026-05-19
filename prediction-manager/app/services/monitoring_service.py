@@ -1,4 +1,5 @@
 import asyncio
+import math
 import time
 import httpx
 from app.config import settings
@@ -36,7 +37,8 @@ async def _query(promql: str) -> float | object:
             results = resp.json().get("data", {}).get("result", [])
             if not results:
                 return _EMPTY
-            return float(results[0]["value"][1])
+            val = float(results[0]["value"][1])
+            return _ERR if math.isnan(val) else val
     except Exception:
         return _ERR
 
@@ -55,7 +57,8 @@ async def _query_multi(promql: str) -> tuple[list[dict], str]:
             results = resp.json().get("data", {}).get("result", [])
             if not results:
                 return [], "empty"
-            return [{"labels": r["metric"], "value": float(r["value"][1])} for r in results], "ok"
+            return [{"labels": r["metric"], "value": float(r["value"][1])}
+                    for r in results if float(r["value"][1]) == float(r["value"][1])], "ok"
     except Exception:
         return [], "error"
 
@@ -74,7 +77,8 @@ async def _query_range(promql: str, start: float, end: float, step: str) -> tupl
             results = resp.json().get("data", {}).get("result", [])
             if not results:
                 return [], "empty"
-            return [[int(float(ts) * 1000), round(float(v), 2)] for ts, v in results[0]["values"]], "ok"
+            return [[int(float(ts) * 1000), round(float(v), 2) if float(v) == float(v) else None]
+                    for ts, v in results[0]["values"]], "ok"
     except Exception:
         return [], "error"
 
@@ -96,7 +100,7 @@ async def _query_range_multi(promql: str, start: float, end: float, step: str) -
             series = [
                 {
                     "labels": r["metric"],
-                    "data": [[int(float(ts) * 1000), round(float(v), 4)] for ts, v in r["values"]],
+                    "data": [[int(float(ts) * 1000), round(float(v), 4) if float(v) == float(v) else None] for ts, v in r["values"]],
                 }
                 for r in results
             ]
