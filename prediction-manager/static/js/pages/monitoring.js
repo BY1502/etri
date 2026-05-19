@@ -1124,6 +1124,7 @@ async function setupMonitoringPage() {
     }
 
     setupAlarmHistoryCards();
+    if (_monitoringData) updateAlarmIndicators(_monitoringData);
 
     const scrollTo = new URLSearchParams(window.location.search).get('scrollTo');
     if (scrollTo) {
