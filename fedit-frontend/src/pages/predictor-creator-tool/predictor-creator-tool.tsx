@@ -75,13 +75,6 @@ const services: Service[] = [
     url: '/prediction-manager/',
   },
   {
-    name: 'MLOps 모니터링',
-    description: 'GPU, 시스템, AutoML, KServe 운영 지표와 알람',
-    icon: HomeGrafanaIcon,
-    path: '/monitoring',
-    url: '/prediction-manager/?standalone=1#/monitoring',
-  },
-  {
     name: '데이터셋 카탈로그',
     description: '데이터셋 등록, 전처리, 라벨링 결과, Pipeline 입력 패키지',
     icon: HomeDatasetIcon,
@@ -168,6 +161,13 @@ const services: Service[] = [
     icon: HomeGrafanaIcon,
     path: '/grafana',
     url: '/grafana/d/mlops-overview/?orgId=1&theme=light',
+  },
+  {
+    name: 'MLOps 모니터링',
+    description: 'GPU, 시스템, AutoML, KServe 운영 지표와 알람',
+    icon: HomeGrafanaIcon,
+    path: '/monitoring',
+    url: '/prediction-manager/?standalone=1#/monitoring',
   },
   {
     name: '시스템 관리',
