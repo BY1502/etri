@@ -1,9 +1,12 @@
+let _monitoringRefreshTimer = null;
+
 const pages = {
     home: renderHome,
     images: renderImages,
     containers: renderContainers,
     'containers-new': renderContainersNew,
     datasets: renderDatasets,
+    monitoring: renderMonitoring,
     automl: renderAutoML,
     models: renderModels,
     admin: renderAdmin,
@@ -19,6 +22,10 @@ function notifyParentRoute(page) {
 }
 
 async function navigate(page) {
+    if (_monitoringRefreshTimer) {
+        clearInterval(_monitoringRefreshTimer);
+        _monitoringRefreshTimer = null;
+    }
     window.location.hash = `#/${page}`;
     notifyParentRoute(page);
     const app = document.getElementById('app');
@@ -41,6 +48,12 @@ async function navigate(page) {
         }
         if (page === 'containers-new' && typeof setupContainersNewPage === 'function') {
             setupContainersNewPage();
+        }
+        if (page === 'monitoring' && typeof setupMonitoringPage === 'function') {
+            setupMonitoringPage();
+            if (typeof refreshMonitoringPage === 'function') {
+                _monitoringRefreshTimer = setInterval(refreshMonitoringPage, 10_000);
+            }
         }
     } catch (e) {
         app.innerHTML = `

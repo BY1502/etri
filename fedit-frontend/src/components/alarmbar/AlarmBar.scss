@@ -1,0 +1,264 @@
+.alarmbar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+
+  &__bell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+
+    &:hover {
+      opacity: 0.7;
+    }
+
+    &--active {
+      filter: drop-shadow(0 0 3px #e53935);
+    }
+  }
+
+  &__bell-icon {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+  }
+
+  &__badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    pointer-events: none;
+
+    &--critical {
+      background: #e53935;
+    }
+
+    &--warning {
+      background: #f59e0b;
+    }
+  }
+
+  &__dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 300px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    z-index: 200;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__dropdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  &__empty {
+    padding: 20px;
+    text-align: center;
+    font-size: 13px;
+    color: #aaa;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 360px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #ddd;
+      border-radius: 2px;
+    }
+  }
+
+  &__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 12px;
+    color: #333;
+    cursor: pointer;
+    width: 100%;
+    background: none;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    text-align: left;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: #f8f9fa;
+    }
+
+    &--critical .alarmbar__dot {
+      background: #e53935;
+    }
+
+    &--warning .alarmbar__dot {
+      background: #f59e0b;
+    }
+  }
+
+  &__dot {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 3px;
+  }
+
+  &__msg {
+    line-height: 1.4;
+    word-break: keep-all;
+  }
+
+  // 웹 푸시 알람 스택
+  &__toasts {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  &__toast {
+    width: 300px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border-left: 4px solid transparent;
+    padding: 12px 14px;
+    pointer-events: all;
+    cursor: pointer;
+    animation:
+      alarmbar-slide-in 0.25s ease-out,
+      alarmbar-fade-out 0.3s ease-in 3.7s forwards;
+
+    &--critical {
+      border-left-color: #e53935;
+    }
+
+    &--warning {
+      border-left-color: #f59e0b;
+    }
+
+    &:hover {
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  &__toast-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  &__toast-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #333;
+  }
+
+  &__toast-close {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #aaa;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+
+    &:hover {
+      color: #555;
+    }
+  }
+
+  &__toast-msg {
+    font-size: 13px;
+    color: #333;
+    margin: 0 0 6px 0;
+    line-height: 1.4;
+    word-break: keep-all;
+  }
+
+  &__toast-hint {
+    font-size: 10px;
+    color: #aaa;
+  }
+}
+
+@keyframes alarmbar-slide-in {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes alarmbar-fade-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
