@@ -3,6 +3,17 @@ const _charts = {};
 let _lastSuccessTime = null;
 const _alarmHistory = [];
 
+const _ZONE = {
+    'chart-gpu-util': { warn: 70, danger: 85 },
+    'chart-gpu-mem':  { warn: 80, danger: 90 },
+    'chart-cpu':      { warn: 70, danger: 80 },
+    'chart-mem':      { warn: 75, danger: 85 },
+};
+const _statusColor = (id, pct) => {
+    const z = _ZONE[id] || { warn: 75, danger: 90 };
+    return (pct ?? 0) > z.danger ? '#EF4444' : (pct ?? 0) > z.warn ? '#F59E0B' : '#1DB877';
+};
+
 // 알람 이력 저장 함수에 필요한 시간 포맷터
 function _fmtNow() {
     return new Date().toLocaleString('ko-KR', {
@@ -11,6 +22,7 @@ function _fmtNow() {
     }).replace(/\. /g, '-').replace('.', '');
 }
 
+// 최초 진입 시 전체 HTML 생성
 async function renderMonitoring() {
     let data;
     try {
@@ -36,13 +48,13 @@ async function renderMonitoring() {
     </div>` : '';
 
     const donutChart = (id, label, valueStr, subStr, pct, accent) => `
-        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-            <canvas id="${id}" width="160" height="80" data-pct="${pct ?? 0}" data-accent="${accent}"></canvas>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <canvas id="${id}" width="210" height="105" data-pct="${pct ?? 0}" data-accent="${accent}"></canvas>
             <div style="display:flex; flex-direction:column; align-items:center; line-height:1.2;">
-                <span id="val-${id}" style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
+                <span id="val-${id}" style="font-size:20px; font-weight:700; font-family:var(--font-mono); color:#111827;">${esc(valueStr ?? '-')}</span>
                 ${subStr ? `<span id="sub-${id}" style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${esc(subStr)}</span>` : ''}
             </div>
-            <div style="font-size:13px; font-weight:600; color:${accent}; letter-spacing:0.5px; text-transform:uppercase;">${esc(label)}</div>
+            <div style="font-size:12px; font-weight:600; color:#6b7280; letter-spacing:0.4px; text-transform:uppercase;">${esc(label)}</div>
         </div>`;
 
     const gpuUtil    = gpu.util_pct    ?? null;
@@ -144,106 +156,133 @@ async function renderMonitoring() {
 
     ${prometheusWarning}
 
-    <div id="section-gpu" class="pm-monitor-2col">
-        <div class="pm-monitor-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
-                <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">GPU<span id="alarm-ind-gpu" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+    <div id="section-gpu" class="pm-gpu-grid-wrapper">
+
+        <!-- 1+2. GPU (사용률 + 메모리) -->
+        <div class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">GPU<span id="alarm-ind-gpu" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e53935;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
                 <div style="position:relative;">
                     <button id="alarm-hist-toggle-gpu" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-gpu" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-gpu" style="font-size:9px;margin-left:1px;">▾</span></button>
                     <div id="alarm-hist-body-gpu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
                 </div>
             </div>
-            <div class="pm-donut-row" style="margin-bottom:20px;">
-                ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
-                ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
-            </div>
-            <div id="section-system" style="border-top:1px solid #e5e7eb; padding-top:16px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
-                    <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">시스템<span id="alarm-ind-system" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-                    <div style="position:relative;">
-                        <button id="alarm-hist-toggle-system" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-system" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-system" style="font-size:9px;margin-left:1px;">▾</span></button>
-                        <div id="alarm-hist-body-system" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-                    </div>
+            <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:10px;">
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
+                    ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
                 </div>
-                <div class="pm-donut-row">
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
+                    ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
+                </div>
+            </div>
+        </div>
+
+        <!-- 3+4. 시스템 (CPU + 메모리) -->
+        <div id="section-system" class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">시스템<span id="alarm-ind-system" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#f59e0b;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
+                <div style="position:relative;">
+                    <button id="alarm-hist-toggle-system" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-system" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-system" style="font-size:9px;margin-left:1px;">▾</span></button>
+                    <div id="alarm-hist-body-system" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+                </div>
+            </div>
+            <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:10px;">
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
                     ${donutChart('chart-cpu', 'CPU', cpuCores !== null ? cpuCores.toFixed(2) + ' core' : null, cpuTotal !== null ? cpuTotal + ' core' : '', cpuPct, '#3b82f6')}
+                </div>
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
                     ${donutChart('chart-mem', '메모리', memUsedGb !== null ? memUsedGb.toFixed(1) + ' GB' : null, memTotalGb !== null ? memTotalGb + ' GB' : '', memPct, '#8b5cf6')}
                 </div>
             </div>
         </div>
-        <div id="section-gpu-temp" class="pm-monitor-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <div class="pm-section-title" style="font-size:16px;">GPU 사용 추이</div>
+
+        <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-section-title" style="font-size:15px; margin-bottom:12px; flex-shrink:0;">GPU 사용 추이</div>
+            <div style="flex:1; min-height:0; position:relative;">
+                <canvas id="chart-gpu-trend"></canvas>
+            </div>
+        </div>
+            ${(() => {
+            const pct = gpuTemp !== null ? Math.min(100, Math.round(gpuTemp)) : 0;
+            const fillColor = pct >= 85 ? '#EF4444' : pct >= 75 ? '#F59E0B' : '#1DB877';
+            const label = gpuTemp === null ? '-' : pct >= 85 ? '위험' : pct >= 75 ? '주의' : '정상';
+            const labelColor = pct >= 85 ? '#EF4444' : pct >= 75 ? '#b07415' : '#0d8a57';
+            return `
+        <div id="section-gpu-temp" class="pm-monitor-card pm-fixed-card" style="display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
+                <div style="font-size:15px; font-weight:600; color:#6b7280; display:flex; align-items:center; gap:4px;">온도<span id="alarm-ind-gpu-temp" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e53935;color:white;font-size:9px;font-weight:700;cursor:default;">!</span></span></div>
                 <div style="position:relative;">
                     <button id="alarm-hist-toggle-gpu-temp" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-gpu-temp" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-gpu-temp" style="font-size:9px;margin-left:1px;">▾</span></button>
                     <div id="alarm-hist-body-gpu-temp" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
                 </div>
             </div>
-            <canvas id="chart-gpu-trend" height="120"></canvas>
-            <div style="border-top:1px solid #e5e7eb; margin-top:16px; padding-top:16px; display:grid; grid-template-columns:7fr 3fr; gap:10px;">
-                ${(() => {
-                    const pct = gpuTemp !== null ? Math.min(100, Math.round(gpuTemp)) : 0;
-                    const fillColor = pct >= 85 ? '#dc3545' : pct >= 75 ? '#f59e0b' : '#22c55e';
-                    const label = gpuTemp === null ? '-' : pct >= 85 ? '위험' : pct >= 75 ? '주의' : '정상';
-                    const labelColor = pct >= 85 ? '#dc3545' : pct >= 75 ? '#f59e0b' : '#155724';
-                    return `
-                    <div style="background:#f3f4f6; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; align-items:center; gap:8px;">
-                        <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">온도<span id="alarm-ind-gpu-temp" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e53935;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
-                        <div id="stat-gpu-temp-value" style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:${labelColor}; margin-bottom:6px;">${gpuTemp !== null ? gpuTemp + '°C' : '-'} <span style="font-size:12px;">${label}</span></div>
-                        <div style="position:relative; width:100%; height:14px; background:#e5e7eb; border-radius:7px; overflow:hidden;">
-                            <div id="bar-gpu-temp-fill" style="position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${fillColor}; border-radius:7px; transition:width 0.4s;"></div>
-                            <div style="position:absolute; left:75%; top:0; bottom:0; width:1px; background:rgba(0,0,0,0.2);"></div>
-                            <div style="position:absolute; left:85%; top:0; bottom:0; width:1px; background:rgba(0,0,0,0.2);"></div>
+            <div style="flex:1; display:flex; align-items:center; justify-content:center; padding-bottom:14px; border-bottom:1px solid #eaecf0;">
+                <div style="display:flex; align-items:flex-end; gap:12px;">
+                    <div style="position:relative; width:22px; height:120px; flex-shrink:0;">
+                        <div style="position:absolute; top:0; bottom:22px; left:50%; transform:translateX(-50%); width:12px; background:#e5e7eb; border-radius:6px 6px 0 0; overflow:hidden;">
+                            <div id="bar-gpu-temp-fill" style="position:absolute; bottom:0; left:0; right:0; height:${pct}%; background:${fillColor}; transition:height 0.4s;"></div>
                         </div>
+                        <div style="position:absolute; left:1px; right:1px; bottom:96px; height:1.5px; background:#f59e0b; border-radius:1px;"></div>
+                        <div style="position:absolute; left:1px; right:1px; bottom:105px; height:1.5px; background:#dc3545; border-radius:1px;"></div>
+                        <div id="bulb-gpu-temp" style="position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:22px; height:22px; border-radius:50%; background:${fillColor}; border:2px solid #e5e7eb;"></div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:3px;">
+                        <div id="stat-gpu-temp-value" style="font-size:20px; font-weight:700; font-family:var(--font-mono); color:${labelColor};">${gpuTemp !== null ? gpuTemp + '\u00b0C' : '-'} <span style="font-size:12px;">${label}</span></div>
                         <div style="font-size:10px; color:var(--text-muted);">기준 75° / 85°</div>
-                    </div>`;
-                })()}
-                <div style="background:#f3f4f6; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; align-items:center;">
-                    <div style="font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px;">전력</div>
-                    <div style="flex:1; display:flex; align-items:center; justify-content:center;">
-                        <div id="stat-gpu-power-value" style="font-size:26px; font-weight:700; font-family:var(--font-mono); color:#111827;">${gpuPower !== null ? gpuPower + ' W' : '-'}</div>
                     </div>
                 </div>
             </div>
+            <div style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:4px; padding-top:14px;">
+                <div style="font-size:15px; font-weight:600; color:#6b7280;">전력</div>
+                <div style="width:100%; display:flex; justify-content:center; align-items:center; margin-top:4px;">
+                    <div style="display:inline-flex; align-items:center;">
+                        <div style="border:2.5px solid #9ca3af; border-radius:5px; padding:5px 14px; display:flex; align-items:center; justify-content:center;">
+                            <span id="stat-gpu-power-value" style="font-size:18px; font-weight:700; font-family:var(--font-mono); color:#0d8a57;">${gpuPower !== null ? gpuPower + ' W' : '-'}</span>
+                        </div>
+                        <div style="width:4px; height:12px; background:#9ca3af; border-radius:0 3px 3px 0;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+            })()}
+        <div class="pm-monitor-card pm-fixed-card">
+            <div class="pm-section-title" style="font-size:15px; margin-bottom:12px; flex-shrink:0;">${isAdminView ? '사용자별 노트북 자원 사용량' : '노트북 자원 사용량'} (CPU cores / Memory GB)</div>
+            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
+            <table class="pm-table">
+                <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                    <tr>
+                        <th>Time</th>
+                        ${isAdminView ? '<th>Namespace</th>' : ''}
+                        <th>Pod</th>
+                        <th style="text-align:right;">Value #A (CPU cores)</th>
+                        <th style="text-align:right;">Value #B (Memory GB)</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-notebook-res">
+                    ${notebookStatus === 'error'
+                        ? noConnTd(isAdminView ? 5 : 4)
+                        : notebookStatus === 'empty' || notebookRows.length === 0
+                            ? noDataTd(isAdminView ? 5 : 4)
+                            : notebookRows.map(r => `
+                    <tr>
+                        <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);">${esc(r.time)}</td>
+                        ${isAdminView ? `<td style="font-size:13px;">${esc(r.ns)}</td>` : ''}
+                        <td style="font-size:12px; font-family:var(--font-mono);">${esc(r.pod)}</td>
+                        <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.cpu))}</td>
+                        <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.mem))}</td>
+                    </tr>`).join('')
+                    }
+                </tbody>
+            </table>
+            </div>
         </div>
-    </div>
 
-    <div class="pm-monitor-card pm-fixed-card" style="margin-bottom:16px;">
-        <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">${isAdminView ? '사용자별 노트북 자원 사용량' : '노트북 자원 사용량'} (CPU cores / Memory GB)</div>
-        <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
-        <table class="pm-table">
-            <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                <tr>
-                    <th>Time</th>
-                    ${isAdminView ? '<th>Namespace</th>' : ''}
-                    <th>Pod</th>
-                    <th style="text-align:right;">Value #A (CPU cores)</th>
-                    <th style="text-align:right;">Value #B (Memory GB)</th>
-                </tr>
-            </thead>
-            <tbody id="tbody-notebook-res">
-                ${notebookStatus === 'error'
-                    ? noConnTd(isAdminView ? 5 : 4)
-                    : notebookStatus === 'empty' || notebookRows.length === 0
-                        ? noDataTd(isAdminView ? 5 : 4)
-                        : notebookRows.map(r => `
-                <tr>
-                    <td style="font-size:12px; font-family:var(--font-mono); color:var(--text-muted);">${esc(r.time)}</td>
-                    ${isAdminView ? `<td style="font-size:13px;">${esc(r.ns)}</td>` : ''}
-                    <td style="font-size:12px; font-family:var(--font-mono);">${esc(r.pod)}</td>
-                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.cpu))}</td>
-                    <td style="font-size:13px; font-family:var(--font-mono); text-align:right;">${esc(String(r.mem))}</td>
-                </tr>`).join('')
-                }
-            </tbody>
-        </table>
-        </div>
     </div>
 
     <div id="section-pvc" class="pm-monitor-2col" style="margin-bottom:16px;">
     <div class="pm-monitor-card pm-fixed-card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <div id="pvc-table-title" class="pm-section-title" style="font-size:16px; margin-bottom:0; display:flex; align-items:center; gap:6px;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}<span id="alarm-ind-pvc" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div id="pvc-table-title" class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}<span id="alarm-ind-pvc" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
             <div style="display:flex; align-items:center; gap:8px;">
             <div style="position:relative;">
                 <button id="alarm-hist-toggle-pvc" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-pvc" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-pvc" style="font-size:9px;margin-left:1px;">▾</span></button>
@@ -332,8 +371,8 @@ async function renderMonitoring() {
         </div>
     </div>
     <div class="pm-monitor-card pm-fixed-card">
-        <div style="margin-bottom:16px;">
-            <div class="pm-section-title" id="pvc-chart-title" style="font-size:16px; margin-bottom:0;">${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
+        <div style="margin-bottom:12px;">
+            <div class="pm-section-title" id="pvc-chart-title" style="font-size:15px; margin-bottom:0;">${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
         </div>
         <div style="flex:1; display:flex; align-items:center; justify-content:flex-start; position:relative; padding-left:50px;">
             ${pvcStatus === 'ok' && pvcGroups.length > 0
@@ -350,7 +389,7 @@ async function renderMonitoring() {
     <div class="pm-monitor-2col-bottom">
         <div class="pm-monitor-col">
         <div id="section-ray" class="pm-monitor-card pm-fixed-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
+            <div class="pm-section-title" style="font-size:15px; margin-bottom:12px;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
             ${rayStatus === 'error'
                 ? noConnDiv
                 : rayStatus === 'empty'
@@ -370,8 +409,8 @@ async function renderMonitoring() {
         </div>
         <div class="pm-monitor-col">
         <div id="section-automl" class="pm-monitor-card pm-fixed-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">AutoML 최근 Job<span id="alarm-ind-automl" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">AutoML 최근 Job<span id="alarm-ind-automl" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
                 <div style="position:relative;">
                     <button id="alarm-hist-toggle-automl" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-automl" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-automl" style="font-size:9px;margin-left:1px;">▾</span></button>
                     <div id="alarm-hist-body-automl" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
@@ -407,7 +446,7 @@ async function renderMonitoring() {
 
     <div class="pm-monitor-2col" style="margin-bottom:16px;">
         <div class="pm-monitor-card pm-fixed-card">
-            <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">실행 중인 노트북</div>
+            <div class="pm-section-title" style="font-size:15px; margin-bottom:12px;">실행 중인 노트북</div>
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
             <table class="pm-table" style="table-layout:fixed; width:100%;">
                 <colgroup>
@@ -438,8 +477,8 @@ async function renderMonitoring() {
         </div>
 
         <div id="section-kserve" class="pm-monitor-card pm-fixed-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">KServe Endpoint<span id="alarm-ind-kserve" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">KServe Endpoint<span id="alarm-ind-kserve" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
                 <div style="position:relative;">
                     <button id="alarm-hist-toggle-kserve" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve" style="font-size:9px;margin-left:1px;">▾</span></button>
                     <div id="alarm-hist-body-kserve" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
@@ -486,7 +525,7 @@ async function renderMonitoring() {
                 </div>`).join('')}
             </div>
             <div class="pm-monitor-card pm-fixed-card" style="order:3;">
-                <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 실험별 Run 수</div>
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:12px;">MLflow 실험별 Run 수</div>
                 <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
                 ${mlflowExpRunsStatus === 'error'
                     ? noConnDiv
@@ -507,14 +546,14 @@ async function renderMonitoring() {
                 </div>
             </div>
             <div class="pm-monitor-card pm-fixed-card" style="order:5;">
-                <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 추론 지연시간 (초) - 모델별 p95</div>
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:12px;">KServe 추론 지연시간 (초) - 모델별 p95</div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-kserve-latency"></canvas>
                 </div>
             </div>
             <div id="section-kserve-latency" class="pm-monitor-card pm-fixed-card" style="order:7;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                    <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">Top 5 Latency (p95, ms)<span id="alarm-ind-kserve-latency" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                    <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">Top 5 Latency (p95, ms)<span id="alarm-ind-kserve-latency" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
                     <div style="position:relative;">
                         <button id="alarm-hist-toggle-kserve-latency" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve-latency" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve-latency" style="font-size:9px;margin-left:1px;">▾</span></button>
                         <div id="alarm-hist-body-kserve-latency" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
@@ -527,7 +566,7 @@ async function renderMonitoring() {
         </div>
         <div class="pm-zigzag-col">
             <div class="pm-monitor-card pm-fixed-card" style="order:2;">
-                <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">MLflow 모델별 버전 수</div>
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:12px;">MLflow 모델별 버전 수</div>
                 <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
                 ${mlflowModelsStatus === 'error'
                     ? noConnDiv
@@ -555,14 +594,14 @@ async function renderMonitoring() {
                 </div>
             </div>
             <div class="pm-monitor-card pm-fixed-card" style="order:4;">
-                <div class="pm-section-title" style="font-size:16px; margin-bottom:16px;">KServe 초당 요청 수 (RPS)</div>
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:12px;">KServe 초당 요청 수 (RPS)</div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-kserve-rps"></canvas>
                 </div>
             </div>
             <div id="section-kserve-error" class="pm-monitor-card pm-fixed-card" style="order:6;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                    <div class="pm-section-title" style="font-size:16px; display:flex; align-items:center; gap:6px;">KServe 에러율 (%) - 5xx<span id="alarm-ind-kserve-error" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                    <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">KServe 에러율 (%) - 5xx<span id="alarm-ind-kserve-error" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
                     <div style="position:relative;">
                         <button id="alarm-hist-toggle-kserve-error" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve-error" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve-error" style="font-size:9px;margin-left:1px;">▾</span></button>
                         <div id="alarm-hist-body-kserve-error" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
@@ -577,6 +616,7 @@ async function renderMonitoring() {
     `;
 }
 
+// 차트 및 이벤트 초기화
 async function setupMonitoringPage() {
     Object.values(_charts).forEach(c => c?.destroy());
     Object.keys(_charts).forEach(k => delete _charts[k]);
@@ -618,16 +658,21 @@ async function setupMonitoringPage() {
         const el = document.getElementById(id);
         if (!el) return;
         const pct = parseFloat(el.dataset.pct) || 0;
-        const accent = el.dataset.accent;
-        const color = pct >= 90 ? '#dc3545' : pct >= 75 ? '#f59e0b' : accent;
+        const color = _statusColor(id, pct);
+        const z = _ZONE[id] || { warn: 75, danger: 90 };
         _charts[id] = new Chart(el, {
             type: 'doughnut',
             data: {
-                datasets: [{
-                    data: [pct, 100 - pct],
-                    backgroundColor: [color, '#f3f4f6'],
-                    borderWidth: 0,
-                }],
+                datasets: [
+                    {
+                        data: [z.warn, z.danger - z.warn, 100 - z.danger],
+                        backgroundColor: ['#1DB877', '#F59E0B', '#EF4444'],
+                        borderWidth: 0,
+                        weight: 0.12,
+                    },
+                    { data: [100], backgroundColor: ['#ffffff'], borderWidth: 0, weight: 0.04 },
+                    { data: [pct, 100 - pct], backgroundColor: [color, '#f3f4f6'], borderWidth: 0, weight: 1 },
+                ],
             },
             options: {
                 responsive: false,
@@ -933,6 +978,7 @@ async function setupMonitoringPage() {
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: { legend: { display: false } },
                 scales: {
@@ -1105,6 +1151,7 @@ async function setupMonitoringPage() {
     }
 }
 
+// 알람 인디케이터 업데이트 및 과거 이력 관리
 function updateAlarmIndicators(data) {
     const CHECKS = [
         {
@@ -1236,6 +1283,7 @@ function updateAlarmIndicators(data) {
     });
 }
 
+// 알람 이력 카드 토글 기능
 function setupAlarmHistoryCards() {
     ['gpu', 'system', 'gpu-temp', 'kserve', 'kserve-error', 'kserve-latency', 'automl', 'pvc'].forEach(key => {
         const toggle = document.getElementById(`alarm-hist-toggle-${key}`);
@@ -1251,6 +1299,7 @@ function setupAlarmHistoryCards() {
     });
 }
 
+// 현재 연결 상태에 따른 모니터링 연결 상태 표시 업데이트
 function setMonitoringConnStatus(state) {
     const dot  = document.getElementById('monitoring-conn-dot');
     const text = document.getElementById('monitoring-conn-text');
@@ -1269,6 +1318,7 @@ function setMonitoringConnStatus(state) {
     }
 }
 
+// 새로 받아온 모니터링 데이터를 기반으로 화면의 모든 지표와 차트를 업데이트
 function updateMonitoringInPlace(newData) {
     _monitoringData = newData;
 
@@ -1299,16 +1349,16 @@ function updateMonitoringInPlace(newData) {
 
     // ── 도넛 차트 4개 ──────────────────────────────────────────────
     [
-        { id: 'chart-gpu-util', pct: gpuUtil,    accent: '#f59e0b', valueStr: gpuUtil    !== null ? gpuUtil + '%'                  : null, subStr: ' ' },
+        { id: 'chart-gpu-util', pct: gpuUtil,    accent: '#f59e0b', valueStr: gpuUtil    !== null ? gpuUtil + '%'                  : null, subStr: ' ' },
         { id: 'chart-gpu-mem',  pct: gpuMemPct,  accent: '#ef4444', valueStr: gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB'  : null, subStr: gpuMemTotal !== null ? gpuMemTotal + ' GB' : '' },
         { id: 'chart-cpu',      pct: cpuPct,     accent: '#3b82f6', valueStr: cpuCores   !== null ? cpuCores.toFixed(2) + ' core'  : null, subStr: cpuTotal    !== null ? cpuTotal + ' core'  : '' },
         { id: 'chart-mem',      pct: memPct,     accent: '#8b5cf6', valueStr: memUsedGb  !== null ? memUsedGb.toFixed(1) + ' GB'   : null, subStr: memTotalGb  !== null ? memTotalGb + ' GB'  : '' },
     ].forEach(({ id, pct, accent, valueStr, subStr }) => {
         const chart = _charts[id];
         if (chart) {
-            const color = (pct ?? 0) >= 90 ? '#dc3545' : (pct ?? 0) >= 75 ? '#f59e0b' : accent;
-            chart.data.datasets[0].data            = [pct ?? 0, 100 - (pct ?? 0)];
-            chart.data.datasets[0].backgroundColor = [color, '#f3f4f6'];
+            const color = _statusColor(id, pct);
+            chart.data.datasets[2].data            = [pct ?? 0, 100 - (pct ?? 0)];
+            chart.data.datasets[2].backgroundColor = [color, '#f3f4f6'];
             chart.update('none');
         }
         setText('val-' + id, valueStr ?? '-');
@@ -1317,16 +1367,18 @@ function updateMonitoringInPlace(newData) {
 
     // ── GPU 온도 / 전력 ────────────────────────────────────────────
     const tempPct       = gpuTemp !== null ? Math.min(100, Math.round(gpuTemp)) : 0;
-    const tempFillColor = tempPct >= 85 ? '#dc3545' : tempPct >= 75 ? '#f59e0b' : '#22c55e';
+    const tempFillColor = tempPct >= 85 ? '#EF4444' : tempPct >= 75 ? '#F59E0B' : '#1DB877';
     const tempLabel     = gpuTemp === null ? '-' : tempPct >= 85 ? '위험' : tempPct >= 75 ? '주의' : '정상';
-    const tempColor     = tempPct >= 85 ? '#dc3545' : tempPct >= 75 ? '#f59e0b' : '#155724';
+    const tempColor     = tempPct >= 85 ? '#EF4444' : tempPct >= 75 ? '#b07415' : '#0d8a57';
     const tempEl = document.getElementById('stat-gpu-temp-value');
     if (tempEl) {
         tempEl.style.color   = tempColor;
         tempEl.innerHTML     = `${gpuTemp !== null ? gpuTemp + '°C' : '-'} <span style="font-size:12px;">${tempLabel}</span>`;
     }
     const barEl = document.getElementById('bar-gpu-temp-fill');
-    if (barEl) { barEl.style.width = tempPct + '%'; barEl.style.background = tempFillColor; }
+    if (barEl) { barEl.style.height = tempPct + '%'; barEl.style.background = tempFillColor; }
+    const bulbEl = document.getElementById('bulb-gpu-temp');
+    if (bulbEl) bulbEl.style.background = tempFillColor;
     setText('stat-gpu-power-value', gpuPower !== null ? gpuPower + ' W' : '-');
 
     // ── GPU 추이 차트 ──────────────────────────────────────────────
@@ -1554,6 +1606,7 @@ function updateMonitoringInPlace(newData) {
     updateAlarmIndicators(newData);
 }
 
+// 주기적 모니터링 데이터 리프레시 함수 - 실패해도 기존 데이터 유지하며 재시도
 async function refreshMonitoringPage() {
     if (!document.getElementById('monitoring-conn-dot')) return;
     try {
