@@ -503,6 +503,24 @@ async def get_ray_status(namespace: str) -> dict:
     }
 
 
+async def get_ray_trend(window_minutes: int = 60, step: str = "1m") -> dict:
+    now = time.time()
+    nodes_data, nodes_status = await _query_range(
+        "count(ray_node_cpu_count)",
+        start=now - window_minutes * 60,
+        end=now,
+        step=step,
+    )
+    jobs_data, jobs_status = await _query_range(
+        "sum(ray_finished_jobs_total)",
+        start=now - window_minutes * 60,
+        end=now,
+        step=step,
+    )
+    status = "ok" if "ok" in (nodes_status, jobs_status) else nodes_status
+    return {"status": status, "nodes": nodes_data, "jobs": jobs_data}
+
+
 async def get_running_notebooks(namespace: str | None = None) -> dict:
     rows, status = await _query_multi(
         'kube_pod_status_phase{namespace=~"kubeflow-.*",phase="Running"}'

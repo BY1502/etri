@@ -21,7 +21,7 @@ async def summary(request: Request, ns: str | None = None):
     # 필터링할 namespace: 전체 뷰면 None(전체), 아니면 선택된 namespace
     filter_ns = None if is_admin_view else namespace
 
-    gpu, system, ray, mlflow, mlflow_models, mlflow_experiment_runs, notebook_resources, running_notebooks, pvc, gpu_trend, kserve_rps, kserve_latency_p95, kserve_error_rate, kserve_top5_latency = await asyncio.gather(
+    gpu, system, ray, mlflow, mlflow_models, mlflow_experiment_runs, notebook_resources, running_notebooks, pvc, gpu_trend, ray_trend, kserve_rps, kserve_latency_p95, kserve_error_rate, kserve_top5_latency = await asyncio.gather(
         monitoring_service.get_gpu_metrics(),
         monitoring_service.get_system_metrics(namespace),
         monitoring_service.get_ray_status(namespace),
@@ -32,6 +32,7 @@ async def summary(request: Request, ns: str | None = None):
         monitoring_service.get_running_notebooks(namespace=filter_ns),
         monitoring_service.get_pvc_storage(namespace=filter_ns),
         monitoring_service.get_gpu_trend(window_minutes=60, step="1m"),
+        monitoring_service.get_ray_trend(window_minutes=60, step="1m"),
         monitoring_service.get_kserve_rps(namespace=filter_ns, window_minutes=30, step="1m"),
         monitoring_service.get_kserve_latency_p95(namespace=filter_ns, window_minutes=30, step="1m"),
         monitoring_service.get_kserve_error_rate(namespace=filter_ns),
@@ -51,6 +52,7 @@ async def summary(request: Request, ns: str | None = None):
         "kserve_top5_latency": kserve_top5_latency,
         "system": system,
         "ray": ray,
+        "ray_trend": ray_trend,
         "automl": monitoring_service.get_automl_jobs(
             namespace=None if is_admin_view else namespace,
             is_admin=admin,

@@ -76,6 +76,7 @@ async function renderMonitoring() {
 
     const ray             = data.ray              || {};
     const rayStatus       = ray.status            ?? 'error';
+    const rayTrend        = data.ray_trend        || {};
     const automl          = data.automl           || {};
     const automlError     = automl.error          ?? true;
     const automlJobs      = automl.jobs           || [];
@@ -391,22 +392,12 @@ async function renderMonitoring() {
     <div class="pm-monitor-2col-bottom">
         <div class="pm-monitor-col">
         <div id="section-ray" class="pm-monitor-card pm-fixed-card">
-            <div class="pm-section-title" style="font-size:15px; margin-bottom:12px;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
-            ${rayStatus === 'error'
-                ? noConnDiv
-                : rayStatus === 'empty'
-                    ? noDataDiv
-                    : `<div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; flex:1;">
-                        ${[
-                            { id: 'stat-ray-nodes', label: '활성 노드', value: ray.nodes ?? '-', color: '#1a56a8', bg: '#e8f4ff' },
-                            { id: 'stat-ray-jobs',  label: '완료 Job', value: ray.finished_total ?? '-', color: '#155724', bg: '#d4edda' },
-                        ].map(s => `
-                            <div style="background:${s.bg}; border-radius:8px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
-                                <div id="${s.id}" style="font-size:48px; font-weight:700; color:${s.color}; font-family:var(--font-mono); line-height:1;">${s.value}</div>
-                                <div style="font-size:13px; font-weight:600; color:${s.color};">${s.label}</div>
-                            </div>`).join('')}
-                    </div>`
-            }
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-shrink:0;">
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:0;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
+            </div>
+            <div style="flex:1; min-height:0; position:relative;">
+                <canvas id="chart-ray-trend"></canvas>
+            </div>
         </div>
         </div>
         <div class="pm-monitor-col">
@@ -1001,6 +992,112 @@ async function setupMonitoringPage() {
         } // else
     }
 
+    const rayTrendEl = document.getElementById('chart-ray-trend');
+    if (rayTrendEl) {
+        const rt = _monitoringData?.ray_trend || {};
+        const placeholder = (msg) => rayTrendEl.replaceWith(Object.assign(document.createElement('div'), {
+            style: 'height:100%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#9ca3af;',
+            textContent: msg,
+        }));
+        if (rt.status === 'error') { placeholder('연결 오류'); }
+        else if (rt.status === 'empty' || (!rt.nodes?.length && !rt.jobs?.length)) { placeholder('데이터 없음'); }
+        else {
+            const fmtK = v => v >= 1_000_000 ? (v/1_000_000).toFixed(1).replace(/\.0$/,'')+'M'
+                             : v >= 1_000     ? (v/1_000).toFixed(1).replace(/\.0$/,'')+'K' : String(v);
+
+            const toPoints = arr => (arr||[]).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
+            const nodesPoints = toPoints(rt.nodes);
+            const jobsPoints  = toPoints(rt.jobs);
+
+            // 실제 데이터가 있는 타임스탬프 집합
+            const realTs = new Set([
+                ...nodesPoints.filter(p => p.y !== null).map(p => p.x),
+                ...jobsPoints.filter(p => p.y !== null).map(p => p.x),
+            ]);
+
+            // phantom: 전 구간 y=0, 시각적으로 투명 — 빈 구간 툴팁 앵커 역할
+            const step = nodesPoints.length > 1 ? nodesPoints[1].x - nodesPoints[0].x : 60_000;
+            const startTs = Math.min(nodesPoints[0]?.x ?? Date.now(), jobsPoints[0]?.x ?? Date.now());
+            const phantom = [];
+            for (let t = startTs; t <= Date.now(); t += step) phantom.push({ x: t, y: 0 });
+
+            _charts['chart-ray-trend'] = new Chart(rayTrendEl, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: '활성 노드 수',
+                            data: nodesPoints,
+                            borderColor: '#1DB877',
+                            backgroundColor: 'rgba(29,184,119,0.08)',
+                            tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true,
+                        },
+                        {
+                            label: '완료 Job 누적',
+                            data: jobsPoints,
+                            borderColor: '#F59E0B',
+                            backgroundColor: 'rgba(245,158,11,0.08)',
+                            tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true,
+                        },
+                        // phantom 두 개: 선 없이 색만 가져가서 빈 구간 툴팁 색 맞춤
+                        { label: '_pn', data: phantom, borderColor: '#1DB877', backgroundColor: '#1DB877', borderWidth: 0, pointRadius: 0, pointHitRadius: 0, fill: false },
+                        { label: '_pj', data: phantom, borderColor: '#F59E0B', backgroundColor: '#F59E0B', borderWidth: 0, pointRadius: 0, pointHitRadius: 0, fill: false },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            display: true, position: 'bottom',
+                            labels: {
+                                font: { size: 11 }, color: '#6b7280', boxWidth: 20, boxHeight: 2, padding: 12,
+                                filter: item => !item.text.startsWith('_p'),
+                            },
+                        },
+                        tooltip: {
+                            filter: ctx => {
+                                if (!ctx.dataset.label.startsWith('_p')) return true;
+                                return !realTs.has(ctx.parsed.x);
+                            },
+                            callbacks: {
+                                label: ctx => {
+                                    if (ctx.dataset.label === '_pn') return ' 활성 노드 수: 0';
+                                    if (ctx.dataset.label === '_pj') return ' 완료 Job 누적: 0';
+                                    return ` ${ctx.dataset.label}: ${fmtK(ctx.parsed.y)}`;
+                                },
+                                labelColor: ctx => {
+                                    const c = ctx.dataset.label === '활성 노드 수' || ctx.dataset.label === '_pn'
+                                        ? '#1DB877' : '#F59E0B';
+                                    return { borderColor: c, backgroundColor: c };
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
+                            min: Date.now() - 60 * 60 * 1000,
+                            max: Date.now(),
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
+                        },
+                        y: {
+                            min: 0,
+                            grid: { color: '#f3f4f6' },
+                            ticks: {
+                                font: { size: 11 }, color: '#9ca3af',
+                                callback: v => v >= 1_000 ? (v/1_000).toFixed(1).replace(/\.0$/,'')+'K' : v,
+                            },
+                        },
+                    },
+                },
+            });
+        }
+    }
+
     const pvcDonutEl = document.getElementById('chart-pvc-donut');
     if (pvcDonutEl) {
         const isAdminView = _monitoringData?.is_admin_view ?? false;
@@ -1392,10 +1489,25 @@ function updateMonitoringInPlace(newData) {
     }
 
     // ── Ray ────────────────────────────────────────────────────────
-    const rayStatus = ray.status ?? 'error';
-    if (rayStatus !== 'error' && rayStatus !== 'empty') {
-        setText('stat-ray-nodes', ray.nodes          ?? '-');
-        setText('stat-ray-jobs',  ray.finished_total ?? '-');
+    const rtNew = newData.ray_trend || {};
+    if (_charts['chart-ray-trend'] && (rtNew.nodes?.length || rtNew.jobs?.length)) {
+        const toP = arr => (arr||[]).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
+        const np = toP(rtNew.nodes), jp = toP(rtNew.jobs);
+        const newRealTs = new Set([...np.filter(p=>p.y!==null).map(p=>p.x), ...jp.filter(p=>p.y!==null).map(p=>p.x)]);
+        const step2 = np.length > 1 ? np[1].x - np[0].x : 60_000;
+        const st2 = Math.min(np[0]?.x ?? Date.now(), jp[0]?.x ?? Date.now());
+        const ph2 = [];
+        for (let t = st2; t <= Date.now(); t += step2) ph2.push({ x: t, y: 0 });
+        const now = Date.now();
+        if (np.length) _charts['chart-ray-trend'].data.datasets[0].data = np;
+        if (jp.length) _charts['chart-ray-trend'].data.datasets[1].data = jp;
+        _charts['chart-ray-trend'].data.datasets[2].data = ph2;
+        _charts['chart-ray-trend'].data.datasets[3].data = ph2;
+        _charts['chart-ray-trend'].options.plugins.tooltip.filter =
+            ctx => !ctx.dataset.label.startsWith('_p') || !newRealTs.has(ctx.parsed.x);
+        _charts['chart-ray-trend'].options.scales.x.min = now - 60 * 60 * 1000;
+        _charts['chart-ray-trend'].options.scales.x.max = now;
+        _charts['chart-ray-trend'].update('none');
     }
 
     // ── AutoML ────────────────────────────────────────────────────

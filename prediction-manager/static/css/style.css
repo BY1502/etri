@@ -323,7 +323,7 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
 .pm-gpu-grid-wrapper {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    grid-template-rows: 340px 318px;
+    grid-template-rows: 280px 318px;
     gap: 14px;
     margin-bottom: 14px;
 }
