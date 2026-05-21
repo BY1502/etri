@@ -293,6 +293,8 @@ async def get_gpu_metrics() -> dict:
         "util_pct": round(util) if util is not None else None,
         "mem_used_gb": mem_used_gb,
         "mem_total_gb": mem_total_gb,
+        "mem_used_mb": round(mem_used) if mem_used is not None else None,
+        "mem_total_mb": round(mem_total) if mem_total is not None else None,
         "mem_pct": mem_pct,
         "temp_c": round(temp) if temp is not None else None,
         "power_w": round(power, 1) if power is not None else None,

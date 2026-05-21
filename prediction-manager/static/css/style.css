@@ -278,6 +278,35 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
 @media (max-width: 600px) {
     .pm-monitor-3col > .pm-monitor-card { flex: 1 1 100%; }
 }
+/* ─── Ray 클러스터 섹션 ─── */
+.pm-ray-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+    min-height: 340px;
+    max-height: 340px;
+}
+.pm-ray-inner {
+    display: flex;
+    gap: 58px;
+    flex: 1;
+    min-height: 0;
+}
+@media (max-width: 900px) {
+    .pm-ray-section {
+        max-height: none !important;
+        min-height: 500px;
+    }
+    .pm-ray-inner {
+        flex-direction: column;
+    }
+    .pm-ray-inner > div {
+        flex: 0 0 220px !important;
+        min-height: 220px !important;
+    }
+}
+
 .pm-monitor-card {
     flex: 1;
     min-width: 0;

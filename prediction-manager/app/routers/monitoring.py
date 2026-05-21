@@ -1,9 +1,44 @@
 import asyncio
+import math
+import time
 from fastapi import APIRouter, Request
 from app.auth import get_user_namespace, get_owner_namespace, is_admin, get_user_email
 from app.services import monitoring_service
 
 router = APIRouter()
+
+
+# ── Ray mock (테스트 완료 후 이 블록 전체 삭제) ──────────────────────────────
+_MOCK_RAY = True
+
+def _ray_mock():
+    now_ms = int(time.time() * 1000)
+    ts = [now_ms - (59 - i) * 60_000 for i in range(60)]
+    def wave(base, amp, period, noise, i):
+        return round(max(0, base + amp * math.sin(2 * math.pi * i / period)
+                               + noise * math.sin(2 * math.pi * i / 7 + 1.3)), 2)
+    def workers(i):
+        if i < 20: return 5
+        if i < 35: return 15
+        if i < 50: return 25
+        return 16
+    return {
+        "ray_cluster_util": {
+            "status": "ok",
+            "cpu":  [[ts[i], wave(12, 8, 20, 3, i)] for i in range(60)],
+            "mem":  [[ts[i], wave(38, 6, 30, 2, i)] for i in range(60)],
+            "disk": [[ts[i], wave(14, 2, 45, 1, i)] for i in range(60)],
+        },
+        "ray_node_count": {
+            "status": "ok",
+            "types": [
+                {"name": "worker-node-type-0", "data": [[ts[i], workers(i)] for i in range(60)]},
+                {"name": "head-node-type",     "data": [[ts[i], 1]          for i in range(60)]},
+            ],
+            "finished_jobs": 137,
+        },
+    }
+# ────────────────────────────────────────────────────────────────────────────
 
 
 @router.get("/gpu-trend")
@@ -40,6 +75,12 @@ async def summary(request: Request, ns: str | None = None):
         monitoring_service.get_kserve_error_rate(namespace=filter_ns),
         monitoring_service.get_kserve_top5_latency(namespace=filter_ns),
     )
+
+    # ── mock 적용 (테스트 완료 후 아래 세 줄 삭제) ──
+    if _MOCK_RAY:
+        _m = _ray_mock()
+        ray_cluster_util, ray_node_count = _m["ray_cluster_util"], _m["ray_node_count"]
+    # ────────────────────────────────────────────────
 
     return {
         "namespace": namespace,

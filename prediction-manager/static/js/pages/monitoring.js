@@ -58,9 +58,12 @@ async function renderMonitoring() {
         </div>`;
 
     const gpuUtil    = gpu.util_pct    ?? null;
-    const gpuMemUsed = gpu.mem_used_gb ?? null;
-    const gpuMemTotal = gpu.mem_total_gb ?? null;
-    const gpuMemPct  = gpu.mem_pct     ?? null;
+    const gpuMemUsedMb  = gpu.mem_used_mb  ?? null;
+    const gpuMemTotalMb = gpu.mem_total_mb ?? null;
+    const gpuMemPct     = gpu.mem_pct      ?? null;
+    const _fmtMem = (mb) => mb == null ? null : mb < 1024 ? mb + ' MiB' : (mb / 1024).toFixed(1) + ' GB';
+    const gpuMemUsed  = _fmtMem(gpuMemUsedMb);
+    const gpuMemTotal = _fmtMem(gpuMemTotalMb);
     const gpuTemp    = gpu.temp_c      ?? null;
     const gpuPower   = gpu.power_w     ?? null;
     const cpuCores   = sys.cpu_cores       ?? null;
@@ -148,13 +151,7 @@ async function renderMonitoring() {
     return `
     <div class="pm-page-header">
         <h1>MLOps 모니터링</h1>
-        <p style="display:flex; align-items:center; gap:10px; margin:0;">
-            GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.
-            <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#16a34a;">
-                <span id="monitoring-conn-dot" style="width:7px; height:7px; border-radius:50%; background:#16a34a; flex-shrink:0;"></span>
-                <span id="monitoring-conn-text">정상</span>
-            </span>
-        </p>
+        <p style="margin:0;">GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.</p>
     </div>
 
     ${prometheusWarning}
@@ -175,7 +172,7 @@ async function renderMonitoring() {
                     ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
                 </div>
                 <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
-                    ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB' : null, gpuMemTotal !== null ? gpuMemTotal + ' GB' : '', gpuMemPct, '#ef4444')}
+                    ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed, gpuMemTotal ?? '', gpuMemPct, '#ef4444')}
                 </div>
             </div>
         </div>
@@ -238,12 +235,7 @@ async function renderMonitoring() {
             <div style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:4px; padding-top:14px;">
                 <div style="font-size:15px; font-weight:600; color:#6b7280;">전력</div>
                 <div style="width:100%; display:flex; justify-content:center; align-items:center; margin-top:4px;">
-                    <div style="display:inline-flex; align-items:center;">
-                        <div style="border:2.5px solid #9ca3af; border-radius:5px; padding:5px 14px; display:flex; align-items:center; justify-content:center;">
-                            <span id="stat-gpu-power-value" style="font-size:18px; font-weight:700; font-family:var(--font-mono); color:#0d8a57;">${gpuPower !== null ? gpuPower + ' W' : '-'}</span>
-                        </div>
-                        <div style="width:4px; height:12px; background:#9ca3af; border-radius:0 3px 3px 0;"></div>
-                    </div>
+                    <span id="stat-gpu-power-value" style="font-size:26px; font-weight:700; font-family:var(--font-mono); color:#111827;">${gpuPower !== null ? gpuPower + ' W' : '-'}</span>
                 </div>
             </div>
         </div>`;
@@ -424,24 +416,28 @@ async function renderMonitoring() {
     </div>
     </div>
 
-    <div id="section-ray" class="pm-monitor-card" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px; min-height:340px; max-height:340px;">
+    <div id="section-ray" class="pm-monitor-card pm-ray-section">
         <div class="pm-section-title" style="font-size:15px; margin-bottom:0; flex-shrink:0;">Ray 클러스터</div>
-        <div style="display:flex; gap:14px; flex:1; min-height:0;">
-            <div id="section-ray-util" style="flex:1; min-height:0; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-shrink:0;">
-                    <div style="font-size:13px; font-weight:600; color:#374151;">Cluster Utilization</div>
-                </div>
-                <div style="flex:1; min-height:0; position:relative;">
-                    <canvas id="chart-ray-util"></canvas>
+        <div class="pm-ray-inner">
+            <div id="section-ray-util" style="flex:1; min-height:0; background:#fff; border:1px solid transparent; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
+                <div style="text-align:center; font-size:13px; font-weight:600; color:#374151; margin-bottom:6px; flex-shrink:0;">Cluster Utilization</div>
+                <div style="display:flex; gap:12px; flex:1; min-height:0;">
+                    <div style="flex:1; min-height:0; position:relative;">
+                        <canvas id="chart-ray-util"></canvas>
+                    </div>
+                    <div id="legend-ray-util" style="width:128px; flex-shrink:0; display:flex; flex-direction:column; justify-content:center; gap:0;"></div>
                 </div>
             </div>
-            <div id="section-ray-node" style="flex:1; min-height:0; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-shrink:0;">
+            <div id="section-ray-node" style="flex:1; min-height:0; background:#fff; border:1px solid transparent; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
+                <div style="position:relative; text-align:center; margin-bottom:6px; flex-shrink:0;">
                     <div style="font-size:13px; font-weight:600; color:#374151;">Node Count</div>
-                    <div id="stat-ray-finished" style="font-size:11px; color:#6b7280;"></div>
+                    <div id="stat-ray-finished" style="position:absolute; right:0; top:0; font-size:11px; color:#6b7280;"></div>
                 </div>
-                <div style="flex:1; min-height:0; position:relative;">
-                    <canvas id="chart-ray-node-count"></canvas>
+                <div style="display:flex; gap:12px; flex:1; min-height:0;">
+                    <div style="flex:1; min-height:0; position:relative;">
+                        <canvas id="chart-ray-node-count"></canvas>
+                    </div>
+                    <div id="legend-ray-node" style="width:128px; flex-shrink:0; display:flex; flex-direction:column; justify-content:center; gap:0;"></div>
                 </div>
             </div>
         </div>
@@ -1002,6 +998,25 @@ async function setupMonitoringPage() {
         } // else
     }
 
+    // ── Ray 커스텀 범례 렌더 헬퍼 ────────────────────────────────────────────
+    const _renderRayLegend = (elId, datasets, fmtVal) => {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.innerHTML = datasets.map(ds => {
+            const last = ds.data.length ? ds.data[ds.data.length - 1]?.y : null;
+            const val  = last != null ? fmtVal(last) : '-';
+            const label = String(ds.label).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return `
+            <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid #f3f4f6;">
+                <div style="width:10px; height:10px; border-radius:2px; background:${ds.borderColor}; flex-shrink:0;"></div>
+                <div style="min-width:0; flex:1;">
+                    <div style="font-size:12px; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${label}">${label}</div>
+                    <div style="font-size:11px; color:#9ca3af;">${val}</div>
+                </div>
+            </div>`;
+        }).join('');
+    };
+
     // ── Cluster Utilization ──────────────────────────────────────────────────
     const rayUtilEl = document.getElementById('chart-ray-util');
     if (rayUtilEl) {
@@ -1014,20 +1029,19 @@ async function setupMonitoringPage() {
         else if (ru.status === 'empty' || (!ru.cpu?.length && !ru.mem?.length && !ru.disk?.length)) { placeholder('No data', '#d1d5db'); }
         else {
             const toPoints = arr => (arr || []).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
+            const utilDatasets = [
+                { label: 'Disk',         data: toPoints(ru.disk), borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.08)',  tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
+                { label: 'CPU (physical)',data: toPoints(ru.cpu),  borderColor: '#1DB877', backgroundColor: 'rgba(29,184,119,0.08)',  tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
+                { label: 'Memory (RAM)', data: toPoints(ru.mem),  borderColor: '#67E8F9', backgroundColor: 'rgba(103,232,249,0.08)', tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
+            ];
             _charts['chart-ray-util'] = new Chart(rayUtilEl, {
                 type: 'line',
-                data: {
-                    datasets: [
-                        { label: 'Disk', data: toPoints(ru.disk), borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.08)', tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
-                        { label: 'CPU (physical)', data: toPoints(ru.cpu),  borderColor: '#1DB877', backgroundColor: 'rgba(29,184,119,0.08)', tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
-                        { label: 'Memory (RAM)',   data: toPoints(ru.mem),  borderColor: '#67E8F9', backgroundColor: 'rgba(103,232,249,0.08)', tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
-                    ],
-                },
+                data: { datasets: utilDatasets },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 20, boxHeight: 2, padding: 12 } },
+                        legend: { display: false },
                         tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2) ?? '-'}%` } },
                     },
                     scales: {
@@ -1046,6 +1060,7 @@ async function setupMonitoringPage() {
                     },
                 },
             });
+            _renderRayLegend('legend-ray-util', utilDatasets, v => v.toFixed(2) + ' %');
         }
     }
 
@@ -1066,23 +1081,21 @@ async function setupMonitoringPage() {
         else {
             const NODE_COLORS = ['#F59E0B', '#3B82F6', '#1DB877', '#8B5CF6', '#EF4444'];
             const toPoints = arr => (arr || []).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
-            const datasets = rn.types.slice(0, 5).map((t, i) => ({
+            const nodeDatasets = rn.types.slice(0, 5).map((t, i) => ({
                 label: t.name,
                 data: toPoints(t.data),
                 borderColor: NODE_COLORS[i],
-                backgroundColor: NODE_COLORS[i].replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', 'rgba(').replace(/rgba\(#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2}),0\.15\)/i, (_, r, g, b) => `rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},0.15)`),
+                backgroundColor: NODE_COLORS[i] + '26',
                 tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true,
             }));
-            // hex → rgba 변환 헬퍼 (backgroundColor 재처리)
-            datasets.forEach((ds, i) => { ds.backgroundColor = NODE_COLORS[i] + '26'; });
             _charts['chart-ray-node-count'] = new Chart(rayNodeEl, {
                 type: 'line',
-                data: { datasets },
+                data: { datasets: nodeDatasets },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 20, boxHeight: 2, padding: 12 } },
+                        legend: { display: false },
                         tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y ?? '-'} nodes` } },
                     },
                     scales: {
@@ -1101,6 +1114,7 @@ async function setupMonitoringPage() {
                     },
                 },
             });
+            _renderRayLegend('legend-ray-node', nodeDatasets, v => v + ' nodes');
         }
     }
 
@@ -1404,24 +1418,6 @@ function setupAlarmHistoryCards() {
     });
 }
 
-// 현재 연결 상태에 따른 모니터링 연결 상태 표시 업데이트
-function setMonitoringConnStatus(state) {
-    const dot  = document.getElementById('monitoring-conn-dot');
-    const text = document.getElementById('monitoring-conn-text');
-    if (!dot || !text) return;
-    if (state === 'ok') {
-        dot.style.background  = '#16a34a';
-        text.style.color      = '#16a34a';
-        text.textContent      = '정상';
-    } else {
-        const timeStr = _lastSuccessTime
-            ? _lastSuccessTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-            : '-';
-        dot.style.background  = '#f59e0b';
-        text.style.color      = '#f59e0b';
-        text.textContent      = `연결 불안정 (${timeStr} 기준 데이터)`;
-    }
-}
 
 // 새로 받아온 모니터링 데이터를 기반으로 화면의 모든 지표와 차트를 업데이트
 function updateMonitoringInPlace(newData) {
@@ -1438,9 +1434,12 @@ function updateMonitoringInPlace(newData) {
     const currentEmail = newData.user_email    ?? '';
 
     const gpuUtil     = gpu.util_pct     ?? null;
-    const gpuMemUsed  = gpu.mem_used_gb  ?? null;
-    const gpuMemTotal = gpu.mem_total_gb ?? null;
-    const gpuMemPct   = gpu.mem_pct      ?? null;
+    const gpuMemUsedMb  = gpu.mem_used_mb  ?? null;
+    const gpuMemTotalMb = gpu.mem_total_mb ?? null;
+    const gpuMemPct     = gpu.mem_pct      ?? null;
+    const _fmtMemR = (mb) => mb == null ? null : mb < 1024 ? mb + ' MiB' : (mb / 1024).toFixed(1) + ' GB';
+    const gpuMemUsed  = _fmtMemR(gpuMemUsedMb);
+    const gpuMemTotal = _fmtMemR(gpuMemTotalMb);
     const gpuTemp     = gpu.temp_c       ?? null;
     const gpuPower    = gpu.power_w      ?? null;
     const cpuCores    = sys.cpu_cores        ?? null;
@@ -1455,7 +1454,7 @@ function updateMonitoringInPlace(newData) {
     // ── 도넛 차트 4개 ──────────────────────────────────────────────
     [
         { id: 'chart-gpu-util', pct: gpuUtil,    accent: '#f59e0b', valueStr: gpuUtil    !== null ? gpuUtil + '%'                  : null, subStr: ' ' },
-        { id: 'chart-gpu-mem',  pct: gpuMemPct,  accent: '#ef4444', valueStr: gpuMemUsed !== null ? gpuMemUsed.toFixed(1) + ' GB'  : null, subStr: gpuMemTotal !== null ? gpuMemTotal + ' GB' : '' },
+        { id: 'chart-gpu-mem',  pct: gpuMemPct,  accent: '#ef4444', valueStr: gpuMemUsed,  subStr: gpuMemTotal ?? '' },
         { id: 'chart-cpu',      pct: cpuPct,     accent: '#3b82f6', valueStr: cpuCores   !== null ? cpuCores.toFixed(2) + ' core'  : null, subStr: cpuTotal    !== null ? cpuTotal + ' core'  : '' },
         { id: 'chart-mem',      pct: memPct,     accent: '#8b5cf6', valueStr: memUsedGb  !== null ? memUsedGb.toFixed(1) + ' GB'   : null, subStr: memTotalGb  !== null ? memTotalGb + ' GB'  : '' },
     ].forEach(({ id, pct, accent, valueStr, subStr }) => {
@@ -1505,6 +1504,7 @@ function updateMonitoringInPlace(newData) {
         _charts['chart-ray-util'].options.scales.x.min = nowTs - 60 * 60 * 1000;
         _charts['chart-ray-util'].options.scales.x.max = nowTs;
         _charts['chart-ray-util'].update('none');
+        _renderRayLegend('legend-ray-util', _charts['chart-ray-util'].data.datasets, v => v.toFixed(2) + ' %');
     }
 
     // ── Ray: Node Count ───────────────────────────────────────────
@@ -1524,6 +1524,7 @@ function updateMonitoringInPlace(newData) {
         _charts['chart-ray-node-count'].options.scales.x.min = nowTs - 60 * 60 * 1000;
         _charts['chart-ray-node-count'].options.scales.x.max = nowTs;
         _charts['chart-ray-node-count'].update('none');
+        _renderRayLegend('legend-ray-node', _charts['chart-ray-node-count'].data.datasets, v => v + ' nodes');
     }
 
     // ── AutoML ────────────────────────────────────────────────────
@@ -1738,15 +1739,11 @@ function updateMonitoringInPlace(newData) {
 
 // 주기적 모니터링 데이터 리프레시 함수 - 실패해도 기존 데이터 유지하며 재시도
 async function refreshMonitoringPage() {
-    if (!document.getElementById('monitoring-conn-dot')) return;
     try {
         const newData = await API.get('/api/monitoring/summary');
-        if (!document.getElementById('monitoring-conn-dot')) return;
         updateMonitoringInPlace(newData);
         _lastSuccessTime = new Date();
-        setMonitoringConnStatus('ok');
     } catch (e) {
         console.warn('[monitoring] 리프레시 실패, 기존 데이터 유지:', e);
-        setMonitoringConnStatus('fail');
     }
 }
