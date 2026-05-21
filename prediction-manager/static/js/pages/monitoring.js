@@ -374,11 +374,13 @@ async function renderMonitoring() {
         <div style="margin-bottom:12px;">
             <div class="pm-section-title" id="pvc-chart-title" style="font-size:15px; margin-bottom:0;">${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
         </div>
-        <div style="flex:1; display:flex; align-items:center; justify-content:flex-start; position:relative; padding-left:50px;">
+        <div style="flex:1; display:flex; align-items:center; min-height:0;">
             ${pvcStatus === 'ok' && pvcGroups.length > 0
-                ? `<div style="display:flex; align-items:center; gap:50px;">
-                       <canvas id="chart-pvc-donut" width="220" height="220"></canvas>
-                       <div id="chart-pvc-legend" style="font-size:12px; color:#6b7280; line-height:2;"></div>
+                ? `<div style="display:flex; align-items:center; gap:16px; width:100%; height:100%;">
+                       <div style="flex:1; display:flex; align-items:center; justify-content:center; height:100%;">
+                           <canvas id="chart-pvc-donut" width="220" height="220"></canvas>
+                       </div>
+                       <div id="chart-pvc-legend" style="flex:2; font-size:12px; color:#6b7280; line-height:2; min-width:0;"></div>
                    </div>`
                 : noDataDiv
             }
