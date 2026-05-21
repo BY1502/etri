@@ -149,9 +149,18 @@ async function renderMonitoring() {
         </tr>`).join('');
 
     return `
-    <div class="pm-page-header">
-        <h1>MLOps 모니터링</h1>
-        <p style="margin:0;">GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.</p>
+    <div class="pm-page-header" style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+            <h1>MLOps 모니터링</h1>
+            <p style="margin:0;">GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.</p>
+        </div>
+        <button class="pm-alarm-btn" id="pm-alarm-btn" onclick="window._openAlarmSidebar()" title="알람 이력">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="pm-alarm-badge" id="pm-alarm-badge" style="display:none;">0</span>
+        </button>
     </div>
 
     ${prometheusWarning}
@@ -160,12 +169,8 @@ async function renderMonitoring() {
 
         <!-- 1+2. GPU (사용률 + 메모리) -->
         <div class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center;">
                 <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">GPU<span id="alarm-ind-gpu" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e53935;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
-                <div style="position:relative;">
-                    <button id="alarm-hist-toggle-gpu" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-gpu" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-gpu" style="font-size:9px;margin-left:1px;">▾</span></button>
-                    <div id="alarm-hist-body-gpu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-                </div>
             </div>
             <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:10px;">
                 <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
@@ -179,12 +184,8 @@ async function renderMonitoring() {
 
         <!-- 3+4. 시스템 (CPU + 메모리) -->
         <div id="section-system" class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center;">
                 <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">시스템<span id="alarm-ind-system" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#f59e0b;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
-                <div style="position:relative;">
-                    <button id="alarm-hist-toggle-system" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-system" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-system" style="font-size:9px;margin-left:1px;">▾</span></button>
-                    <div id="alarm-hist-body-system" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-                </div>
             </div>
             <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:10px;">
                 <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
@@ -211,10 +212,6 @@ async function renderMonitoring() {
         <div id="section-gpu-temp" class="pm-monitor-card pm-fixed-card" style="display:flex; flex-direction:column;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
                 <div style="font-size:15px; font-weight:600; color:#6b7280; display:flex; align-items:center; gap:4px;">온도<span id="alarm-ind-gpu-temp" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e53935;color:white;font-size:9px;font-weight:700;cursor:default;">!</span></span></div>
-                <div style="position:relative;">
-                    <button id="alarm-hist-toggle-gpu-temp" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-gpu-temp" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-gpu-temp" style="font-size:9px;margin-left:1px;">▾</span></button>
-                    <div id="alarm-hist-body-gpu-temp" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-                </div>
             </div>
             <div style="flex:1; display:flex; align-items:center; justify-content:center; padding-bottom:14px; border-bottom:1px solid #eaecf0;">
                 <div style="display:flex; align-items:flex-end; gap:12px;">
@@ -282,10 +279,6 @@ async function renderMonitoring() {
                 <div id="pvc-chart-title" style="font-size:12px; color:#9ca3af; margin-left:4px;">· ${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
-            <div style="position:relative;">
-                <button id="alarm-hist-toggle-pvc" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-pvc" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-pvc" style="font-size:9px;margin-left:1px;">▾</span></button>
-                <div id="alarm-hist-body-pvc" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-            </div>
             ${isAdminView ? `
             <div style="display:flex; gap:4px;">
                 <button id="pvc-left-tab-all"  style="padding:4px 10px; border-radius:6px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;">전체</button>
@@ -382,12 +375,8 @@ async function renderMonitoring() {
         </div>
     </div>
     <div id="section-automl" class="pm-monitor-card pm-fixed-card">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <div style="margin-bottom:12px;">
             <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">AutoML 최근 Job<span id="alarm-ind-automl" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-            <div style="position:relative;">
-                <button id="alarm-hist-toggle-automl" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-automl" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-automl" style="font-size:9px;margin-left:1px;">▾</span></button>
-                <div id="alarm-hist-body-automl" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-            </div>
         </div>
         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
             ${[
@@ -476,12 +465,8 @@ async function renderMonitoring() {
         </div>
 
         <div id="section-kserve" class="pm-monitor-card pm-fixed-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div style="margin-bottom:12px;">
                 <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">KServe Endpoint<span id="alarm-ind-kserve" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-                <div style="position:relative;">
-                    <button id="alarm-hist-toggle-kserve" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve" style="font-size:9px;margin-left:1px;">▾</span></button>
-                    <div id="alarm-hist-body-kserve" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-                </div>
             </div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
@@ -551,12 +536,8 @@ async function renderMonitoring() {
                 </div>
             </div>
             <div id="section-kserve-latency" class="pm-monitor-card pm-fixed-card" style="order:7;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <div style="margin-bottom:12px;">
                     <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">Top 5 Latency (p95, ms)<span id="alarm-ind-kserve-latency" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-                    <div style="position:relative;">
-                        <button id="alarm-hist-toggle-kserve-latency" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve-latency" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve-latency" style="font-size:9px;margin-left:1px;">▾</span></button>
-                        <div id="alarm-hist-body-kserve-latency" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-                    </div>
                 </div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-top5-latency"></canvas>
@@ -599,12 +580,8 @@ async function renderMonitoring() {
                 </div>
             </div>
             <div id="section-kserve-error" class="pm-monitor-card pm-fixed-card" style="order:6;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                <div style="margin-bottom:12px;">
                     <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">KServe 에러율 (%) - 5xx<span id="alarm-ind-kserve-error" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-                    <div style="position:relative;">
-                        <button id="alarm-hist-toggle-kserve-error" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-kserve-error" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-kserve-error" style="font-size:9px;margin-left:1px;">▾</span></button>
-                        <div id="alarm-hist-body-kserve-error" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
-                    </div>
                 </div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-kserve-error-rate"></canvas>
@@ -1383,40 +1360,15 @@ function updateAlarmIndicators(data) {
             if (indEl) indEl.style.display = 'none';
         }
 
-        const sectionHistory = _alarmHistory.filter(h => h.key === indId);
-        const histCount = document.getElementById(`alarm-hist-count-${key}`);
-        const histBody  = document.getElementById(`alarm-hist-body-${key}`);
-        if (histCount) histCount.textContent = sectionHistory.length;
-        if (histBody) {
-            histBody.innerHTML = sectionHistory.length === 0
-                ? '<div style="padding:8px;color:#aaa;font-size:12px;">이력 없음</div>'
-                : sectionHistory.slice().reverse().map(h => `
-                    <div style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;">
-                        <span style="font-weight:600;color:${h.resolvedAt ? '#155724' : '#e53935'};">${h.resolvedAt ? '✓ 해결' : '⚠ 진행 중'}</span>
-                        <span style="margin-left:6px;color:#333;">${esc(h.msg)}</span>
-                        <div style="color:#999;font-size:10px;margin-top:2px;">
-                            발생: ${h.triggeredAt}${h.resolvedAt ? ` → 해결: ${h.resolvedAt}` : ''}
-                        </div>
-                    </div>`).join('');
-        }
     });
+    _updateAlarmBadge();
 }
 
 // 알람 이력 카드 토글 기능
 function setupAlarmHistoryCards() {
-    ['gpu', 'system', 'gpu-temp', 'kserve', 'kserve-error', 'kserve-latency', 'automl', 'pvc'].forEach(key => {
-        const toggle = document.getElementById(`alarm-hist-toggle-${key}`);
-        if (!toggle) return;
-        toggle.addEventListener('click', () => {
-            const body  = document.getElementById(`alarm-hist-body-${key}`);
-            const arrow = document.getElementById(`alarm-hist-arrow-${key}`);
-            if (!body) return;
-            const isOpen = body.style.display !== 'none';
-            body.style.display = isOpen ? 'none' : 'block';
-            if (arrow) arrow.textContent = isOpen ? '▾' : '▴';
-        });
-    });
+    _updateAlarmBadge();
 }
+
 
 
 // 새로 받아온 모니터링 데이터를 기반으로 화면의 모든 지표와 차트를 업데이트
@@ -1736,6 +1688,81 @@ function updateMonitoringInPlace(newData) {
 
     updateAlarmIndicators(newData);
 }
+
+// ── 알람 사이드바 ────────────────────────────────────────────────────────────
+const _ALARM_SECTIONS = [
+    { key: 'gpu',            label: 'GPU' },
+    { key: 'system',         label: '시스템' },
+    { key: 'gpu-temp',       label: 'GPU 온도' },
+    { key: 'pvc',            label: 'PVC' },
+    { key: 'automl',         label: 'AutoML 최근 Job' },
+    { key: 'kserve',         label: 'KServe Endpoint' },
+    { key: 'kserve-latency', label: 'KServe 지연' },
+    { key: 'kserve-error',   label: 'KServe 에러율' },
+];
+
+function _renderAlarmSidebar() {
+    const body = document.getElementById('pm-alarm-sidebar-body');
+    if (!body) return;
+
+    body.innerHTML = _ALARM_SECTIONS.map(({ key, label }) => {
+        const indId   = `alarm-ind-${key}`;
+        const history = _alarmHistory.filter(h => h.key === indId);
+        const active  = history.filter(h => !h.resolvedAt).length;
+        const count   = history.length;
+        const hasAlarm = active > 0;
+
+        const items = count === 0
+            ? `<div class="pm-alarm-empty">이력 없음</div>`
+            : history.slice().reverse().map(h => `
+                <div class="pm-alarm-item">
+                    <div class="pm-alarm-item-status" style="color:${h.resolvedAt ? '#16a34a' : '#ef4444'};">
+                        ${h.resolvedAt ? '✓ 해결' : '⚠ 진행 중'}
+                    </div>
+                    <div class="pm-alarm-item-msg">${h.msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                    <div class="pm-alarm-item-time">발생: ${h.triggeredAt}${h.resolvedAt ? ` &nbsp;→&nbsp; 해결: ${h.resolvedAt}` : ''}</div>
+                </div>`).join('');
+
+        return `
+        <div class="pm-alarm-section">
+            <div class="pm-alarm-section-header" onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('.pm-alarm-section-arrow').classList.toggle('open');">
+                <div class="pm-alarm-section-title">
+                    ${hasAlarm ? `<span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;flex-shrink:0;"></span>` : `<span style="width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block;flex-shrink:0;"></span>`}
+                    ${label}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="pm-alarm-section-count${hasAlarm ? ' has-alarm' : ''}">${count}건</span>
+                    <span class="pm-alarm-section-arrow">▾</span>
+                </div>
+            </div>
+            <div class="pm-alarm-section-items">${items}</div>
+        </div>`;
+    }).join('');
+}
+
+function _updateAlarmBadge() {
+    const badge = document.getElementById('pm-alarm-badge');
+    const btn   = document.getElementById('pm-alarm-btn');
+    if (!badge) return;
+    const total = _alarmHistory.filter(h => !h.resolvedAt).length;
+    badge.textContent = total > 99 ? '99+' : total;
+    badge.style.display = total > 0 ? 'flex' : 'none';
+    if (btn) btn.classList.toggle('active', total > 0);
+}
+
+window._openAlarmSidebar = function() {
+    _renderAlarmSidebar();
+    document.getElementById('pm-alarm-sidebar')?.classList.add('open');
+    document.getElementById('pm-alarm-overlay')?.classList.add('open');
+};
+
+window._closeAlarmSidebar = function() {
+    _alarmHistory.length = 0;
+    _updateAlarmBadge();
+    document.getElementById('pm-alarm-sidebar')?.classList.remove('open');
+    document.getElementById('pm-alarm-overlay')?.classList.remove('open');
+};
+// ────────────────────────────────────────────────────────────────────────────
 
 // 주기적 모니터링 데이터 리프레시 함수 - 실패해도 기존 데이터 유지하며 재시도
 async function refreshMonitoringPage() {

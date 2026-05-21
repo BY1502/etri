@@ -25,6 +25,23 @@
         </div>
     </nav>
 
+    <div class="pm-alarm-overlay" id="pm-alarm-overlay" onclick="if(window._closeAlarmSidebar)window._closeAlarmSidebar()"></div>
+    <aside class="pm-alarm-sidebar" id="pm-alarm-sidebar">
+        <div class="pm-alarm-sidebar-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#6b7280;">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span style="font-size:15px; font-weight:600; color:#111827;">알람 이력</span>
+            </div>
+            <button class="pm-alarm-close" onclick="if(window._closeAlarmSidebar)window._closeAlarmSidebar()">✕</button>
+        </div>
+        <div class="pm-alarm-sidebar-body" id="pm-alarm-sidebar-body">
+            <div style="padding:40px 0; text-align:center; color:#d1d5db; font-size:14px;">모니터링 페이지에서 확인하세요</div>
+        </div>
+    </aside>
+
     <div class="pm-content" id="app"></div>
 
     <script src="static/js/chart.umd.min.js"></script>
