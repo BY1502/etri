@@ -521,6 +521,46 @@ async def get_ray_trend(window_minutes: int = 60, step: str = "1m") -> dict:
     return {"status": status, "nodes": nodes_data, "jobs": jobs_data}
 
 
+async def get_ray_cluster_util_trend(window_minutes: int = 60, step: str = "1m") -> dict:
+    now = time.time()
+    start = now - window_minutes * 60
+    (cpu_data, cpu_st), (mem_data, mem_st), (disk_data, disk_st) = await asyncio.gather(
+        _query_range("avg(ray_node_cpu_utilization)", start=start, end=now, step=step),
+        _query_range(
+            "sum(ray_node_mem_used) / sum(ray_node_mem_total) * 100",
+            start=start, end=now, step=step,
+        ),
+        _query_range(
+            "sum(ray_node_disk_usage) / (sum(ray_node_disk_usage) + sum(ray_node_disk_avail)) * 100",
+            start=start, end=now, step=step,
+        ),
+    )
+    status = "ok" if "ok" in (cpu_st, mem_st, disk_st) else cpu_st
+    return {"status": status, "cpu": cpu_data, "mem": mem_data, "disk": disk_data}
+
+
+async def get_ray_node_count_trend(window_minutes: int = 60, step: str = "1m") -> dict:
+    now = time.time()
+    start = now - window_minutes * 60
+    (series, series_st), finished = await asyncio.gather(
+        _query_range_multi(
+            "count by (NodeType) (ray_node_cpu_count)",
+            start=start, end=now, step=step,
+        ),
+        _query("sum(ray_finished_jobs_total)"),
+    )
+    types = [
+        {"name": s["labels"].get("NodeType", "unknown"), "data": s["data"]}
+        for s in series
+    ]
+    finished_val = int(_pv(finished)) if _pv(finished) is not None else None
+    return {
+        "status": series_st,
+        "types": types,
+        "finished_jobs": finished_val,
+    }
+
+
 async def get_running_notebooks(namespace: str | None = None) -> dict:
     rows, status = await _query_multi(
         'kube_pod_status_phase{namespace=~"kubeflow-.*",phase="Running"}'

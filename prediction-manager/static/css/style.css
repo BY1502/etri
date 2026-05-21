@@ -261,6 +261,23 @@ body.standalone-mode .pm-content { max-width: none; padding: 20px 32px; }
     align-items: flex-start;
     margin-bottom: 14px;
 }
+.pm-monitor-3col {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+    margin-bottom: 14px;
+}
+.pm-monitor-3col > .pm-monitor-card {
+    flex: 1;
+    min-width: 0;
+}
+@media (max-width: 900px) {
+    .pm-monitor-3col { flex-wrap: wrap; }
+    .pm-monitor-3col > .pm-monitor-card { flex: 1 1 calc(50% - 7px); }
+}
+@media (max-width: 600px) {
+    .pm-monitor-3col > .pm-monitor-card { flex: 1 1 100%; }
+}
 .pm-monitor-card {
     flex: 1;
     min-width: 0;

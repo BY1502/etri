@@ -77,6 +77,8 @@ async function renderMonitoring() {
     const ray             = data.ray              || {};
     const rayStatus       = ray.status            ?? 'error';
     const rayTrend        = data.ray_trend        || {};
+    const rayClusterUtil  = data.ray_cluster_util || {};
+    const rayNodeCount    = data.ray_node_count   || {};
     const automl          = data.automl           || {};
     const automlError     = automl.error          ?? true;
     const automlJobs      = automl.jobs           || [];
@@ -280,10 +282,13 @@ async function renderMonitoring() {
 
     </div>
 
-    <div id="section-pvc" class="pm-monitor-2col" style="margin-bottom:16px;">
-    <div class="pm-monitor-card pm-fixed-card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <div id="pvc-table-title" class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}<span id="alarm-ind-pvc" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+    <div class="pm-monitor-2col" style="margin-bottom:14px;">
+    <div id="section-pvc" class="pm-monitor-card pm-fixed-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div id="pvc-table-title" class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}<span id="alarm-ind-pvc" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                <div id="pvc-chart-title" style="font-size:12px; color:#9ca3af; margin-left:4px;">· ${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
+            </div>
             <div style="display:flex; align-items:center; gap:8px;">
             <div style="position:relative;">
                 <button id="alarm-hist-toggle-pvc" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-pvc" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-pvc" style="font-size:9px;margin-left:1px;">▾</span></button>
@@ -296,63 +301,33 @@ async function renderMonitoring() {
             </div>` : ''}
             </div>
         </div>
-        <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px; position:relative;">
-        ${(() => {
-            if (pvcStatus === 'error') return noConnDiv;
-            if (pvcStatus === 'empty' || pvcGroups.length === 0) return noDataDiv;
+        <div style="display:flex; gap:16px; flex:1; min-height:0;">
+            <div style="flex:3; min-height:0; overflow-y:auto; border-radius:6px; position:relative;">
+            ${(() => {
+                if (pvcStatus === 'error') return noConnDiv;
+                if (pvcStatus === 'empty' || pvcGroups.length === 0) return noDataDiv;
 
-            const phaseColors = { Bound: '#3b82f6', Pending: '#f59e0b', Lost: '#ef4444' };
-            const phaseIcons  = { Bound: '●', Pending: '⚠', Lost: '✕' };
+                const phaseColors = { Bound: '#3b82f6', Pending: '#f59e0b', Lost: '#ef4444' };
+                const phaseIcons  = { Bound: '●', Pending: '⚠', Lost: '✕' };
 
-            const adminRows = pvcGroups.map(g => {
-                const pc = g.phase_counts || {};
-                const badges = [
-                    pc.Bound   > 0 ? `<span style="color:#3b82f6; font-weight:600; margin-right:6px;">● ${pc.Bound}</span>`   : '',
-                    pc.Pending > 0 ? `<span style="color:#f59e0b; font-weight:600; margin-right:6px;">⚠ ${pc.Pending}</span>` : '',
-                    pc.Lost    > 0 ? `<span style="color:#ef4444; font-weight:600;">✕ ${pc.Lost}</span>`                      : '',
-                ].filter(Boolean).join('');
-                return `<tr>
-                    <td style="font-size:13px;">${esc(g.ns)}</td>
-                    <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${g.pvcs.length}</td>
-                    <td style="text-align:right; font-family:var(--font-mono);">${g.total_gb?.toFixed(1) ?? '-'} GB</td>
-                    <td>${badges || '<span style="color:#d1d5db;">-</span>'}</td>
-                </tr>`;
-            }).join('');
+                const adminRows = pvcGroups.map(g => {
+                    const pc = g.phase_counts || {};
+                    const badges = [
+                        pc.Bound   > 0 ? `<span style="color:#3b82f6; font-weight:600; margin-right:6px;">● ${pc.Bound}</span>`   : '',
+                        pc.Pending > 0 ? `<span style="color:#f59e0b; font-weight:600; margin-right:6px;">⚠ ${pc.Pending}</span>` : '',
+                        pc.Lost    > 0 ? `<span style="color:#ef4444; font-weight:600;">✕ ${pc.Lost}</span>`                      : '',
+                    ].filter(Boolean).join('');
+                    return `<tr>
+                        <td style="font-size:13px;">${esc(g.ns)}</td>
+                        <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${g.pvcs.length}</td>
+                        <td style="text-align:right; font-family:var(--font-mono);">${g.total_gb?.toFixed(1) ?? '-'} GB</td>
+                        <td>${badges || '<span style="color:#d1d5db;">-</span>'}</td>
+                    </tr>`;
+                }).join('');
 
-            const myGroup   = pvcGroups.find(g => g.ns === currentNs);
-            const myPvcs    = myGroup?.pvcs ?? [];
-            const mineRows  = myPvcs.map(p => {
-                const color = phaseColors[p.phase] || '#9ca3af';
-                const icon  = phaseIcons[p.phase]  || '?';
-                return `<tr>
-                    <td style="font-size:12px; font-family:var(--font-mono);" title="${esc(p.name)}">${esc(p.name)}</td>
-                    <td style="text-align:right; font-family:var(--font-mono);">${p.allocated_gb.toFixed(1)} GB</td>
-                    <td><span style="color:${color}; font-weight:600;">${icon} ${esc(p.phase)}</span></td>
-                </tr>`;
-            }).join('');
-
-            if (isAdminView) {
-                return `
-                <div id="pvc-view-all">
-                    <table class="pm-table">
-                        <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                            <tr><th>Namespace</th><th style="text-align:right;">PVC 수</th><th style="text-align:right;">총 용량</th><th>상태</th></tr>
-                        </thead>
-                        <tbody>${adminRows}</tbody>
-                    </table>
-                </div>
-                <div id="pvc-view-mine" style="display:none;">
-                    <table class="pm-table">
-                        <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                            <tr><th>PVC 이름</th><th style="text-align:right;">용량</th><th>상태</th></tr>
-                        </thead>
-                        <tbody>${mineRows || noDataTd(3)}</tbody>
-                    </table>
-                </div>`;
-            } else {
-                const pvcs = pvcGroups.flatMap(g => g.pvcs);
-                if (pvcs.length === 0) return noDataDiv;
-                const userRows = pvcs.map(p => {
+                const myGroup   = pvcGroups.find(g => g.ns === currentNs);
+                const myPvcs    = myGroup?.pvcs ?? [];
+                const mineRows  = myPvcs.map(p => {
                     const color = phaseColors[p.phase] || '#9ca3af';
                     const icon  = phaseIcons[p.phase]  || '?';
                     return `<tr>
@@ -361,79 +336,114 @@ async function renderMonitoring() {
                         <td><span style="color:${color}; font-weight:600;">${icon} ${esc(p.phase)}</span></td>
                     </tr>`;
                 }).join('');
-                return `<table class="pm-table">
-                    <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                        <tr><th>PVC 이름</th><th style="text-align:right;">용량</th><th>상태</th></tr>
-                    </thead>
-                    <tbody>${userRows}</tbody>
-                </table>`;
-            }
-        })()}
+
+                if (isAdminView) {
+                    return `
+                    <div id="pvc-view-all">
+                        <table class="pm-table">
+                            <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                                <tr><th>Namespace</th><th style="text-align:right;">PVC 수</th><th style="text-align:right;">총 용량</th><th>상태</th></tr>
+                            </thead>
+                            <tbody>${adminRows}</tbody>
+                        </table>
+                    </div>
+                    <div id="pvc-view-mine" style="display:none;">
+                        <table class="pm-table">
+                            <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                                <tr><th>PVC 이름</th><th style="text-align:right;">용량</th><th>상태</th></tr>
+                            </thead>
+                            <tbody>${mineRows || noDataTd(3)}</tbody>
+                        </table>
+                    </div>`;
+                } else {
+                    const pvcs = pvcGroups.flatMap(g => g.pvcs);
+                    if (pvcs.length === 0) return noDataDiv;
+                    const userRows = pvcs.map(p => {
+                        const color = phaseColors[p.phase] || '#9ca3af';
+                        const icon  = phaseIcons[p.phase]  || '?';
+                        return `<tr>
+                            <td style="font-size:12px; font-family:var(--font-mono);" title="${esc(p.name)}">${esc(p.name)}</td>
+                            <td style="text-align:right; font-family:var(--font-mono);">${p.allocated_gb.toFixed(1)} GB</td>
+                            <td><span style="color:${color}; font-weight:600;">${icon} ${esc(p.phase)}</span></td>
+                        </tr>`;
+                    }).join('');
+                    return `<table class="pm-table">
+                        <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                            <tr><th>PVC 이름</th><th style="text-align:right;">용량</th><th>상태</th></tr>
+                        </thead>
+                        <tbody>${userRows}</tbody>
+                    </table>`;
+                }
+            })()}
+            </div>
+            <div style="flex:2; display:flex; align-items:center; min-height:0; border-left:1px solid #f3f4f6; padding-left:16px;">
+                ${pvcStatus === 'ok' && pvcGroups.length > 0
+                    ? `<div style="display:flex; align-items:center; gap:12px; width:100%; height:100%;">
+                           <div style="flex:1; display:flex; align-items:center; justify-content:center; height:100%;">
+                               <canvas id="chart-pvc-donut" width="180" height="180"></canvas>
+                           </div>
+                           <div id="chart-pvc-legend" style="flex:2; font-size:12px; color:#6b7280; line-height:2; min-width:0;"></div>
+                       </div>`
+                    : noDataDiv
+                }
+            </div>
         </div>
     </div>
-    <div class="pm-monitor-card pm-fixed-card">
-        <div style="margin-bottom:12px;">
-            <div class="pm-section-title" id="pvc-chart-title" style="font-size:15px; margin-bottom:0;">${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
+    <div id="section-automl" class="pm-monitor-card pm-fixed-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">AutoML 최근 Job<span id="alarm-ind-automl" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+            <div style="position:relative;">
+                <button id="alarm-hist-toggle-automl" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-automl" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-automl" style="font-size:9px;margin-left:1px;">▾</span></button>
+                <div id="alarm-hist-body-automl" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+            </div>
         </div>
-        <div style="flex:1; display:flex; align-items:center; min-height:0;">
-            ${pvcStatus === 'ok' && pvcGroups.length > 0
-                ? `<div style="display:flex; align-items:center; gap:16px; width:100%; height:100%;">
-                       <div style="flex:1; display:flex; align-items:center; justify-content:center; height:100%;">
-                           <canvas id="chart-pvc-donut" width="220" height="220"></canvas>
-                       </div>
-                       <div id="chart-pvc-legend" style="flex:2; font-size:12px; color:#6b7280; line-height:2; min-width:0;"></div>
-                   </div>`
-                : noDataDiv
-            }
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
+            ${[
+                { id: 'stat-automl-total',   label: '전체',  value: automlError ? '-' : automlDisplayJobs.length, color: '#6b7280', bg: '#f3f4f6' },
+                { id: 'stat-automl-running',  label: '실행중', value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
+                { id: 'stat-automl-success',  label: '성공',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
+                { id: 'stat-automl-failed',   label: '실패',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
+            ].map(s => `
+                <div style="background:${s.bg}; border-radius:8px; padding:8px 12px; text-align:center;">
+                    <div id="${s.id}" style="font-size:20px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
+                    <div style="font-size:11px; color:${s.color}; margin-top:1px;">${s.label}</div>
+                </div>`).join('')}
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
+        <table class="pm-table">
+            <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>${isAdminView ? '이름 / 제출자' : '이름'}</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
+            <tbody id="tbody-automl">${
+                automlError
+                    ? noConnTd(3)
+                    : automlDisplayJobs.length === 0
+                        ? noDataTd(3)
+                        : automlRows
+            }</tbody>
+        </table>
         </div>
     </div>
     </div>
 
-    <div class="pm-monitor-2col-bottom">
-        <div class="pm-monitor-col">
-        <div id="section-ray" class="pm-monitor-card pm-fixed-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-shrink:0;">
-                <div class="pm-section-title" style="font-size:15px; margin-bottom:0;">Ray 클러스터 (활성 노드 / 완료 Job)</div>
-            </div>
-            <div style="flex:1; min-height:0; position:relative;">
-                <canvas id="chart-ray-trend"></canvas>
-            </div>
-        </div>
-        </div>
-        <div class="pm-monitor-col">
-        <div id="section-automl" class="pm-monitor-card pm-fixed-card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">AutoML 최근 Job<span id="alarm-ind-automl" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-                <div style="position:relative;">
-                    <button id="alarm-hist-toggle-automl" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:2px 6px;border-radius:4px;display:flex;align-items:center;gap:3px;">🕐 이력 <span id="alarm-hist-count-automl" style="font-weight:600;color:#6b7280;">0</span>건<span id="alarm-hist-arrow-automl" style="font-size:9px;margin-left:1px;">▾</span></button>
-                    <div id="alarm-hist-body-automl" style="display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;width:320px;max-height:240px;overflow-y:auto;background:white;border-radius:8px;border:1px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,0.12);font-size:12px;"></div>
+    <div id="section-ray" class="pm-monitor-card" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px; min-height:340px; max-height:340px;">
+        <div class="pm-section-title" style="font-size:15px; margin-bottom:0; flex-shrink:0;">Ray 클러스터</div>
+        <div style="display:flex; gap:14px; flex:1; min-height:0;">
+            <div id="section-ray-util" style="flex:1; min-height:0; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-shrink:0;">
+                    <div style="font-size:13px; font-weight:600; color:#374151;">Cluster Utilization</div>
+                </div>
+                <div style="flex:1; min-height:0; position:relative;">
+                    <canvas id="chart-ray-util"></canvas>
                 </div>
             </div>
-            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
-                ${[
-                    { id: 'stat-automl-total',   label: '전체',  value: automlError ? '-' : automlDisplayJobs.length, color: '#6b7280', bg: '#f3f4f6' },
-                    { id: 'stat-automl-running',  label: '실행중', value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'RUNNING').length, color: '#1a56a8', bg: '#e8f4ff' },
-                    { id: 'stat-automl-success',  label: '성공',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'SUCCEEDED').length, color: '#155724', bg: '#d4edda' },
-                    { id: 'stat-automl-failed',   label: '실패',  value: automlError ? '-' : automlDisplayJobs.filter(j => j.status === 'FAILED').length, color: '#721c24', bg: '#f8d7da' },
-                ].map(s => `
-                    <div style="background:${s.bg}; border-radius:8px; padding:8px 12px; text-align:center;">
-                        <div id="${s.id}" style="font-size:20px; font-weight:700; color:${s.color}; font-family:var(--font-mono);">${s.value}</div>
-                        <div style="font-size:11px; color:${s.color}; margin-top:1px;">${s.label}</div>
-                    </div>`).join('')}
+            <div id="section-ray-node" style="flex:1; min-height:0; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-shrink:0;">
+                    <div style="font-size:13px; font-weight:600; color:#374151;">Node Count</div>
+                    <div id="stat-ray-finished" style="font-size:11px; color:#6b7280;"></div>
+                </div>
+                <div style="flex:1; min-height:0; position:relative;">
+                    <canvas id="chart-ray-node-count"></canvas>
+                </div>
             </div>
-            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px;">
-            <table class="pm-table">
-                <thead style="position:sticky; top:0; background:#fff; z-index:1;"><tr><th>${isAdminView ? '이름 / 제출자' : '이름'}</th><th>상태</th><th>제출 시간 / 경과</th></tr></thead>
-                <tbody id="tbody-automl">${
-                    automlError
-                        ? noConnTd(3)
-                        : automlDisplayJobs.length === 0
-                            ? noDataTd(3)
-                            : automlRows
-                }</tbody>
-            </table>
-            </div>
-        </div>
         </div>
     </div>
 
@@ -941,15 +951,15 @@ async function setupMonitoringPage() {
     const trendEl = document.getElementById('chart-gpu-trend');
     if (trendEl) {
         const now = Date.now();
-        const chartPlaceholder = (msg) => {
+        const chartPlaceholder = (msg, color) => {
             trendEl.replaceWith(Object.assign(document.createElement('div'), {
-                style: 'height:120px; display:flex; align-items:center; justify-content:center; font-size:13px; color:#9ca3af;',
+                style: `position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; color:${color}; letter-spacing:0.5px; white-space:nowrap;`,
                 textContent: msg,
             }));
         };
 
-        if (gpuTrend.status === 'error') { chartPlaceholder('연결 오류'); }
-        else if (gpuTrend.status === 'empty' || !gpuTrend.data?.length) { chartPlaceholder('데이터 없음'); }
+        if (gpuTrend.status === 'error') { chartPlaceholder('No connection', '#ef4444'); }
+        else if (gpuTrend.status === 'empty' || !gpuTrend.data?.length) { chartPlaceholder('No data', '#d1d5db'); }
         else {
         const trendPoints = gpuTrend.data.map(([ts, v]) => ({ x: ts, y: v }));
 
@@ -992,105 +1002,101 @@ async function setupMonitoringPage() {
         } // else
     }
 
-    const rayTrendEl = document.getElementById('chart-ray-trend');
-    if (rayTrendEl) {
-        const rt = _monitoringData?.ray_trend || {};
-        const placeholder = (msg) => rayTrendEl.replaceWith(Object.assign(document.createElement('div'), {
-            style: 'height:100%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#9ca3af;',
+    // ── Cluster Utilization ──────────────────────────────────────────────────
+    const rayUtilEl = document.getElementById('chart-ray-util');
+    if (rayUtilEl) {
+        const ru = _monitoringData?.ray_cluster_util || {};
+        const placeholder = (msg, color) => rayUtilEl.replaceWith(Object.assign(document.createElement('div'), {
+            style: `position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; color:${color}; letter-spacing:0.5px; white-space:nowrap;`,
             textContent: msg,
         }));
-        if (rt.status === 'error') { placeholder('연결 오류'); }
-        else if (rt.status === 'empty' || (!rt.nodes?.length && !rt.jobs?.length)) { placeholder('데이터 없음'); }
+        if (ru.status === 'error') { placeholder('No connection', '#ef4444'); }
+        else if (ru.status === 'empty' || (!ru.cpu?.length && !ru.mem?.length && !ru.disk?.length)) { placeholder('No data', '#d1d5db'); }
         else {
-            const fmtK = v => v >= 1_000_000 ? (v/1_000_000).toFixed(1).replace(/\.0$/,'')+'M'
-                             : v >= 1_000     ? (v/1_000).toFixed(1).replace(/\.0$/,'')+'K' : String(v);
-
-            const toPoints = arr => (arr||[]).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
-            const nodesPoints = toPoints(rt.nodes);
-            const jobsPoints  = toPoints(rt.jobs);
-
-            // 실제 데이터가 있는 타임스탬프 집합
-            const realTs = new Set([
-                ...nodesPoints.filter(p => p.y !== null).map(p => p.x),
-                ...jobsPoints.filter(p => p.y !== null).map(p => p.x),
-            ]);
-
-            // phantom: 전 구간 y=0, 시각적으로 투명 — 빈 구간 툴팁 앵커 역할
-            const step = nodesPoints.length > 1 ? nodesPoints[1].x - nodesPoints[0].x : 60_000;
-            const startTs = Math.min(nodesPoints[0]?.x ?? Date.now(), jobsPoints[0]?.x ?? Date.now());
-            const phantom = [];
-            for (let t = startTs; t <= Date.now(); t += step) phantom.push({ x: t, y: 0 });
-
-            _charts['chart-ray-trend'] = new Chart(rayTrendEl, {
+            const toPoints = arr => (arr || []).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
+            _charts['chart-ray-util'] = new Chart(rayUtilEl, {
                 type: 'line',
                 data: {
                     datasets: [
-                        {
-                            label: '활성 노드 수',
-                            data: nodesPoints,
-                            borderColor: '#1DB877',
-                            backgroundColor: 'rgba(29,184,119,0.08)',
-                            tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true,
-                        },
-                        {
-                            label: '완료 Job 누적',
-                            data: jobsPoints,
-                            borderColor: '#F59E0B',
-                            backgroundColor: 'rgba(245,158,11,0.08)',
-                            tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true,
-                        },
-                        // phantom 두 개: 선 없이 색만 가져가서 빈 구간 툴팁 색 맞춤
-                        { label: '_pn', data: phantom, borderColor: '#1DB877', backgroundColor: '#1DB877', borderWidth: 0, pointRadius: 0, pointHitRadius: 0, fill: false },
-                        { label: '_pj', data: phantom, borderColor: '#F59E0B', backgroundColor: '#F59E0B', borderWidth: 0, pointRadius: 0, pointHitRadius: 0, fill: false },
+                        { label: 'Disk', data: toPoints(ru.disk), borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.08)', tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
+                        { label: 'CPU (physical)', data: toPoints(ru.cpu),  borderColor: '#1DB877', backgroundColor: 'rgba(29,184,119,0.08)', tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
+                        { label: 'Memory (RAM)',   data: toPoints(ru.mem),  borderColor: '#67E8F9', backgroundColor: 'rgba(103,232,249,0.08)', tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true },
                     ],
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: {
-                            display: true, position: 'bottom',
-                            labels: {
-                                font: { size: 11 }, color: '#6b7280', boxWidth: 20, boxHeight: 2, padding: 12,
-                                filter: item => !item.text.startsWith('_p'),
-                            },
-                        },
-                        tooltip: {
-                            filter: ctx => {
-                                if (!ctx.dataset.label.startsWith('_p')) return true;
-                                return !realTs.has(ctx.parsed.x);
-                            },
-                            callbacks: {
-                                label: ctx => {
-                                    if (ctx.dataset.label === '_pn') return ' 활성 노드 수: 0';
-                                    if (ctx.dataset.label === '_pj') return ' 완료 Job 누적: 0';
-                                    return ` ${ctx.dataset.label}: ${fmtK(ctx.parsed.y)}`;
-                                },
-                                labelColor: ctx => {
-                                    const c = ctx.dataset.label === '활성 노드 수' || ctx.dataset.label === '_pn'
-                                        ? '#1DB877' : '#F59E0B';
-                                    return { borderColor: c, backgroundColor: c };
-                                },
-                            },
-                        },
+                        legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 20, boxHeight: 2, padding: 12 } },
+                        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2) ?? '-'}%` } },
                     },
                     scales: {
                         x: {
                             type: 'time',
                             time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
-                            min: Date.now() - 60 * 60 * 1000,
-                            max: Date.now(),
+                            min: Date.now() - 60 * 60 * 1000, max: Date.now(),
                             grid: { color: '#f3f4f6' },
                             ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
                         },
                         y: {
-                            min: 0,
+                            min: 0, max: 100,
                             grid: { color: '#f3f4f6' },
-                            ticks: {
-                                font: { size: 11 }, color: '#9ca3af',
-                                callback: v => v >= 1_000 ? (v/1_000).toFixed(1).replace(/\.0$/,'')+'K' : v,
-                            },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', callback: v => v + '%' },
+                        },
+                    },
+                },
+            });
+        }
+    }
+
+    // ── Node Count ───────────────────────────────────────────────────────────
+    const rayNodeEl = document.getElementById('chart-ray-node-count');
+    if (rayNodeEl) {
+        const rn = _monitoringData?.ray_node_count || {};
+        const finishedEl = document.getElementById('stat-ray-finished');
+        if (finishedEl && rn.finished_jobs != null) {
+            finishedEl.textContent = `완료 Job: ${rn.finished_jobs.toLocaleString()}`;
+        }
+        const placeholder = (msg, color) => rayNodeEl.replaceWith(Object.assign(document.createElement('div'), {
+            style: `position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:20px; font-weight:700; color:${color}; letter-spacing:0.5px; white-space:nowrap;`,
+            textContent: msg,
+        }));
+        if (rn.status === 'error') { placeholder('No connection', '#ef4444'); }
+        else if (rn.status === 'empty' || !rn.types?.length) { placeholder('No data', '#d1d5db'); }
+        else {
+            const NODE_COLORS = ['#F59E0B', '#3B82F6', '#1DB877', '#8B5CF6', '#EF4444'];
+            const toPoints = arr => (arr || []).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
+            const datasets = rn.types.slice(0, 5).map((t, i) => ({
+                label: t.name,
+                data: toPoints(t.data),
+                borderColor: NODE_COLORS[i],
+                backgroundColor: NODE_COLORS[i].replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', 'rgba(').replace(/rgba\(#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2}),0\.15\)/i, (_, r, g, b) => `rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},0.15)`),
+                tension: 0, pointRadius: 0, pointHitRadius: 20, borderWidth: 2, fill: true,
+            }));
+            // hex → rgba 변환 헬퍼 (backgroundColor 재처리)
+            datasets.forEach((ds, i) => { ds.backgroundColor = NODE_COLORS[i] + '26'; });
+            _charts['chart-ray-node-count'] = new Chart(rayNodeEl, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, color: '#6b7280', boxWidth: 20, boxHeight: 2, padding: 12 } },
+                        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y ?? '-'} nodes` } },
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'minute', tooltipFormat: 'HH:mm', displayFormats: { minute: 'HH:mm' } },
+                            min: Date.now() - 60 * 60 * 1000, max: Date.now(),
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', maxTicksLimit: 7 },
+                        },
+                        y: {
+                            min: 0, stacked: true,
+                            grid: { color: '#f3f4f6' },
+                            ticks: { font: { size: 11 }, color: '#9ca3af', stepSize: 1, callback: v => Number.isInteger(v) ? v + ' nodes' : '' },
                         },
                     },
                 },
@@ -1488,26 +1494,36 @@ function updateMonitoringInPlace(newData) {
         _charts['chart-gpu-trend'].update('none');
     }
 
-    // ── Ray ────────────────────────────────────────────────────────
-    const rtNew = newData.ray_trend || {};
-    if (_charts['chart-ray-trend'] && (rtNew.nodes?.length || rtNew.jobs?.length)) {
-        const toP = arr => (arr||[]).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
-        const np = toP(rtNew.nodes), jp = toP(rtNew.jobs);
-        const newRealTs = new Set([...np.filter(p=>p.y!==null).map(p=>p.x), ...jp.filter(p=>p.y!==null).map(p=>p.x)]);
-        const step2 = np.length > 1 ? np[1].x - np[0].x : 60_000;
-        const st2 = Math.min(np[0]?.x ?? Date.now(), jp[0]?.x ?? Date.now());
-        const ph2 = [];
-        for (let t = st2; t <= Date.now(); t += step2) ph2.push({ x: t, y: 0 });
-        const now = Date.now();
-        if (np.length) _charts['chart-ray-trend'].data.datasets[0].data = np;
-        if (jp.length) _charts['chart-ray-trend'].data.datasets[1].data = jp;
-        _charts['chart-ray-trend'].data.datasets[2].data = ph2;
-        _charts['chart-ray-trend'].data.datasets[3].data = ph2;
-        _charts['chart-ray-trend'].options.plugins.tooltip.filter =
-            ctx => !ctx.dataset.label.startsWith('_p') || !newRealTs.has(ctx.parsed.x);
-        _charts['chart-ray-trend'].options.scales.x.min = now - 60 * 60 * 1000;
-        _charts['chart-ray-trend'].options.scales.x.max = now;
-        _charts['chart-ray-trend'].update('none');
+    // ── Ray: Cluster Utilization ──────────────────────────────────
+    const ruNew = newData.ray_cluster_util || {};
+    if (_charts['chart-ray-util'] && ruNew.status === 'ok') {
+        const toP = arr => (arr || []).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
+        const nowTs = Date.now();
+        if (ruNew.disk?.length) _charts['chart-ray-util'].data.datasets[0].data = toP(ruNew.disk);
+        if (ruNew.cpu?.length)  _charts['chart-ray-util'].data.datasets[1].data = toP(ruNew.cpu);
+        if (ruNew.mem?.length)  _charts['chart-ray-util'].data.datasets[2].data = toP(ruNew.mem);
+        _charts['chart-ray-util'].options.scales.x.min = nowTs - 60 * 60 * 1000;
+        _charts['chart-ray-util'].options.scales.x.max = nowTs;
+        _charts['chart-ray-util'].update('none');
+    }
+
+    // ── Ray: Node Count ───────────────────────────────────────────
+    const rnNew = newData.ray_node_count || {};
+    const finishedEl = document.getElementById('stat-ray-finished');
+    if (finishedEl && rnNew.finished_jobs != null) {
+        finishedEl.textContent = `완료 Job: ${rnNew.finished_jobs.toLocaleString()}`;
+    }
+    if (_charts['chart-ray-node-count'] && rnNew.status === 'ok' && rnNew.types?.length) {
+        const toP = arr => (arr || []).map(([ts, v]) => ({ x: ts, y: v !== null ? parseFloat(v) : null }));
+        const nowTs = Date.now();
+        rnNew.types.slice(0, 5).forEach((t, i) => {
+            if (_charts['chart-ray-node-count'].data.datasets[i]) {
+                _charts['chart-ray-node-count'].data.datasets[i].data = toP(t.data);
+            }
+        });
+        _charts['chart-ray-node-count'].options.scales.x.min = nowTs - 60 * 60 * 1000;
+        _charts['chart-ray-node-count'].options.scales.x.max = nowTs;
+        _charts['chart-ray-node-count'].update('none');
     }
 
     // ── AutoML ────────────────────────────────────────────────────
