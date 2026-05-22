@@ -49,6 +49,136 @@ async def gpu_trend(window_minutes: int = 60, step: str = "1m"):
 @router.get("/summary")
 async def summary(request: Request, ns: str | None = None):
     
+    # ================================================================
+    # 테스트용 MOCK — 배포 전 반드시 다시 주석 처리
+    # ns 없음 → 어드민 전체 뷰 / ?ns=kubeflow-researcher1 → 일반 사용자 뷰
+    # ================================================================
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _min = 60_000
+    _pts = lambda base, amp, n=30: [[_now - (n-1-i)*_min, round(base + (i % 7) * amp, 2)] for i in range(n)]
+
+    import os as _os
+    _ADMIN_EMAILS  = {"admin@example.com"}
+    _email         = _os.environ.get("DEV_USER_EMAIL") or get_user_email(request)
+    _admin         = _email in _ADMIN_EMAILS
+    _namespace     = ns or ("kubeflow-admin" if _admin else get_user_namespace(request))
+    _is_admin_view = _admin and (ns is None or ns == "kubeflow-admin")
+
+    _all_automl_jobs = [
+        {"name": "rf-baseline",   "status": "FAILED",    "submitted_by": "researcher1@example.com", "submitted_at": "2026-05-18T10:00:00"},
+        {"name": "xgb-tuning",    "status": "RUNNING",   "submitted_by": "researcher2@example.com", "submitted_at": "2026-05-19T08:30:00"},
+        {"name": "lgbm-v2",       "status": "SUCCEEDED", "submitted_by": "admin@example.com",        "submitted_at": "2026-05-17T14:20:00"},
+        {"name": "nn-experiment", "status": "QUEUED",    "submitted_by": "researcher1@example.com", "submitted_at": "2026-05-19T09:00:00"},
+    ]
+    _all_kserve_eps = [
+        {"name": "sentiment-model",   "namespace": "kubeflow-researcher1", "ready": False},
+        {"name": "image-classifier",  "namespace": "kubeflow-researcher2", "ready": True},
+        {"name": "tabular-regressor", "namespace": "kubeflow-researcher1", "ready": True},
+    ]
+    _all_kserve_err = [
+        {"name": "sentiment-model (kubeflow-researcher1)",   "error_rate": 6.2},
+        {"name": "image-classifier (kubeflow-researcher2)",  "error_rate": 0.3},
+        {"name": "tabular-regressor (kubeflow-researcher1)", "error_rate": 1.1},
+    ]
+    _all_kserve_top5 = [
+        {"name": "sentiment-model (kubeflow-researcher1)",   "latency_ms": 1840},
+        {"name": "tabular-regressor (kubeflow-researcher1)", "latency_ms": 430},
+        {"name": "image-classifier (kubeflow-researcher2)",  "latency_ms": 210},
+    ]
+    _all_rps = [
+        {"name": "sentiment-model (kubeflow-researcher1)",   "data": _pts(12.5, 1.8)},
+        {"name": "image-classifier (kubeflow-researcher2)",  "data": _pts(5.2,  0.9)},
+        {"name": "tabular-regressor (kubeflow-researcher1)", "data": _pts(3.1,  0.5)},
+    ]
+    _all_latency = [
+        {"name": "sentiment-model (kubeflow-researcher1)",   "data": _pts(1.72, 0.08)},
+        {"name": "image-classifier (kubeflow-researcher2)",  "data": _pts(0.21, 0.03)},
+        {"name": "tabular-regressor (kubeflow-researcher1)", "data": _pts(0.43, 0.05)},
+    ]
+    _all_nb_rows = [
+        {"time": "2026-05-19T09:55:00", "ns": "kubeflow-researcher1", "pod": "jupyter-researcher1-0", "cpu": 2.4, "mem": 8.2},
+        {"time": "2026-05-19T09:55:00", "ns": "kubeflow-researcher2", "pod": "jupyter-researcher2-0", "cpu": 0.8, "mem": 3.1},
+        {"time": "2026-05-19T09:55:00", "ns": "kubeflow-admin",       "pod": "jupyter-admin-gpu",     "cpu": 4.0, "mem": 16.0},
+    ]
+    _all_running_nbs = [
+        {"namespace": "kubeflow-researcher1", "owner_name": "researcher1", "pod": "jupyter-researcher1-0"},
+        {"namespace": "kubeflow-researcher2", "owner_name": "researcher2", "pod": "jupyter-researcher2-0"},
+        {"namespace": "kubeflow-admin",       "owner_name": "admin",       "pod": "jupyter-admin-gpu"},
+    ]
+    _all_pvc_groups = [
+        {"ns": "kubeflow-researcher1", "pvcs": [
+            {"name": "dataset-pvc", "allocated_gb": 50.0, "phase": "Bound"},
+            {"name": "model-pvc",   "allocated_gb": 20.0, "phase": "Lost"},
+        ], "total_gb": 70.0, "phase_counts": {"Bound": 1, "Pending": 0, "Lost": 1}},
+        {"ns": "kubeflow-researcher2", "pvcs": [
+            {"name": "workspace",   "allocated_gb": 30.0, "phase": "Bound"},
+        ], "total_gb": 30.0, "phase_counts": {"Bound": 1, "Pending": 0, "Lost": 0}},
+        {"ns": "kubeflow-admin", "pvcs": [
+            {"name": "gpu-dataset", "allocated_gb": 100.0, "phase": "Bound"},
+            {"name": "checkpoints", "allocated_gb": 40.0,  "phase": "Pending"},
+        ], "total_gb": 140.0, "phase_counts": {"Bound": 1, "Pending": 1, "Lost": 0}},
+    ]
+
+    def _ns_filter(items, key):
+        return items if _is_admin_view else [x for x in items if x.get(key) == _namespace]
+    def _name_filter(items):
+        return items if _is_admin_view else [x for x in items if f"({_namespace})" in x["name"]]
+
+    return {
+        "namespace":     _namespace,
+        "user_email":    _email,
+        "is_admin":      _is_admin_view,
+        "is_admin_view": _is_admin_view,
+        # ── GPU (알람: 사용률 critical, 메모리 critical, 온도 critical)
+        "gpu": {"status": "ok", "util_pct": 91, "mem_pct": 92,
+                "mem_used_gb": 22.1, "mem_total_gb": 24.0, "temp_c": 87, "power_w": 285.0},
+        "gpu_trend": {"status": "ok", "data": _pts(75, 3.5)},
+        # ── 시스템 (알람: CPU warning, 메모리 warning)
+        "system": {"status": "ok", "cpu_pct": 83, "cpu_cores": 13.3, "cpu_total_cores": 16,
+                   "mem_pct": 87, "mem_used_gb": 55.7, "mem_total_gb": 64.0},
+        # ── Ray
+        "ray": {"status": "ok", "nodes": 4, "finished_total": 128},
+        # ── AutoML (알람: FAILED warning)
+        "automl": {
+            "error": False,
+            "jobs": _all_automl_jobs if _is_admin_view else [j for j in _all_automl_jobs if j["submitted_by"] == _email],
+        },
+        # ── KServe 엔드포인트 (알람: Not Ready warning)
+        "kserve": {"error": False, "endpoints": _ns_filter(_all_kserve_eps, "namespace")},
+        # ── KServe 에러율 (알람: critical)
+        "kserve_error_rate":   {"status": "ok", "models": _name_filter(_all_kserve_err)},
+        # ── KServe Top5 latency (알람: warning)
+        "kserve_top5_latency": {"status": "ok", "models": _name_filter(_all_kserve_top5)},
+        # ── KServe 시계열
+        "kserve_rps":          {"status": "ok", "series": _name_filter(_all_rps)},
+        "kserve_latency_p95":  {"status": "ok", "series": _name_filter(_all_latency)},
+        # ── MLflow
+        "mlflow": {"status": "ok", "experiments": 12, "models": 7, "runs": 348},
+        "mlflow_models": {"status": "ok", "models": [
+            {"name": "sentiment-classifier", "versions": 5, "stage": "Production"},
+            {"name": "tabular-regressor",    "versions": 3, "stage": "Staging"},
+            {"name": "image-clf-v2",         "versions": 2, "stage": "None"},
+            {"name": "rf-baseline",          "versions": 8, "stage": "Production"},
+        ]},
+        "mlflow_experiment_runs": {"status": "ok", "experiments": [
+            {"name": "sentiment-exp",  "runs": 87},
+            {"name": "tabular-exp",    "runs": 134},
+            {"name": "image-exp",      "runs": 62},
+            {"name": "automl-rf",      "runs": 45},
+            {"name": "baseline-study", "runs": 20},
+        ]},
+        # ── 노트북 자원 사용량 / 실행 중인 노트북 (ns 필터)
+        "notebook_resources": {"status": "ok", "rows":      _ns_filter(_all_nb_rows,     "ns")},
+        "running_notebooks":  {"status": "ok", "notebooks": _ns_filter(_all_running_nbs, "namespace")},
+        # ── PVC (알람: Lost critical)
+        "pvc": {
+            "status": "ok",
+            "groups": _all_pvc_groups if _is_admin_view else [g for g in _all_pvc_groups if g["ns"] == _namespace],
+        },
+    }
+    # ================================================================
+
     namespace = ns or get_user_namespace(request)
     admin = is_admin(request)
     # admin이 자기 namespace(또는 ns 파라미터 없음)를 보는 경우 → 전체 뷰

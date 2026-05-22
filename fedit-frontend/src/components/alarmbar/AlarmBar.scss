@@ -85,6 +85,20 @@
     color: #333;
   }
 
+  &__dismiss-all {
+    background: none;
+    border: none;
+    font-size: 11px;
+    font-weight: 400;
+    color: #aaa;
+    cursor: pointer;
+    padding: 2px 4px;
+
+    &:hover {
+      color: #555;
+    }
+  }
+
   &__empty {
     padding: 20px;
     text-align: center;
@@ -136,14 +150,14 @@
 
     &:hover {
       background: #f8f9fa;
+
+      .alarmbar__item-close {
+        opacity: 1;
+      }
     }
 
-    &--critical .alarmbar__dot {
-      background: #e53935;
-    }
-
-    &--warning .alarmbar__dot {
-      background: #f59e0b;
+    &--confirmed {
+      opacity: 0.45;
     }
   }
 
@@ -153,11 +167,37 @@
     height: 8px;
     border-radius: 50%;
     margin-top: 3px;
+
+    &--critical {
+      background: #e53935;
+    }
+
+    &--warning {
+      background: #f59e0b;
+    }
   }
 
   &__msg {
+    flex: 1;
     line-height: 1.4;
     word-break: keep-all;
+  }
+
+  &__item-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    font-size: 11px;
+    color: #aaa;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s;
+
+    &:hover {
+      color: #555;
+    }
   }
 
   // 웹 푸시 알람 스택

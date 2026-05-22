@@ -257,7 +257,6 @@ async function renderMonitoring() {
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:8px;">
                 <div id="pvc-table-title" class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">${isAdminView ? '사용자별 PVC 현황' : 'PVC 현황'}<span id="alarm-ind-pvc" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-                <div id="pvc-chart-title" style="font-size:12px; color:#9ca3af; margin-left:4px;">· ${isAdminView ? '용량 점유율' : 'PVC 상태'}</div>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
             ${isAdminView ? `
@@ -344,11 +343,8 @@ async function renderMonitoring() {
             </div>
             <div style="flex:2; display:flex; align-items:center; min-height:0; border-left:1px solid #f3f4f6; padding-left:16px;">
                 ${pvcStatus === 'ok' && pvcGroups.length > 0
-                    ? `<div style="display:flex; align-items:center; gap:12px; width:100%; height:100%;">
-                           <div style="flex:1; display:flex; align-items:center; justify-content:center; height:100%;">
-                               <canvas id="chart-pvc-donut" width="180" height="180"></canvas>
-                           </div>
-                           <div id="chart-pvc-legend" style="flex:2; font-size:12px; color:#6b7280; line-height:2; min-width:0;"></div>
+                    ? `<div style="display:flex; align-items:center; justify-content:center; width:100%; height:100%;">
+                           <canvas id="chart-pvc-donut" width="180" height="180"></canvas>
                        </div>`
                     : noDataDiv
                 }
@@ -1128,9 +1124,6 @@ async function setupMonitoringPage() {
             },
         });
 
-        const legendEl = document.getElementById('chart-pvc-legend');
-        legendEl.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; padding:4px 12px; min-width:140px;';
-
         const myNs          = _monitoringData?.namespace ?? '';
         const myGroup       = pvcGroups.find(g => g.ns === myNs);
         const myPhaseTotals = {
@@ -1142,42 +1135,6 @@ async function setupMonitoringPage() {
         const myStatusValues = myStatusLabels.map(k => myPhaseTotals[k]);
         const myStatusColors = myStatusLabels.map(k => PHASE_COLORS[k]);
 
-        const renderLegend = (tab, totals) => {
-            const isStorage = tab === 'storage';
-            const labels = isStorage ? storageLabels : (totals === myPhaseTotals ? myStatusLabels : statusLabels);
-            const values = isStorage ? storageValues : (totals === myPhaseTotals ? myStatusValues : statusValues);
-            const colors = isStorage ? storageColors : (totals === myPhaseTotals ? myStatusColors : statusColors);
-            const total  = values.reduce((s, v) => s + v, 0);
-            const activeTotals = totals ?? phaseTotals;
-
-            const items = isStorage
-                ? labels.map((l, i) => ({ label: l, value: values[i], color: colors[i], empty: false }))
-                : ALL_PHASES.map(p => ({
-                    label: p,
-                    value: activeTotals[p],
-                    color: PHASE_COLORS[p],
-                    empty: activeTotals[p] === 0,
-                  }));
-
-            legendEl.innerHTML = items.map(item => {
-                const val = isStorage ? item.value.toFixed(1) + ' GB' : item.value + '개';
-                const pct = total > 0 ? Math.round(item.value / total * 100) : 0;
-                return `
-                <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #f3f4f6;">
-                    <div style="width:12px; height:12px; border-radius:3px; background:${item.color}; flex-shrink:0;"></div>
-                    <div style="flex:1;">
-                        <div style="font-size:13px; font-weight:600; color:#111827;">${esc(item.label)}</div>
-                        <div style="font-size:11px; color:#9ca3af;">${val}${!item.empty ? ' · ' + pct + '%' : ''}</div>
-                    </div>
-                </div>`;
-            }).join('');
-
-            chart.options.plugins.tooltip.callbacks.label =
-                ctx => ` ${ctx.label}: ${isStorage ? ctx.parsed.toFixed(1) + ' GB' : ctx.parsed + '개'}`;
-        };
-
-        renderLegend(isAdminView ? 'storage' : 'status', phaseTotals);
-
         if (isAdminView) {
             const TAB_ON  = 'padding:4px 10px; border-radius:6px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;';
             const TAB_OFF = 'padding:4px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; color:#6b7280; font-size:11px; font-weight:600; cursor:pointer;';
@@ -1186,7 +1143,6 @@ async function setupMonitoringPage() {
             const btnMine  = document.getElementById('pvc-left-tab-mine');
             const viewAll  = document.getElementById('pvc-view-all');
             const viewMine = document.getElementById('pvc-view-mine');
-            const chartTitle = document.getElementById('pvc-chart-title');
             const tableTitle = document.getElementById('pvc-table-title');
 
             const switchMode = (mode) => {
@@ -1199,14 +1155,14 @@ async function setupMonitoringPage() {
                 viewMine.style.display = isMine ? ''     : 'none';
                 btnAll.style.cssText   = isMine ? TAB_OFF : TAB_ON;
                 btnMine.style.cssText  = isMine ? TAB_ON  : TAB_OFF;
-                if (chartTitle) chartTitle.textContent = isMine ? 'PVC 상태' : '용량 점유율';
                 if (tableTitle) tableTitle.textContent = isMine ? 'PVC 현황' : '사용자별 PVC 현황';
 
                 chart.data.labels = newLabels;
                 chart.data.datasets[0].data = newValues;
                 chart.data.datasets[0].backgroundColor = newColors;
+                chart.options.plugins.tooltip.callbacks.label =
+                    ctx => ` ${ctx.label}: ${isMine ? ctx.parsed + '개' : ctx.parsed.toFixed(1) + ' GB'}`;
                 chart.update();
-                renderLegend(isMine ? 'status' : 'storage', isMine ? myPhaseTotals : phaseTotals);
             };
 
             btnAll?.addEventListener('click',  () => switchMode('all'));
