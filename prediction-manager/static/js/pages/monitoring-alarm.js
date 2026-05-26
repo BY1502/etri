@@ -1,6 +1,36 @@
 // ── 알람 전역 상태 ────────────────────────────────────────────────────────────
 const _alarmHistory      = [];
 const _collapsedSections = new Set();
+
+// ── 테스트용 mock 이력 (배포 전 삭제) ─────────────────────────────────────────
+;(function _seedMockAlarmHistory() {
+    const _fmt = ts => new Date(ts).toLocaleString('ko-KR', {
+        year:'numeric', month:'2-digit', day:'2-digit',
+        hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false,
+    }).replace(/\. /g,'-').replace('.','');
+    const now = Date.now();
+    const min = 60_000;
+    [
+        { key:'alarm-ind-gpu',    msg:'GPU 사용률 위험 (91%)',          trig: now - 40*min, res: now - 25*min },
+        { key:'alarm-ind-gpu',    msg:'GPU 온도 위험 (87°C)',           trig: now - 90*min, res: now - 60*min },
+        { key:'alarm-ind-system', msg:'CPU 사용률 경고 (83%)',          trig: now - 30*min, res: now - 10*min },
+        { key:'alarm-ind-system', msg:'메모리 사용률 경고 (87%)',       trig: now - 20*min, res: null          },
+        { key:'alarm-ind-pvc',    msg:'Lost 상태 PVC 감지 (1개)',       trig: now - 15*min, res: null          },
+        { key:'alarm-ind-kserve', msg:'Not Ready 엔드포인트 감지 (1개)',trig: now - 50*min, res: now - 35*min },
+        { key:'alarm-ind-automl', msg:'FAILED Job 감지 (rf-baseline)',  trig: now - 70*min, res: now - 55*min },
+    ].forEach(({ key, msg, trig, res }, i) => {
+        _alarmHistory.push({
+            id:          `${key}-mock-${i}`,
+            key,
+            msg,
+            triggeredAt: _fmt(trig),
+            triggeredTs: trig,
+            resolvedAt:  res ? _fmt(res) : null,
+            resolvedTs:  res ?? null,
+        });
+    });
+})();
+// ──────────────────────────────────────────────────────────────────────────────
 const _allItemsSections  = new Set();
 let   _activeFilter      = 'all';
 let   _activeStatus      = 'all';
@@ -295,11 +325,23 @@ window._openAlarmSidebar = function () {
     _renderAlarmSidebar();
     document.getElementById('pm-alarm-sidebar')?.classList.add('open');
     document.getElementById('pm-alarm-overlay')?.classList.add('open');
+    const btn = document.getElementById('pm-alarm-btn');
+    if (btn) {
+        btn.style.right        = '380px';
+        btn.style.borderRadius = '14px 0 0 14px';
+        btn.style.boxShadow    = '0 2px 8px rgba(59,130,246,0.08)';
+    }
 };
 
 window._closeAlarmSidebar = function () {
     document.getElementById('pm-alarm-sidebar')?.classList.remove('open');
     document.getElementById('pm-alarm-overlay')?.classList.remove('open');
+    const btn = document.getElementById('pm-alarm-btn');
+    if (btn) {
+        btn.style.right        = '28px';
+        btn.style.borderRadius = '14px';
+        btn.style.boxShadow    = '0 4px 10px rgba(59,130,246,0.15)';
+    }
 };
 
 window._setAlarmFilter = function (key) {

@@ -139,6 +139,21 @@ async def summary(request: Request, ns: str | None = None):
                    "mem_pct": 87, "mem_used_gb": 55.7, "mem_total_gb": 64.0},
         # ── Ray
         "ray": {"status": "ok", "nodes": 4, "finished_total": 128},
+        "ray_trend": {"status": "ok", "data": _pts(3.2, 0.4)},
+        "ray_cluster_util": {
+            "status": "ok",
+            "cpu":  _pts(12, 8, n=60),
+            "mem":  _pts(38, 6, n=60),
+            "disk": _pts(14, 2, n=60),
+        },
+        "ray_node_count": {
+            "status": "ok",
+            "types": [
+                {"name": "worker-node-type-0", "data": [[_now - (59-i)*_min, 5 if i < 20 else 15 if i < 35 else 25 if i < 50 else 16] for i in range(60)]},
+                {"name": "head-node-type",     "data": [[_now - (59-i)*_min, 1] for i in range(60)]},
+            ],
+            "finished_jobs": 137,
+        },
         # ── AutoML (알람: FAILED warning)
         "automl": {
             "error": False,

@@ -69,6 +69,11 @@ body {
 }
 .pm-alarm-btn:hover { background: var(--bg); color: var(--text); }
 .pm-alarm-btn.active { background: var(--accent-bg); color: var(--accent); }
+#pm-alarm-btn {
+    transition: right 0.28s cubic-bezier(0.4,0,0.2,1),
+                border-radius 0.28s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.28s;
+}
 .pm-alarm-badge {
     position: absolute;
     top: 4px; right: 4px;
@@ -153,7 +158,7 @@ body {
 .pm-alarm-section-arrow { font-size: 10px; color: #9ca3af; transition: transform 0.2s; }
 .pm-alarm-section-arrow.open { transform: rotate(180deg); }
 .pm-alarm-section-items { display: none; }
-.pm-alarm-section-items.open { display: block; border-left: 2px solid #f3f4f6; margin-left: 20px; }
+.pm-alarm-section-items.open { display: block; margin-left: 20px; }
 .pm-alarm-item {
     padding: 10px 20px 10px 14px;
     border-bottom: 1px solid #f9fafb;

@@ -130,19 +130,15 @@ async function renderMonitoring() {
         </tr>`).join('');
 
     return `
-    <div class="pm-page-header" style="display:flex; align-items:center; justify-content:space-between;">
-        <div>
-            <h1>MLOps 모니터링</h1>
-            <p style="margin:0;">GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.</p>
-        </div>
-        <button class="pm-alarm-btn" id="pm-alarm-btn" onclick="window._openAlarmSidebar()" title="알람 이력">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            <span class="pm-alarm-badge" id="pm-alarm-badge" style="display:none;">0</span>
-        </button>
+    <div class="pm-page-header">
+        <h1>MLOps 모니터링</h1>
+        <p style="margin:0;">GPU/CPU, Ray, AutoML, KServe 상태를 모니터링 합니다.</p>
     </div>
+
+    <button class="pm-alarm-btn" id="pm-alarm-btn" onclick="document.getElementById('pm-alarm-sidebar')?.classList.contains('open') ? window._closeAlarmSidebar() : window._openAlarmSidebar()" title="알람 이력" style="position:fixed; bottom:28px; right:28px; z-index:900; width:auto; padding:0 18px; gap:7px; flex-direction:row; font-size:13px; font-weight:600; color:#fff; border:none; border-radius:14px; background:#3b82f6; height:44px; box-shadow:0 4px 10px rgba(59,130,246,0.15);">
+        <img src="static/icons/log.svg" width="22" height="22" alt="Log" style="display:block; background:transparent; filter:brightness(0) invert(1);">
+        Log
+    </button>
 
     ${prometheusWarning}
 
@@ -386,24 +382,20 @@ async function renderMonitoring() {
         <div class="pm-section-title" style="font-size:15px; margin-bottom:0; flex-shrink:0;">Ray 클러스터</div>
         <div class="pm-ray-inner">
             <div id="section-ray-util" style="flex:1; min-height:0; background:#fff; border:1px solid transparent; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
-                <div style="text-align:center; font-size:13px; font-weight:600; color:#374151; margin-bottom:6px; flex-shrink:0;">Cluster Utilization</div>
-                <div style="display:flex; gap:12px; flex:1; min-height:0;">
-                    <div style="flex:1; min-height:0; position:relative;">
-                        <canvas id="chart-ray-util"></canvas>
-                    </div>
-                    <div id="legend-ray-util" style="width:128px; flex-shrink:0; display:flex; flex-direction:column; justify-content:center; gap:0;"></div>
+                <div style="text-align:center; font-size:13px; font-weight:600; color:#374151; margin-bottom:4px; flex-shrink:0;">Cluster Utilization</div>
+                <div id="legend-ray-util" style="display:flex; flex-wrap:wrap; gap:4px 14px; margin-bottom:6px; flex-shrink:0; justify-content:center;"></div>
+                <div style="flex:1; min-height:0; position:relative;">
+                    <canvas id="chart-ray-util"></canvas>
                 </div>
             </div>
             <div id="section-ray-node" style="flex:1; min-height:0; background:#fff; border:1px solid transparent; border-radius:8px; display:flex; flex-direction:column; padding:12px;">
-                <div style="position:relative; text-align:center; margin-bottom:6px; flex-shrink:0;">
+                <div style="position:relative; text-align:center; margin-bottom:4px; flex-shrink:0;">
                     <div style="font-size:13px; font-weight:600; color:#374151;">Node Count</div>
                     <div id="stat-ray-finished" style="position:absolute; right:0; top:0; font-size:11px; color:#6b7280;"></div>
                 </div>
-                <div style="display:flex; gap:12px; flex:1; min-height:0;">
-                    <div style="flex:1; min-height:0; position:relative;">
-                        <canvas id="chart-ray-node-count"></canvas>
-                    </div>
-                    <div id="legend-ray-node" style="width:128px; flex-shrink:0; display:flex; flex-direction:column; justify-content:center; gap:0;"></div>
+                <div id="legend-ray-node" style="display:flex; flex-wrap:wrap; gap:4px 14px; margin-bottom:6px; flex-shrink:0; justify-content:center;"></div>
+                <div style="flex:1; min-height:0; position:relative;">
+                    <canvas id="chart-ray-node-count"></canvas>
                 </div>
             </div>
         </div>
@@ -960,13 +952,10 @@ async function setupMonitoringPage() {
             const last = ds.data.length ? ds.data[ds.data.length - 1]?.y : null;
             const val  = last != null ? fmtVal(last) : '-';
             const label = String(ds.label).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            return `
-            <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid #f3f4f6;">
-                <div style="width:10px; height:10px; border-radius:2px; background:${ds.borderColor}; flex-shrink:0;"></div>
-                <div style="min-width:0; flex:1;">
-                    <div style="font-size:12px; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${label}">${label}</div>
-                    <div style="font-size:11px; color:#9ca3af;">${val}</div>
-                </div>
+            return `<div style="display:flex; align-items:center; gap:5px;">
+                <div style="width:12px; height:12px; background:${ds.borderColor}; flex-shrink:0;"></div>
+                <span style="font-size:11px; color:#6b7280; white-space:nowrap;">${label}</span>
+                <span style="font-size:11px; color:#9ca3af; white-space:nowrap;">${val}</span>
             </div>`;
         }).join('');
     };
