@@ -1070,15 +1070,10 @@ async function setupMonitoringPage() {
         const PHASE_COLORS  = { Bound: '#3b82f6', Pending: '#f59e0b', Lost: '#ef4444' };
         const ALL_PHASES    = ['Bound', 'Pending', 'Lost'];
 
-        const phaseTotals = pvcGroups.reduce(
-            (acc, g) => {
-                acc.Bound   += g.phase_counts?.Bound   ?? 0;
-                acc.Pending += g.phase_counts?.Pending ?? 0;
-                acc.Lost    += g.phase_counts?.Lost    ?? 0;
-                return acc;
-            },
-            { Bound: 0, Pending: 0, Lost: 0 }
-        );
+        const phaseTotals = { Bound: 0, Pending: 0, Lost: 0 };
+        pvcGroups.flatMap(g => g.pvcs ?? []).forEach(p => {
+            if (p.phase in phaseTotals) phaseTotals[p.phase] += p.allocated_gb ?? 0;
+        });
         const statusLabels  = ALL_PHASES.filter(k => phaseTotals[k] > 0);
         const statusValues  = statusLabels.map(k => phaseTotals[k]);
         const statusColors  = statusLabels.map(k => PHASE_COLORS[k]);
@@ -1106,7 +1101,7 @@ async function setupMonitoringPage() {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => ` ${ctx.label}: ${ctx.parsed + '개'}`,
+                            label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)} GB`,
                         },
                     },
                 },
@@ -1115,11 +1110,10 @@ async function setupMonitoringPage() {
 
         const myNs          = _monitoringData?.namespace ?? '';
         const myGroup       = pvcGroups.find(g => g.ns === myNs);
-        const myPhaseTotals = {
-            Bound:   myGroup?.phase_counts?.Bound   ?? 0,
-            Pending: myGroup?.phase_counts?.Pending ?? 0,
-            Lost:    myGroup?.phase_counts?.Lost    ?? 0,
-        };
+        const myPhaseTotals = { Bound: 0, Pending: 0, Lost: 0 };
+        (myGroup?.pvcs ?? []).forEach(p => {
+            if (p.phase in myPhaseTotals) myPhaseTotals[p.phase] += p.allocated_gb ?? 0;
+        });
         const myStatusLabels = ALL_PHASES.filter(k => myPhaseTotals[k] > 0);
         const myStatusValues = myStatusLabels.map(k => myPhaseTotals[k]);
         const myStatusColors = myStatusLabels.map(k => PHASE_COLORS[k]);
@@ -1150,7 +1144,7 @@ async function setupMonitoringPage() {
                 chart.data.datasets[0].data = newValues;
                 chart.data.datasets[0].backgroundColor = newColors;
                 chart.options.plugins.tooltip.callbacks.label =
-                    ctx => ` ${ctx.label}: ${isMine ? ctx.parsed + '개' : ctx.parsed.toFixed(1) + ' GB'}`;
+                    ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)} GB`;
                 chart.update();
             };
 
@@ -1476,11 +1470,14 @@ function updateMonitoringInPlace(newData) {
             newValues = pvcGroups.map(g => g.total_gb ?? 0);
             newColors = CHART_COLORS.slice(0, newLabels.length);
         } else {
-            const myGroup = pvcGroups.find(g => g.ns === currentNs);
-            const totals  = myGroup?.phase_counts ?? { Bound: 0, Pending: 0, Lost: 0 };
-            const phases  = ['Bound', 'Pending', 'Lost'].filter(k => totals[k] > 0);
+            const myGroup   = pvcGroups.find(g => g.ns === currentNs);
+            const gbByPhase = { Bound: 0, Pending: 0, Lost: 0 };
+            (myGroup?.pvcs ?? []).forEach(p => {
+                if (p.phase in gbByPhase) gbByPhase[p.phase] += p.allocated_gb ?? 0;
+            });
+            const phases  = ['Bound', 'Pending', 'Lost'].filter(k => gbByPhase[k] > 0);
             newLabels = phases;
-            newValues = phases.map(k => totals[k]);
+            newValues = phases.map(k => gbByPhase[k]);
             newColors = phases.map(k => PHASE_COLORS[k]);
         }
         if (newValues.length && !newValues.every(v => v === 0)) {
