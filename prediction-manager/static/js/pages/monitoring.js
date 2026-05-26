@@ -145,30 +145,30 @@ async function renderMonitoring() {
     <div id="section-gpu" class="pm-gpu-grid-wrapper">
 
         <!-- 1+2. GPU (사용률 + 메모리) -->
-        <div class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:8px;">
+        <div class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:12px;">
             <div style="display:flex; align-items:center;">
                 <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">GPU<span id="alarm-ind-gpu" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e53935;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
             </div>
-            <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:10px;">
-                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
+            <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:14px;">
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:14px 10px;">
                     ${donutChart('chart-gpu-util', 'GPU 사용률', gpuUtil !== null ? gpuUtil + '%' : null, ' ', gpuUtil, '#f59e0b')}
                 </div>
-                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:14px 10px;">
                     ${donutChart('chart-gpu-mem', 'GPU 메모리', gpuMemUsed, gpuMemTotal ?? '', gpuMemPct, '#ef4444')}
                 </div>
             </div>
         </div>
 
         <!-- 3+4. 시스템 (CPU + 메모리) -->
-        <div id="section-system" class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:8px;">
+        <div id="section-system" class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:12px;">
             <div style="display:flex; align-items:center;">
                 <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">시스템<span id="alarm-ind-system" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#f59e0b;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
             </div>
-            <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:10px;">
-                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
+            <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:14px;">
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:14px 10px;">
                     ${donutChart('chart-cpu', 'CPU', cpuCores !== null ? cpuCores.toFixed(2) + ' core' : null, cpuTotal !== null ? cpuTotal + ' core' : '', cpuPct, '#3b82f6')}
                 </div>
-                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:10px 8px;">
+                <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:14px 10px;">
                     ${donutChart('chart-mem', '메모리', memUsedGb !== null ? memUsedGb.toFixed(1) + ' GB' : null, memTotalGb !== null ? memTotalGb + ' GB' : '', memPct, '#8b5cf6')}
                 </div>
             </div>

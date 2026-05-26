@@ -31,11 +31,10 @@ const _collapsedSections = new Set();
     });
 })();
 // ──────────────────────────────────────────────────────────────────────────────
-const _allItemsSections  = new Set();
 let   _activeFilter      = 'all';
 let   _activeStatus      = 'all';
 
-const MAX_HISTORY_PER_KEY = 10;
+const MAX_HISTORY_PER_KEY = 20;
 const PREVIEW_COUNT       = 2;
 
 const _ZONE = {
@@ -262,13 +261,13 @@ function _renderAlarmSidebar() {
             if (_activeStatus === 'resolved') return !!h.resolvedAt;
             return true;
         });
+        if (_activeFilter === 'all' && history.length === 0) return '';
         const active     = history.filter(h => !h.resolvedAt).length;
         const hasAlarm   = active > 0;
-        const isOpen     = !_collapsedSections.has(key);
-        const showAll    = _allItemsSections.has(key);
+        const isOpen     = _activeFilter !== 'all' || !_collapsedSections.has(key);
+        const showAll    = _activeFilter !== 'all';
         const displayed  = showAll ? history.slice().reverse() : history.slice().reverse().slice(0, PREVIEW_COUNT);
         const remaining  = history.length - PREVIEW_COUNT;
-        const dotColor   = hasAlarm ? '#ef4444' : '#d1d5db';
 
         const itemsHtml = history.length === 0
             ? `<div class="pm-alarm-empty">이력 없음</div>`
@@ -289,18 +288,17 @@ function _renderAlarmSidebar() {
                     <div class="pm-alarm-item-time">${timeline}</div>
                 </div>`;
             }).join('')
-            + (!showAll && remaining > 0 ? `
-                <button class="pm-alarm-more-btn"
-                    onclick="window._expandSection('${key}')">더보기 (${remaining}건 더)</button>
-            ` : '');
+            + (!showAll && remaining > 0
+                ? `<button class="pm-alarm-more-btn" onclick="window._setAlarmFilter('${key}')">${label} 전체 보기</button>`
+                : '');
 
         return `
         <div class="pm-alarm-section">
-            <div class="pm-alarm-section-header" onclick="window._toggleSection('${key}')">
+            <div class="pm-alarm-section-header"${_activeFilter === 'all' ? ` onclick="window._toggleSection('${key}')"` : ' style="cursor:default"'}>
                 <div class="pm-alarm-section-title">${label}</div>
                 <div style="display:flex;align-items:center;gap:8px;">
                     <span class="pm-alarm-section-count${hasAlarm ? ' has-alarm' : ''}">${history.length}건</span>
-                    <span class="pm-alarm-section-arrow${isOpen ? ' open' : ''}">▾</span>
+                    ${_activeFilter === 'all' ? `<img src="static/icons/${isOpen ? 'chevron-up' : 'chevron-down'}.svg" width="16" height="16" style="display:block; opacity:0.45;">` : ''}
                 </div>
             </div>
             <div class="pm-alarm-section-items${isOpen ? ' open' : ''}">${itemsHtml}</div>
@@ -357,10 +355,5 @@ window._setAlarmStatus = function (status) {
 window._toggleSection = function (key) {
     if (_collapsedSections.has(key)) _collapsedSections.delete(key);
     else _collapsedSections.add(key);
-    _renderAlarmSidebar();
-};
-
-window._expandSection = function (key) {
-    _allItemsSections.add(key);
     _renderAlarmSidebar();
 };
