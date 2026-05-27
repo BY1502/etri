@@ -313,7 +313,9 @@ window._navToSection = function (sectionId) {
   requestAnimationFrame(() => {
     const el = document.getElementById(sectionId);
     if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - 20;
+    const headerEl = document.querySelector(".pm-navbar");
+    const offset = headerEl ? headerEl.offsetHeight + 16 : 20;
+    const top = el.getBoundingClientRect().top + window.scrollY - offset;
     window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   });
 };

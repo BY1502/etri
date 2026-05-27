@@ -1,5 +1,5 @@
 import { ReactComponent as BellIcon } from 'assets/images/home/bell_icon_steelblue.svg';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AlarmBar.scss';
 
@@ -168,22 +168,37 @@ export default function AlarmBar() {
     setVersion((n) => n + 1);
   };
 
-  const dismissToast = (id: string) => {
+  const dismissToast = useCallback((id: string) => {
     const timer = toastTimersRef.current.get(id);
     if (timer) {
       clearTimeout(timer);
       toastTimersRef.current.delete(id);
     }
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
 
-  const scheduleToasts = (next: Toast[]) => {
-    setToasts((prev) => [...next, ...prev].slice(0, 5));
-    next.forEach((t) => {
-      const timer = setTimeout(() => dismissToast(t.id), 4300);
-      toastTimersRef.current.set(t.id, timer);
-    });
-  };
+  const scheduleToasts = useCallback(
+    (next: Toast[]) => {
+      setToasts((prev) => {
+        const combined = [...next, ...prev];
+        // 5개 초과로 밀려난 토스트의 타이머 즉시 취소
+        combined.slice(5).forEach((t) => {
+          const existingTimer = toastTimersRef.current.get(t.id);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+            toastTimersRef.current.delete(t.id);
+          }
+        });
+        return combined.slice(0, 5);
+      });
+      // next가 5개를 초과하더라도 실제 표시된 것만 타이머 등록
+      next.slice(0, 5).forEach((t) => {
+        const timer = setTimeout(() => dismissToast(t.id), 4300);
+        toastTimersRef.current.set(t.id, timer);
+      });
+    },
+    [dismissToast],
+  );
 
   const handleToastClick = (toast: Toast) => {
     dismissToast(toast.id);
@@ -318,12 +333,8 @@ export default function AlarmBar() {
           <div
             key={toast.id}
             className={`alarmbar__toast alarmbar__toast--${toast.level}`}
-            role="button"
-            tabIndex={0}
+            role="alert"
             onClick={() => handleToastClick(toast)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleToastClick(toast);
-            }}
           >
             <div className="alarmbar__toast-header">
               <span className="alarmbar__toast-title">

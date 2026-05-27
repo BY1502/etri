@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import sqlite3
 import threading
 import random
@@ -56,6 +57,11 @@ def _fmt_now() -> str:
 
 def _rand6() -> str:
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+
+
+def _msg_fingerprint(msg: str) -> str:
+    """숫자 값 부분을 제거해 동일 종류의 알람인지 식별하는 키."""
+    return re.sub(r"\s*\([\d.,]+[^)]*\)", "", msg).strip()
 
 
 def eval_alarms(data: dict) -> list[dict]:
@@ -143,7 +149,8 @@ def eval_alarms(data: dict) -> list[dict]:
 def update_alarms(data: dict):
     """summary 데이터로 DB 이력 갱신 (신규 발생 INSERT, 해소된 건 UPDATE)."""
     current = eval_alarms(data)
-    current_pairs = {(a["key"], a["msg"]) for a in current}
+    # 핑거프린트(숫자 제거) 기준으로 동일 알람 식별 → 값이 86%→88%로 바뀌어도 같은 알람 취급
+    current_fps = {(a["key"], _msg_fingerprint(a["msg"])): a for a in current}
     now_ms = _now_ms()
     now_str = _fmt_now()
 
@@ -155,18 +162,30 @@ def update_alarms(data: dict):
                 "SELECT id, key, msg FROM alarms WHERE resolved_at IS NULL"
             ).fetchall()
 
-            # 해소 처리
+            active_fps: dict[tuple, str] = {}  # (key, fp) → row_id
             for row_id, key, msg in rows:
-                if (key, msg) not in current_pairs:
+                fp = _msg_fingerprint(msg)
+                active_fps[(key, fp)] = row_id
+
+            # 해소 처리: 핑거프린트가 현재 알람에 없으면 resolved
+            for (key, fp), row_id in active_fps.items():
+                if (key, fp) not in current_fps:
                     conn.execute(
                         "UPDATE alarms SET resolved_at=?, resolved_ts=? WHERE id=?",
                         (now_str, now_ms, row_id),
                     )
 
-            # 신규 INSERT (이미 active인 (key, msg) 조합 skip)
-            active_pairs = {(key, msg) for _, key, msg in rows}
-            for a in current:
-                if (a["key"], a["msg"]) not in active_pairs:
+            # 신규/갱신 처리
+            for (key, fp), a in current_fps.items():
+                if (key, fp) in active_fps:
+                    # 이미 active인 알람 — 메시지(값)만 갱신
+                    row_id = active_fps[(key, fp)]
+                    conn.execute(
+                        "UPDATE alarms SET msg=?, level=? WHERE id=?",
+                        (a["msg"], a["level"], row_id),
+                    )
+                else:
+                    # 진짜 신규 알람
                     new_id = f"{a['key']}-{now_ms}-{_rand6()}"
                     conn.execute(
                         """INSERT INTO alarms

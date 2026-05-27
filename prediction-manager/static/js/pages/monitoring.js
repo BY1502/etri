@@ -1566,9 +1566,12 @@ async function setupMonitoringPage() {
   if (scrollTo) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document
-          .getElementById(scrollTo)
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        const el = document.getElementById(scrollTo);
+        if (!el) return;
+        const headerEl = document.querySelector(".pm-navbar");
+        const offset = headerEl ? headerEl.offsetHeight + 16 : 20;
+        const top = el.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
       });
     });
   }
