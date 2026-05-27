@@ -64,7 +64,7 @@ function updateAlarmIndicators(data) {
   Object.entries(byKey).forEach(([key, { msgs, level }]) => {
     const el = document.getElementById(`alarm-ind-${key}`);
     if (el) {
-      el.style.display = "inline-flex";
+      el.style.display = "flex";
       const dot = el.querySelector("[data-tip]");
       if (dot) {
         dot.setAttribute("data-tip", msgs.join("\n"));

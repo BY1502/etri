@@ -1042,6 +1042,10 @@ body.standalone-mode .pm-content {
   flex: 1;
   min-height: 0;
 }
+.pm-ray-inner > div {
+  min-width: 0;
+  overflow: hidden;
+}
 @media (max-width: 900px) {
   .pm-ray-section {
     max-height: none !important;
@@ -1056,6 +1060,35 @@ body.standalone-mode .pm-content {
   }
 }
 
+.pm-pvc-body {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+.pm-pvc-body > div {
+  min-width: 0;
+}
+@media (max-width: 700px) {
+  #section-pvc {
+    max-height: none !important;
+  }
+  .pm-pvc-body {
+    flex-direction: column;
+  }
+  .pm-pvc-body > div:first-child {
+    flex: none !important;
+  }
+  .pm-pvc-body > div:last-child {
+    flex: none !important;
+    min-height: 200px;
+    border-left: none !important;
+    border-top: 1px solid #f3f4f6;
+    padding-left: 0 !important;
+    padding-top: 16px;
+  }
+}
+
 .pm-monitor-card {
   flex: 1;
   min-width: 0;
@@ -1066,6 +1099,7 @@ body.standalone-mode .pm-content {
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.05),
     0 2px 10px rgba(0, 0, 0, 0.04);
+  position: relative;
 }
 .pm-fixed-card {
   min-height: 318px;

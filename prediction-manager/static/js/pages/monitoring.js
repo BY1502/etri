@@ -177,8 +177,9 @@ async function renderMonitoring() {
 
         <!-- 1+2. GPU (사용률 + 메모리) -->
         <div class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:12px;">
+            <span id="alarm-ind-gpu" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
             <div style="display:flex; align-items:center;">
-                <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">GPU<span id="alarm-ind-gpu" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e53935;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:0;">GPU</div>
             </div>
             <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:14px;">
                 <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:14px 10px;">
@@ -192,8 +193,9 @@ async function renderMonitoring() {
 
         <!-- 3+4. 시스템 (CPU + 메모리) -->
         <div id="section-system" class="pm-monitor-card pm-gpu-donut" style="display:flex; flex-direction:column; gap:12px;">
+            <span id="alarm-ind-system" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
             <div style="display:flex; align-items:center;">
-                <div class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">시스템<span id="alarm-ind-system" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#f59e0b;color:white;font-size:10px;font-weight:700;cursor:default;">!</span></span></div>
+                <div class="pm-section-title" style="font-size:15px; margin-bottom:0;">시스템</div>
             </div>
             <div style="flex:1; display:flex; flex-wrap:wrap; align-items:stretch; gap:14px;">
                 <div style="flex:1; flex:1 1 140px; background:#fff; border:1px solid #eaecf0; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:14px 10px;">
@@ -228,8 +230,9 @@ async function renderMonitoring() {
                 pct >= 85 ? "#EF4444" : pct >= 75 ? "#b07415" : "#0d8a57";
               return `
         <div id="section-gpu-temp" class="pm-monitor-card pm-fixed-card" style="display:flex; flex-direction:column;">
+            <span id="alarm-ind-gpu-temp" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
-                <div style="font-size:15px; font-weight:600; color:#6b7280; display:flex; align-items:center; gap:4px;">온도<span id="alarm-ind-gpu-temp" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#e53935;color:white;font-size:9px;font-weight:700;cursor:default;">!</span></span></div>
+                <div style="font-size:15px; font-weight:600; color:#6b7280;">온도</div>
             </div>
             <div style="flex:1; display:flex; align-items:center; justify-content:center; padding-bottom:14px; border-bottom:1px solid #eaecf0;">
                 <div style="display:flex; align-items:flex-end; gap:12px;">
@@ -297,24 +300,17 @@ async function renderMonitoring() {
 
     <div class="pm-monitor-2col" style="margin-bottom:14px;">
     <div id="section-pvc" class="pm-monitor-card pm-fixed-card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-shrink:0;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <div id="pvc-table-title" class="pm-section-title" style="font-size:15px; margin-bottom:0; display:flex; align-items:center; gap:6px;">${isAdminView ? "사용자별 PVC 현황" : "PVC 현황"}<span id="alarm-ind-pvc" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-            ${
-              isAdminView
-                ? `
-            <div style="display:flex; gap:4px;">
-                <button id="pvc-left-tab-all"  style="padding:4px 10px; border-radius:6px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;">전체</button>
-                <button id="pvc-left-tab-mine" style="padding:4px 10px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; color:#6b7280; font-size:11px; font-weight:600; cursor:pointer;">내 PVC</button>
-            </div>`
-                : ""
-            }
-            </div>
-        </div>
-        <div style="display:flex; gap:16px; flex:1; min-height:0;">
-            <div style="flex:3; min-height:0; overflow-y:auto; border-radius:6px; position:relative;">
+        <span id="alarm-ind-pvc" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
+        <div class="pm-pvc-body">
+            <div style="flex:3; display:flex; flex-direction:column; min-height:0;">
+            ${isAdminView ? `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-shrink:0;">
+                <div id="pvc-table-title" class="pm-section-title" style="font-size:15px; margin-bottom:0;">사용자별 PVC 현황</div>
+                <div style="display:flex; gap:4px;">
+                    <button id="pvc-left-tab-all"  style="padding:3px 9px; border-radius:5px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;">전체</button>
+                    <button id="pvc-left-tab-mine" style="padding:3px 9px; border-radius:5px; border:1px solid #e5e7eb; background:#fff; color:#6b7280; font-size:11px; font-weight:600; cursor:pointer;">내 PVC</button>
+                </div>
+            </div>` : `<div style="margin-bottom:6px; flex-shrink:0;"><div id="pvc-table-title" class="pm-section-title" style="font-size:15px;">PVC 현황</div></div>`}
+            <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px; position:relative;">
             ${(() => {
               if (pvcStatus === "error") return noConnDiv;
               if (pvcStatus === "empty" || pvcGroups.length === 0)
@@ -407,11 +403,12 @@ async function renderMonitoring() {
               }
             })()}
             </div>
+            </div>
             <div style="flex:2; display:flex; align-items:center; min-height:0; border-left:1px solid #f3f4f6; padding-left:16px;">
                 ${
                   pvcStatus === "ok" && pvcGroups.length > 0
-                    ? `<div style="display:flex; align-items:center; justify-content:center; width:100%; height:100%;">
-                           <canvas id="chart-pvc-donut" width="180" height="180"></canvas>
+                    ? `<div style="position:relative; width:100%; max-width:180px; aspect-ratio:1/1; margin:auto;">
+                           <canvas id="chart-pvc-donut" style="position:absolute; inset:0;"></canvas>
                        </div>`
                     : noDataDiv
                 }
@@ -419,8 +416,9 @@ async function renderMonitoring() {
         </div>
     </div>
     <div id="section-automl" class="pm-monitor-card pm-fixed-card">
+        <span id="alarm-ind-automl" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
         <div style="margin-bottom:12px;">
-            <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">AutoML 최근 Job<span id="alarm-ind-automl" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+            <div class="pm-section-title" style="font-size:15px;">AutoML 최근 Job</div>
         </div>
         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
             ${[
@@ -547,8 +545,9 @@ async function renderMonitoring() {
         </div>
 
         <div id="section-kserve" class="pm-monitor-card pm-fixed-card">
+            <span id="alarm-ind-kserve" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
             <div style="margin-bottom:12px;">
-                <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">KServe Endpoint<span id="alarm-ind-kserve" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                <div class="pm-section-title" style="font-size:15px;">KServe Endpoint</div>
             </div>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; flex-shrink:0;">
                 ${[
@@ -670,8 +669,9 @@ async function renderMonitoring() {
                 </div>
             </div>
             <div id="section-kserve-latency" class="pm-monitor-card pm-fixed-card" style="order:7;">
+                <span id="alarm-ind-kserve-latency" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
                 <div style="margin-bottom:12px;">
-                    <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">Top 5 Latency (p95, ms)<span id="alarm-ind-kserve-latency" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#f59e0b;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                    <div class="pm-section-title" style="font-size:15px;">Top 5 Latency (p95, ms)</div>
                 </div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-top5-latency"></canvas>
@@ -720,8 +720,9 @@ async function renderMonitoring() {
                 </div>
             </div>
             <div id="section-kserve-error" class="pm-monitor-card pm-fixed-card" style="order:6;">
+                <span id="alarm-ind-kserve-error" style="display:none; position:absolute; top:14px; right:14px;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;">!</span></span>
                 <div style="margin-bottom:12px;">
-                    <div class="pm-section-title" style="font-size:15px; display:flex; align-items:center; gap:6px;">KServe 에러율 (%) - 5xx<span id="alarm-ind-kserve-error" style="display:none;"><span data-tip="" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e53935;color:white;font-size:11px;font-weight:700;cursor:default;flex-shrink:0;">!</span></span></div>
+                    <div class="pm-section-title" style="font-size:15px;">KServe 에러율 (%) - 5xx</div>
                 </div>
                 <div style="flex:1; min-height:0; position:relative;">
                     <canvas id="chart-kserve-error-rate"></canvas>
@@ -793,8 +794,9 @@ async function setupMonitoringPage() {
       tooltip.style.display = "block";
     });
     document.addEventListener("mousemove", (e) => {
-      tooltip.style.left = e.clientX + 12 + "px";
-      tooltip.style.top = e.clientY - 24 + "px";
+      tooltip.style.left = "auto";
+      tooltip.style.right = (window.innerWidth - e.clientX) + "px";
+      tooltip.style.top = e.clientY + "px";
     });
     document.addEventListener("mouseout", (e) => {
       if (!e.target.closest("[data-tip]")) return;
@@ -1024,8 +1026,7 @@ async function setupMonitoringPage() {
           borderColor: color.border,
           backgroundColor: color.border,
           borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: color.border,
+          pointRadius: 0,
           tension: 0.4,
           fill: false,
         };
@@ -1111,8 +1112,7 @@ async function setupMonitoringPage() {
           borderColor: color.border,
           backgroundColor: color.bg,
           borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: color.border,
+          pointRadius: 0,
           tension: 0.4,
           fill: true,
         };
@@ -1492,7 +1492,8 @@ async function setupMonitoringPage() {
           ],
         },
         options: {
-          responsive: false,
+          responsive: true,
+          maintainAspectRatio: false,
           cutout: "60%",
           plugins: {
             legend: { display: false },
@@ -1996,8 +1997,7 @@ function updateMonitoringInPlace(newData) {
         borderColor: color.border,
         backgroundColor: fill ? color.bg : color.border,
         borderWidth: 2,
-        pointRadius: 3,
-        pointBackgroundColor: color.border,
+        pointRadius: 0,
         tension: 0.4,
         fill,
       };
