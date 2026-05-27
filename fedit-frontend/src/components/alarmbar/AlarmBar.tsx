@@ -62,7 +62,9 @@ export default function AlarmBar() {
   const [, setVersion] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const prevMsgsRef = useRef<Set<string>>(_seenMsgs);
-  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -131,7 +133,9 @@ export default function AlarmBar() {
   }, [open]);
 
   const visibleAlarms = alarms.filter((a) => !_dismissedKeys.has(alarmKey(a)));
-  const hiddenCount = alarms.filter((a) => _dismissedKeys.has(alarmKey(a))).length;
+  const hiddenCount = alarms.filter((a) =>
+    _dismissedKeys.has(alarmKey(a)),
+  ).length;
   const unreadAlarms = visibleAlarms.filter((a) => !_seenKeys.has(alarmKey(a)));
   const criticalUnread = unreadAlarms.filter(
     (a) => a.level === 'critical',
