@@ -362,6 +362,9 @@ body {
 .pm-alarm-chip.has-active {
   border-color: #fca5a5;
 }
+.pm-alarm-chip.has-active.has-warning {
+  border-color: #fcd34d;
+}
 .pm-alarm-chip.has-active::after {
   content: "";
   display: inline-block;
@@ -374,11 +377,17 @@ body {
   position: relative;
   top: -1px;
 }
+.pm-alarm-chip.has-active.has-warning::after {
+  background: #f59e0b;
+}
 .pm-alarm-chip.active.has-active {
   border-color: #1e293b;
 }
 .pm-alarm-chip.active.has-active::after {
   background: #ef4444;
+}
+.pm-alarm-chip.active.has-active.has-warning::after {
+  background: #f59e0b;
 }
 
 /* ── 섹션 헤더 점 ── */
@@ -407,6 +416,9 @@ body {
 .pm-alarm-item-status.active {
   color: #ef4444;
 }
+.pm-alarm-item-status.active.warning {
+  color: #f59e0b;
+}
 .pm-alarm-item-status.resolved {
   color: #16a34a;
 }
@@ -418,6 +430,9 @@ body {
 }
 .pm-alarm-item-status.active .pm-alarm-status-dot {
   background: #ef4444;
+}
+.pm-alarm-item-status.active.warning .pm-alarm-status-dot {
+  background: #f59e0b;
 }
 .pm-alarm-item-status.resolved .pm-alarm-status-dot {
   background: #16a34a;

@@ -114,7 +114,7 @@ function _renderAlarmSidebar(historyData) {
                     ${_ALARM_SECTIONS
                       .map(
                         (s) => `
-                        <button class="pm-alarm-chip${_activeFilter === s.key ? " active" : ""}${activeKeys.has(s.key) ? " has-active" : ""}"
+                        <button class="pm-alarm-chip${_activeFilter === s.key ? " active" : ""}${activeKeys.has(s.key) ? ` has-active${_activeAlarms.some((a) => a.key === s.key && a.level === "critical") ? "" : " has-warning"}` : ""}"
                             onclick="window._setAlarmFilter('${s.key}')">${s.label}</button>
                     `,
                       )
@@ -151,6 +151,9 @@ function _renderAlarmSidebar(historyData) {
       });
       if (_activeFilter === "all" && history.length === 0) return "";
       const active = history.filter((h) => !h.resolved_at).length;
+      const sectionLevel = _activeAlarms.some((a) => a.key === key && a.level === "critical")
+        ? "critical"
+        : "warning";
       const isOpen = _activeFilter !== "all" || !_collapsedSections.has(key);
       const showAll = _activeFilter !== "all";
       const displayed = showAll ? history : history.slice(0, PREVIEW_COUNT);
@@ -179,14 +182,14 @@ function _renderAlarmSidebar(historyData) {
                   .replace(/</g, "&lt;")
                   .replace(/>/g, "&gt;");
                 return `
-                <div class="pm-alarm-item clickable" onclick="window._navToSection('${h.section_id}')" title="${fullTime}">
-                    <div class="pm-alarm-item-status ${h.resolved_at ? "resolved" : "active"}">
+                <div class="pm-alarm-item${h.resolved_at ? "" : " clickable"}"${h.resolved_at ? "" : ` onclick="window._navToSection('${h.section_id}')"`} title="${fullTime}">
+                    <div class="pm-alarm-item-status ${h.resolved_at ? "resolved" : `active ${h.level}`}">
                         <span class="pm-alarm-status-dot"></span>
                         ${h.resolved_at ? "해소됨" : "진행중"}
                     </div>
                     <div class="pm-alarm-item-msg">${safeMsg}</div>
                     <div class="pm-alarm-item-time">${timeline}</div>
-                    <div class="pm-alarm-item-nav-hint">클릭하여 해당 섹션으로 이동 →</div>
+                    ${h.resolved_at ? "" : `<div class="pm-alarm-item-nav-hint">클릭하여 해당 섹션으로 이동 →</div>`}
                 </div>`;
               })
               .join("") +
@@ -199,7 +202,7 @@ function _renderAlarmSidebar(historyData) {
             <div class="pm-alarm-section-header"${_activeFilter === "all" ? ` onclick="window._toggleSection('${key}')"` : ' style="cursor:default"'}>
                 <div class="pm-alarm-section-title">${label}</div>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    ${active > 0 ? `<span class="pm-alarm-section-dot" style="background:#ef4444;"></span>` : ""}
+                    ${active > 0 ? `<span class="pm-alarm-section-dot" style="background:${sectionLevel === "critical" ? "#ef4444" : "#f59e0b"};"></span>` : ""}
                     ${_activeFilter === "all" ? `<img src="static/icons/${isOpen ? "chevron-up" : "chevron-down"}.svg" width="16" height="16" style="display:block; opacity:0.45;">` : ""}
                 </div>
             </div>
