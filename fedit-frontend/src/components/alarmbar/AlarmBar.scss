@@ -106,6 +106,14 @@
     color: #aaa;
   }
 
+  &__hidden-hint {
+    padding: 8px 14px;
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+    border-top: 1px solid #f0f0f0;
+  }
+
   &__list {
     list-style: none;
     margin: 0;

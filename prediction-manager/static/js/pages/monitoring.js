@@ -521,7 +521,7 @@ async function renderMonitoring() {
                     <col style="width:${isAdminView ? "35%" : "50%"}">
                 </colgroup>
                 <thead style="position:sticky; top:0; background:#fff; z-index:1;">
-                    <tr>${isAdminView ? "<th>사용자</th>" : ""}<th>owner_name</th><th>상태</th><th>Pod 이름</th></tr>
+                    <tr>${isAdminView ? "<th>사용자</th>" : ""}<th>소유자</th><th>상태</th><th>Pod 이름</th></tr>
                 </thead>
                 <tbody id="tbody-running-nb">
                     ${

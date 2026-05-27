@@ -1,7 +1,7 @@
 import asyncio
 import math
 import time
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Query
 from app.auth import get_user_namespace, get_owner_namespace, is_admin, get_user_email
 from app.services import monitoring_service, alarm_service
 
@@ -230,8 +230,8 @@ async def summary(request: Request, ns: str | None = None):
             ),
         },
     }
-    alarm_service.update_alarms(result)
-    result["alarms"] = alarm_service.get_active()
+    await alarm_service.update_alarms_async(result)
+    result["alarms"] = await alarm_service.get_active_async()
     return result
     # ================================================================
 
@@ -296,14 +296,14 @@ async def summary(request: Request, ns: str | None = None):
         "running_notebooks": running_notebooks,
         "pvc": pvc,
     }
-    alarm_service.update_alarms(result)
-    result["alarms"] = alarm_service.get_active()
+    await alarm_service.update_alarms_async(result)
+    result["alarms"] = await alarm_service.get_active_async()
     return result
 
 
 @router.get("/alarms/history")
-async def alarm_history(limit: int = 500):
-    return alarm_service.get_history(limit=limit)
+async def alarm_history(limit: int = Query(default=500, ge=1, le=1000)):
+    return await alarm_service.get_history_async(limit=limit)
 
 
 # ── 테스트용 토글 — 배포 전 삭제 ──────────────────────────────────────────────

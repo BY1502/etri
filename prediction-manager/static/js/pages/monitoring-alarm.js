@@ -53,17 +53,23 @@ function updateAlarmIndicators(data) {
     if (el) el.style.display = "none";
   });
 
-  // 활성 알람으로 인디케이터 표시
+  // 섹션별 최고 severity 집계 (critical > warning)
   const byKey = {};
   _activeAlarms.forEach((a) => {
-    if (!byKey[a.key]) byKey[a.key] = [];
-    byKey[a.key].push(a.msg);
+    if (!byKey[a.key]) byKey[a.key] = { msgs: [], level: "warning" };
+    byKey[a.key].msgs.push(a.msg);
+    if (a.level === "critical") byKey[a.key].level = "critical";
   });
-  Object.entries(byKey).forEach(([key, msgs]) => {
+
+  Object.entries(byKey).forEach(([key, { msgs, level }]) => {
     const el = document.getElementById(`alarm-ind-${key}`);
     if (el) {
       el.style.display = "inline-flex";
-      el.querySelector("[data-tip]")?.setAttribute("data-tip", msgs.join("\n"));
+      const dot = el.querySelector("[data-tip]");
+      if (dot) {
+        dot.setAttribute("data-tip", msgs.join("\n"));
+        dot.style.background = level === "critical" ? "#e53935" : "#f59e0b";
+      }
     }
   });
 
@@ -253,6 +259,15 @@ async function _prefetchHistory() {
   }
 }
 
+// ── 캐시가 있으면 즉시 클라이언트사이드 렌더, 없으면 fetch ────────────────────
+function _renderOrFetch() {
+  if (_cachedHistory !== null) {
+    _renderAlarmSidebar(_cachedHistory);
+  } else {
+    _fetchAndRenderHistory();
+  }
+}
+
 // ── 전역 인터랙션 핸들러 ──────────────────────────────────────────────────────
 window._openAlarmSidebar = function () {
   document.getElementById("pm-alarm-sidebar")?.classList.add("open");
@@ -279,18 +294,18 @@ window._closeAlarmSidebar = function () {
 
 window._setAlarmFilter = function (key) {
   _activeFilter = key;
-  _fetchAndRenderHistory();
+  _renderOrFetch();
 };
 
 window._setAlarmStatus = function (status) {
   _activeStatus = status;
-  _fetchAndRenderHistory();
+  _renderOrFetch();
 };
 
 window._toggleSection = function (key) {
   if (_collapsedSections.has(key)) _collapsedSections.delete(key);
   else _collapsedSections.add(key);
-  _fetchAndRenderHistory();
+  _renderOrFetch();
 };
 
 window._navToSection = function (sectionId) {

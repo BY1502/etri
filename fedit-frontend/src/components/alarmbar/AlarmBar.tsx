@@ -62,6 +62,7 @@ export default function AlarmBar() {
   const [, setVersion] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const prevMsgsRef = useRef<Set<string>>(_seenMsgs);
+  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -110,7 +111,10 @@ export default function AlarmBar() {
     };
     poll();
     const timer = setInterval(poll, 10_000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      toastTimersRef.current.forEach(clearTimeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -127,6 +131,7 @@ export default function AlarmBar() {
   }, [open]);
 
   const visibleAlarms = alarms.filter((a) => !_dismissedKeys.has(alarmKey(a)));
+  const hiddenCount = alarms.filter((a) => _dismissedKeys.has(alarmKey(a))).length;
   const unreadAlarms = visibleAlarms.filter((a) => !_seenKeys.has(alarmKey(a)));
   const criticalUnread = unreadAlarms.filter(
     (a) => a.level === 'critical',
@@ -160,13 +165,19 @@ export default function AlarmBar() {
   };
 
   const dismissToast = (id: string) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
   const scheduleToasts = (next: Toast[]) => {
-    setToasts((prev) => [...prev, ...next]);
+    setToasts((prev) => [...next, ...prev].slice(0, 5));
     next.forEach((t) => {
-      setTimeout(() => dismissToast(t.id), 4300);
+      const timer = setTimeout(() => dismissToast(t.id), 4300);
+      toastTimersRef.current.set(t.id, timer);
     });
   };
 
@@ -222,8 +233,9 @@ export default function AlarmBar() {
               <ul className="alarmbar__list">
                 {visibleAlarms.map((alarm) => (
                   <li key={alarm.msg}>
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       className={[
                         'alarmbar__item',
                         `alarmbar__item--${alarm.level}`,
@@ -247,6 +259,26 @@ export default function AlarmBar() {
                           },
                         });
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          _visitedKeys.add(alarmKey(alarm));
+                          saveSet(VISITED_KEY, _visitedKeys);
+                          setVersion((n) => n + 1);
+                          navigate(
+                            `/predictor-creator-tool${alarm.targetPath}`,
+                            {
+                              state: {
+                                scrollTo: alarm.sectionId,
+                                alarmFilter: alarm.sectionId.replace(
+                                  /^section-/,
+                                  '',
+                                ),
+                              },
+                            },
+                          );
+                        }
+                      }}
                     >
                       <span
                         className={`alarmbar__dot alarmbar__dot--${alarm.level}`}
@@ -262,10 +294,15 @@ export default function AlarmBar() {
                       >
                         ✕
                       </button>
-                    </button>
+                    </div>
                   </li>
                 ))}
               </ul>
+            )}
+            {hiddenCount > 0 && (
+              <div className="alarmbar__hidden-hint">
+                {hiddenCount}개 항목을 숨겼습니다
+              </div>
             )}
           </div>
         )}

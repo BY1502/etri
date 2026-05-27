@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sqlite3
 import threading
@@ -214,6 +215,18 @@ def get_active() -> list[dict]:
             "sectionId": section_id,
         })
     return result
+
+
+async def update_alarms_async(data: dict):
+    return await asyncio.to_thread(update_alarms, data)
+
+
+async def get_active_async() -> list[dict]:
+    return await asyncio.to_thread(get_active)
+
+
+async def get_history_async(limit: int = 500) -> list[dict]:
+    return await asyncio.to_thread(get_history, limit)
 
 
 def get_history(limit: int = 500) -> list[dict]:
