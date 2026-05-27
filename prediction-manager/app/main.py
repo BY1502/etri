@@ -21,7 +21,12 @@ logger = logging.getLogger("prediction-manager")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup
-    from app.services import automl_service
+    from app.services import automl_service, alarm_service
+    try:
+        alarm_service.init_db()
+        logger.info("[lifespan] Alarm DB initialized")
+    except Exception as e:
+        logger.exception(f"[lifespan] alarm DB init failed: {e}")
     try:
         automl_service.start_scheduler()
         logger.info("[lifespan] AutoML scheduler started")

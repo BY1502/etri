@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     mlflow_url: str = ""
     mlflow_uri: str = ""
     automl_db_path: str = ""
+    alarms_db_path: str = ""
     allow_unauthenticated: str = ""
     dev_user_email: str = ""
     pm_tenant_resources_enabled: str = ""

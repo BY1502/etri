@@ -14,154 +14,6 @@ interface Toast extends Alarm {
   id: string;
 }
 
-function evalAlarms(data: any): Alarm[] {
-  const alarms: Alarm[] = [];
-
-  // 모니터링 수집 오류
-  if (data.gpu?.status === 'error' || data.system?.status === 'error') {
-    alarms.push({
-      level: 'critical',
-      msg: '모니터링 데이터 수집 실패',
-      targetPath: '/monitoring',
-      sectionId: 'section-gpu',
-    });
-  }
-
-  // GPU
-  if (data.gpu?.status === 'ok') {
-    if (data.gpu.util_pct > 85) {
-      alarms.push({
-        level: 'critical',
-        msg: `GPU 사용률이 너무 높습니다 (${data.gpu.util_pct}%)`,
-        targetPath: '/monitoring',
-        sectionId: 'section-gpu',
-      });
-    } else if (data.gpu.util_pct > 70) {
-      alarms.push({
-        level: 'warning',
-        msg: `GPU 사용률이 높습니다 (${data.gpu.util_pct}%)`,
-        targetPath: '/monitoring',
-        sectionId: 'section-gpu',
-      });
-    }
-    if (data.gpu.mem_pct > 90) {
-      alarms.push({
-        level: 'critical',
-        msg: `GPU 메모리가 부족합니다 (${data.gpu.mem_pct}%)`,
-        targetPath: '/monitoring',
-        sectionId: 'section-gpu',
-      });
-    } else if (data.gpu.mem_pct > 80) {
-      alarms.push({
-        level: 'warning',
-        msg: `GPU 메모리 사용량이 높습니다 (${data.gpu.mem_pct}%)`,
-        targetPath: '/monitoring',
-        sectionId: 'section-gpu',
-      });
-    }
-    if (data.gpu.temp_c > 85) {
-      alarms.push({
-        level: 'critical',
-        msg: `GPU 온도 과열 (${data.gpu.temp_c}°C)`,
-        targetPath: '/monitoring',
-        sectionId: 'section-gpu-temp',
-      });
-    }
-  }
-
-  // 시스템 CPU·메모리
-  if (data.system?.status === 'ok') {
-    if (data.system.cpu_pct > 80) {
-      alarms.push({
-        level: 'warning',
-        msg: `CPU 사용률이 높습니다 (${data.system.cpu_pct}%)`,
-        targetPath: '/monitoring',
-        sectionId: 'section-system',
-      });
-    }
-    if (data.system.mem_pct > 85) {
-      alarms.push({
-        level: 'warning',
-        msg: `시스템 메모리 부족 (${data.system.mem_pct}%)`,
-        targetPath: '/monitoring',
-        sectionId: 'section-system',
-      });
-    }
-  }
-
-  // KServe 엔드포인트 비정상
-  if (!data.kserve?.error) {
-    (data.kserve?.endpoints ?? []).forEach((ep: any) => {
-      if (!ep.ready) {
-        alarms.push({
-          level: 'warning',
-          msg: `엔드포인트 비정상: ${ep.name}`,
-          targetPath: '/monitoring',
-          sectionId: 'section-kserve',
-        });
-      }
-    });
-  }
-
-  // KServe 에러율
-  if (data.kserve_error_rate?.status === 'ok') {
-    (data.kserve_error_rate.models ?? []).forEach((m: any) => {
-      if (m.error_rate > 5) {
-        alarms.push({
-          level: 'critical',
-          msg: `KServe 에러율 높음: ${m.name} (${m.error_rate.toFixed(1)}%)`,
-          targetPath: '/monitoring',
-          sectionId: 'section-kserve-error',
-        });
-      }
-    });
-  }
-
-  // KServe latency
-  if (data.kserve_top5_latency?.status === 'ok') {
-    (data.kserve_top5_latency.models ?? []).forEach((m: any) => {
-      if (m.latency_ms > 1000) {
-        alarms.push({
-          level: 'warning',
-          msg: `응답 지연 감지: ${m.name} (${Math.round(m.latency_ms)}ms)`,
-          targetPath: '/monitoring',
-          sectionId: 'section-kserve-latency',
-        });
-      }
-    });
-  }
-
-  // AutoML 실패
-  if (!data.automl?.error) {
-    (data.automl?.jobs ?? []).forEach((job: any) => {
-      if (job.status === 'FAILED') {
-        alarms.push({
-          level: 'warning',
-          msg: `AutoML 작업 실패: ${job.name}`,
-          targetPath: '/monitoring',
-          sectionId: 'section-automl',
-        });
-      }
-    });
-  }
-
-  // PVC Lost
-  if (data.pvc?.status === 'ok') {
-    (data.pvc.groups ?? []).forEach((g: any) => {
-      if ((g.phase_counts?.Lost ?? 0) > 0) {
-        alarms.push({
-          level: 'critical',
-          msg: `PVC 볼륨 손상 감지: ${g.ns}`,
-          targetPath: '/monitoring',
-          sectionId: 'section-pvc',
-        });
-      }
-    });
-  }
-
-  return alarms;
-}
-
 function alarmKey(a: Alarm) {
   return a.msg;
 }
@@ -220,7 +72,7 @@ export default function AlarmBar() {
         });
         if (!resp.ok) return;
         const data = await resp.json();
-        const next = evalAlarms(data);
+        const next = (data.alarms ?? []) as Alarm[];
         _cachedAlarms = next;
 
         // 해소된 알람은 dismissed·seen 목록에서 제거 (재발 시 다시 표시되도록)
@@ -321,7 +173,10 @@ export default function AlarmBar() {
   const handleToastClick = (toast: Toast) => {
     dismissToast(toast.id);
     navigate(`/predictor-creator-tool${toast.targetPath}`, {
-      state: { scrollTo: toast.sectionId },
+      state: {
+        scrollTo: toast.sectionId,
+        alarmFilter: toast.sectionId.replace(/^section-/, ''),
+      },
     });
   };
 
@@ -383,7 +238,13 @@ export default function AlarmBar() {
                         saveSet(VISITED_KEY, _visitedKeys);
                         setVersion((n) => n + 1);
                         navigate(`/predictor-creator-tool${alarm.targetPath}`, {
-                          state: { scrollTo: alarm.sectionId },
+                          state: {
+                            scrollTo: alarm.sectionId,
+                            alarmFilter: alarm.sectionId.replace(
+                              /^section-/,
+                              '',
+                            ),
+                          },
                         });
                       }}
                     >

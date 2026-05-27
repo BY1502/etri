@@ -249,12 +249,18 @@ function IframePage({ service }: { service: Service }) {
 
   const isPmUrl = (u?: string) => !!u && u.includes('/prediction-manager/');
 
-  const buildPmUrl = (baseUrl: string, ns: string, scrollTo?: string) => {
+  const buildPmUrl = (
+    baseUrl: string,
+    ns: string,
+    scrollTo?: string,
+    alarmFilter?: string,
+  ) => {
     // baseUrl 형식: /prediction-manager/?standalone=1#/automl
     const [beforeHash, hash] = baseUrl.split('#');
     const url = new URL(beforeHash, window.location.origin);
     url.searchParams.set('ns', ns);
     if (scrollTo) url.searchParams.set('scrollTo', scrollTo);
+    if (alarmFilter) url.searchParams.set('alarmFilter', alarmFilter);
     return `${url.pathname}${url.search}${hash ? `#${hash}` : ''}`;
   };
 
@@ -277,7 +283,12 @@ function IframePage({ service }: { service: Service }) {
           const scrollTo = (location.state as any)?.scrollTo as
             | string
             | undefined;
-          setIframeUrl(buildPmUrl(service.url, info.namespace, scrollTo));
+          const alarmFilter = (location.state as any)?.alarmFilter as
+            | string
+            | undefined;
+          setIframeUrl(
+            buildPmUrl(service.url, info.namespace, scrollTo, alarmFilter),
+          );
         } else {
           setIframeUrl(service.url);
         }
