@@ -8,20 +8,21 @@ let _activeStatus = "all";
 
 const PREVIEW_COUNT = 2;
 
-const _ZONE = {
-  "chart-gpu-util": { warn: 70, danger: 85 },
-  "chart-gpu-mem": { warn: 80, danger: 90 },
-  "chart-cpu": { warn: 70, danger: 80 },
-  "chart-mem": { warn: 75, danger: 85 },
+// 차트 ID → 알람 key 매핑 (임계값은 alarm_service.py 단일 관리)
+const _CHART_KEY_MAP = {
+  "chart-gpu-util": "gpu",
+  "chart-gpu-mem":  "gpu",
+  "chart-cpu":      "system",
+  "chart-mem":      "system",
 };
-const _statusColor = (id, pct) => {
-  const z = _ZONE[id] || { warn: 75, danger: 90 };
-  return (pct ?? 0) > z.danger
-    ? "#EF4444"
-    : (pct ?? 0) > z.warn
-      ? "#F59E0B"
-      : "#1DB877";
-};
+function _statusColor(id) {
+  const key = _CHART_KEY_MAP[id];
+  if (!key) return "#1DB877";
+  const alarms = _activeAlarms.filter((a) => a.key === key);
+  if (alarms.some((a) => a.level === "critical")) return "#EF4444";
+  if (alarms.length > 0) return "#F59E0B";
+  return "#1DB877";
+}
 
 function _fmtRelTime(isoStr) {
   if (!isoStr) return "";

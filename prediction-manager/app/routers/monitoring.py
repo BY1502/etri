@@ -232,6 +232,7 @@ async def summary(request: Request, ns: str | None = None):
     }
     await alarm_service.update_alarms_async(result)
     result["alarms"] = await alarm_service.get_active_async()
+    result["zones"] = alarm_service.ZONES
     return result
     # ================================================================
 
@@ -298,6 +299,7 @@ async def summary(request: Request, ns: str | None = None):
     }
     await alarm_service.update_alarms_async(result)
     result["alarms"] = await alarm_service.get_active_async()
+    result["zones"] = alarm_service.ZONES
     return result
 
 

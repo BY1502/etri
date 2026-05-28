@@ -64,8 +64,18 @@ def _msg_fingerprint(msg: str) -> str:
     return re.sub(r"\s*\([\d.,]+[^)]*\)", "", msg).strip()
 
 
+# 차트 배경 구역 + 알람 임계값의 단일 소스
+# 프론트엔드 monitoring.js는 /summary 응답의 "zones" 필드에서 이 값을 읽음
+ZONES = {
+    "chart-gpu-util": {"warn": 70, "danger": 85},
+    "chart-gpu-mem":  {"warn": 80, "danger": 90},
+    "chart-cpu":      {"warn": 80, "danger": 95},
+    "chart-mem":      {"warn": 85, "danger": 95},
+}
+
+
 def eval_alarms(data: dict) -> list[dict]:
-    """summary 데이터에서 현재 활성 알람 목록 계산. 임계값의 단일 소스."""
+    """summary 데이터에서 현재 활성 알람 목록 계산."""
     alarms = []
 
     def _add(key, level, msg):
@@ -80,15 +90,15 @@ def eval_alarms(data: dict) -> list[dict]:
     gpu = data.get("gpu", {})
     if gpu.get("status") == "ok":
         util = gpu.get("util_pct", 0)
-        if util > 85:
+        if util > ZONES["chart-gpu-util"]["danger"]:
             _add("gpu", "critical", f"GPU 사용률이 너무 높습니다 ({util}%)")
-        elif util > 70:
+        elif util > ZONES["chart-gpu-util"]["warn"]:
             _add("gpu", "warning", f"GPU 사용률이 높습니다 ({util}%)")
 
         mem = gpu.get("mem_pct", 0)
-        if mem > 90:
+        if mem > ZONES["chart-gpu-mem"]["danger"]:
             _add("gpu", "critical", f"GPU 메모리가 부족합니다 ({mem}%)")
-        elif mem > 80:
+        elif mem > ZONES["chart-gpu-mem"]["warn"]:
             _add("gpu", "warning", f"GPU 메모리 사용량이 높습니다 ({mem}%)")
 
         temp = gpu.get("temp_c", 0)
@@ -99,11 +109,11 @@ def eval_alarms(data: dict) -> list[dict]:
     system = data.get("system", {})
     if system.get("status") == "ok":
         cpu = system.get("cpu_pct", 0)
-        if cpu > 80:
+        if cpu > ZONES["chart-cpu"]["warn"]:
             _add("system", "warning", f"CPU 사용률이 높습니다 ({cpu}%)")
 
         mem = system.get("mem_pct", 0)
-        if mem > 85:
+        if mem > ZONES["chart-mem"]["warn"]:
             _add("system", "warning", f"시스템 메모리 부족 ({mem}%)")
 
     # KServe 엔드포인트

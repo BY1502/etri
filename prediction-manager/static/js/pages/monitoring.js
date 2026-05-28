@@ -1,7 +1,11 @@
 let _monitoringData = null;
 const _charts = {};
 let _lastSuccessTime = null;
-// _alarmHistory, _ZONE, _statusColor, _fmtNow → monitoring-alarm.js
+// _statusColor, _fmtNow → monitoring-alarm.js
+// 임계값은 alarm_service.py(ZONES)가 단일 소스 — /summary 응답의 "zones" 필드에서 읽음
+function _getZone(id) {
+  return (_monitoringData?.zones?.[id]) ?? { warn: 75, danger: 90 };
+}
 
 // 최초 진입 시 전체 HTML 생성
 async function renderMonitoring() {
@@ -808,8 +812,8 @@ async function setupMonitoringPage() {
       const el = document.getElementById(id);
       if (!el) return;
       const pct = parseFloat(el.dataset.pct) || 0;
-      const color = _statusColor(id, pct);
-      const z = _ZONE[id] || { warn: 75, danger: 90 };
+      const color = _statusColor(id);
+      const z = _getZone(id);
       _charts[id] = new Chart(el, {
         type: "doughnut",
         data: {
@@ -1660,7 +1664,7 @@ function updateMonitoringInPlace(newData) {
   ].forEach(({ id, pct, accent, valueStr, subStr }) => {
     const chart = _charts[id];
     if (chart) {
-      const color = _statusColor(id, pct);
+      const color = _statusColor(id);
       chart.data.datasets[2].data = [pct ?? 0, 100 - (pct ?? 0)];
       chart.data.datasets[2].backgroundColor = [color, "#f3f4f6"];
       chart.update("none");
