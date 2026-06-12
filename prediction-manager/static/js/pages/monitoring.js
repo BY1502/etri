@@ -7,6 +7,100 @@ function _getZone(id) {
   return (_monitoringData?.zones?.[id]) ?? { warn: 75, danger: 90 };
 }
 
+// ── PVC 할당량(개수/용량) 표시 헬퍼 ────────────────────────────────────────────
+function _pvcCountCell(g) {
+  const limit = g.quota?.pvc_limit;
+  const used = g.pvcs.length;
+  const full = limit != null && used >= limit;
+  return `<span style="${full ? "color:#ef4444;" : ""}">${used}${limit != null ? ` / ${limit}` : ""}</span>`;
+}
+
+function _pvcStorageCell(g) {
+  const limit = g.quota?.storage_limit_gb;
+  const usedStr = g.total_gb?.toFixed(1) ?? "-";
+  const near = limit != null && limit > 0 && (g.total_gb ?? 0) / limit >= 0.9;
+  return `<span style="${near ? "color:#ef4444;" : ""}">${usedStr}${limit != null ? ` / ${limit.toFixed(0)}` : ""} GB</span>`;
+}
+
+// 일반 사용자 "PVC 현황" 도넛 밑 범례(할당량 배지)
+function _pvcQuotaBadge(group) {
+  const quota = group?.quota;
+  if (!quota) return "";
+  const parts = [];
+  if (quota.storage_limit_gb != null) {
+    const near =
+      quota.storage_limit_gb > 0 &&
+      quota.storage_used_gb / quota.storage_limit_gb >= 0.9;
+    parts.push(
+      `<span style="color:${near ? "#ef4444" : "#6b7280"};">${quota.storage_used_gb.toFixed(1)} / ${quota.storage_limit_gb.toFixed(0)} GB</span>`,
+    );
+  }
+  if (quota.pvc_limit != null) {
+    const full = quota.pvc_used >= quota.pvc_limit;
+    parts.push(
+      `<span style="color:${full ? "#ef4444" : "#6b7280"};">PVC ${quota.pvc_used}/${quota.pvc_limit}개</span>`,
+    );
+  }
+  return parts.length
+    ? `<div style="font-size:11px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:8px;">${parts.join("")}</div>`
+    : "";
+}
+
+// PVC 도넛 색상 팔레트 (PVC/namespace별로 다른 색 배정)
+const _PVC_CHART_COLORS = [
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+];
+
+// "내 PVC" 도넛: 할당량(storage_limit_gb) 대비 PVC(pod)별 사용량 슬라이스 + 여유
+function _pvcPodSlices(group) {
+  const pvcs = group?.pvcs ?? [];
+  const labels = pvcs.map((p) => p.name);
+  const values = pvcs.map((p) => p.allocated_gb ?? 0);
+  const colors = pvcs.map(
+    (_, i) => _PVC_CHART_COLORS[i % _PVC_CHART_COLORS.length],
+  );
+
+  const limitGb = group?.quota?.storage_limit_gb ?? null;
+  const usedGb = values.reduce((sum, v) => sum + v, 0);
+  if (limitGb != null && limitGb > usedGb) {
+    labels.push("여유");
+    values.push(limitGb - usedGb);
+    colors.push("#e5e7eb");
+  }
+  return { labels, values, colors };
+}
+
+// 관리자 "사용자별 PVC 현황" 도넛: 전체 할당량(quota 합계) 대비 namespace별 사용량 슬라이스 + 여유
+function _pvcNamespaceSlices(pvcGroups) {
+  const totalCapacity = pvcGroups.reduce(
+    (sum, g) => sum + (g.quota?.storage_limit_gb ?? 0),
+    0,
+  );
+
+  const used = pvcGroups.filter((g) => (g.total_gb ?? 0) > 0);
+  const labels = used.map((g) => g.ns);
+  const values = used.map((g) => g.total_gb ?? 0);
+  const colors = used.map(
+    (_, i) => _PVC_CHART_COLORS[i % _PVC_CHART_COLORS.length],
+  );
+
+  const totalUsed = values.reduce((sum, v) => sum + v, 0);
+  const remaining = totalCapacity - totalUsed;
+  if (remaining > 0) {
+    labels.push("여유");
+    values.push(remaining);
+    colors.push("#e5e7eb");
+  }
+  return { labels, values, colors };
+}
+
 // 최초 진입 시 전체 HTML 생성
 async function renderMonitoring() {
   let data;
@@ -313,7 +407,9 @@ async function renderMonitoring() {
                     <button id="pvc-left-tab-all"  style="padding:3px 9px; border-radius:5px; border:1px solid #3b82f6; background:#3b82f6; color:#fff; font-size:11px; font-weight:600; cursor:pointer;">전체</button>
                     <button id="pvc-left-tab-mine" style="padding:3px 9px; border-radius:5px; border:1px solid #e5e7eb; background:#fff; color:#6b7280; font-size:11px; font-weight:600; cursor:pointer;">내 PVC</button>
                 </div>
-            </div>` : `<div style="margin-bottom:6px; flex-shrink:0;"><div id="pvc-table-title" class="pm-section-title" style="font-size:15px;">PVC 현황</div></div>`}
+            </div>` : `<div style="margin-bottom:6px; flex-shrink:0;">
+                <div id="pvc-table-title" class="pm-section-title" style="font-size:15px;">PVC 현황</div>
+            </div>`}
             <div style="flex:1; min-height:0; overflow-y:auto; border-radius:6px; position:relative;">
             ${(() => {
               if (pvcStatus === "error") return noConnDiv;
@@ -345,8 +441,8 @@ async function renderMonitoring() {
                     .join("");
                   return `<tr>
                         <td style="font-size:13px;">${esc(g.ns)}</td>
-                        <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${g.pvcs.length}</td>
-                        <td style="text-align:right; font-family:var(--font-mono);">${g.total_gb?.toFixed(1) ?? "-"} GB</td>
+                        <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${_pvcCountCell(g)}</td>
+                        <td style="text-align:right; font-family:var(--font-mono);">${_pvcStorageCell(g)}</td>
                         <td>${badges || '<span style="color:#d1d5db;">-</span>'}</td>
                     </tr>`;
                 })
@@ -408,12 +504,13 @@ async function renderMonitoring() {
             })()}
             </div>
             </div>
-            <div style="flex:2; display:flex; align-items:center; min-height:0; border-left:1px solid #f3f4f6; padding-left:16px;">
+            <div style="flex:2; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:0; border-left:1px solid #f3f4f6; padding-left:16px;">
                 ${
                   pvcStatus === "ok" && pvcGroups.length > 0
-                    ? `<div style="position:relative; width:100%; max-width:180px; aspect-ratio:1/1; margin:auto;">
+                    ? `<div style="position:relative; width:100%; max-width:180px; aspect-ratio:1/1;">
                            <canvas id="chart-pvc-donut" style="position:absolute; inset:0;"></canvas>
-                       </div>`
+                       </div>
+                       ${!isAdminView ? `<div id="pvc-quota-badge">${_pvcQuotaBadge(pvcGroups.find((g) => g.ns === currentNs))}</div>` : ""}`
                     : noDataDiv
                 }
             </div>
@@ -1447,40 +1544,12 @@ async function setupMonitoringPage() {
     const isAdminView = _monitoringData?.is_admin_view ?? false;
     const pvcGroups = _monitoringData?.pvc?.groups ?? [];
 
-    const CHART_COLORS = [
-      "#3b82f6",
-      "#10b981",
-      "#f59e0b",
-      "#ef4444",
-      "#8b5cf6",
-      "#ec4899",
-      "#14b8a6",
-      "#f97316",
-    ];
-    const PHASE_COLORS = {
-      Bound: "#3b82f6",
-      Pending: "#f59e0b",
-      Lost: "#ef4444",
-    };
-    const ALL_PHASES = ["Bound", "Pending", "Lost"];
+    const namespaceUsage = _pvcNamespaceSlices(pvcGroups);
+    const myUsage = _pvcPodSlices(pvcGroups.find((g) => g.ns === currentNs));
 
-    const phaseTotals = { Bound: 0, Pending: 0, Lost: 0 };
-    pvcGroups
-      .flatMap((g) => g.pvcs ?? [])
-      .forEach((p) => {
-        if (p.phase in phaseTotals) phaseTotals[p.phase] += p.allocated_gb ?? 0;
-      });
-    const statusLabels = ALL_PHASES.filter((k) => phaseTotals[k] > 0);
-    const statusValues = statusLabels.map((k) => phaseTotals[k]);
-    const statusColors = statusLabels.map((k) => PHASE_COLORS[k]);
-
-    const storageLabels = pvcGroups.map((g) => g.ns);
-    const storageValues = pvcGroups.map((g) => g.total_gb ?? 0);
-    const storageColors = CHART_COLORS.slice(0, storageLabels.length);
-
-    const initialLabels = isAdminView ? storageLabels : statusLabels;
-    const initialValues = isAdminView ? storageValues : statusValues;
-    const initialColors = isAdminView ? storageColors : statusColors;
+    const initialLabels = isAdminView ? namespaceUsage.labels : myUsage.labels;
+    const initialValues = isAdminView ? namespaceUsage.values : myUsage.values;
+    const initialColors = isAdminView ? namespaceUsage.colors : myUsage.colors;
 
     if (initialValues.length && !initialValues.every((v) => v === 0)) {
       const chart = (_charts["chart-pvc-donut"] = new Chart(pvcDonutEl, {
@@ -1503,23 +1572,19 @@ async function setupMonitoringPage() {
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (ctx) => ` ${ctx.label}: ${ctx.parsed.toFixed(1)} GB`,
+                title: () => [],
+                label: (ctx) => {
+                  const label =
+                    ctx.label.length > 20
+                      ? ctx.label.slice(0, 17) + "..."
+                      : ctx.label;
+                  return ` ${label}: ${ctx.parsed.toFixed(1)} GB`;
+                },
               },
             },
           },
         },
       }));
-
-      const myNs = _monitoringData?.namespace ?? "";
-      const myGroup = pvcGroups.find((g) => g.ns === myNs);
-      const myPhaseTotals = { Bound: 0, Pending: 0, Lost: 0 };
-      (myGroup?.pvcs ?? []).forEach((p) => {
-        if (p.phase in myPhaseTotals)
-          myPhaseTotals[p.phase] += p.allocated_gb ?? 0;
-      });
-      const myStatusLabels = ALL_PHASES.filter((k) => myPhaseTotals[k] > 0);
-      const myStatusValues = myStatusLabels.map((k) => myPhaseTotals[k]);
-      const myStatusColors = myStatusLabels.map((k) => PHASE_COLORS[k]);
 
       if (isAdminView) {
         const TAB_ON =
@@ -1535,9 +1600,9 @@ async function setupMonitoringPage() {
 
         const switchMode = (mode) => {
           const isMine = mode === "mine";
-          const newLabels = isMine ? myStatusLabels : storageLabels;
-          const newValues = isMine ? myStatusValues : storageValues;
-          const newColors = isMine ? myStatusColors : storageColors;
+          const newLabels = isMine ? myUsage.labels : namespaceUsage.labels;
+          const newValues = isMine ? myUsage.values : namespaceUsage.values;
+          const newColors = isMine ? myUsage.colors : namespaceUsage.colors;
 
           viewAll.style.display = isMine ? "none" : "";
           viewMine.style.display = isMine ? "" : "none";
@@ -1551,8 +1616,6 @@ async function setupMonitoringPage() {
           chart.data.labels = newLabels;
           chart.data.datasets[0].data = newValues;
           chart.data.datasets[0].backgroundColor = newColors;
-          chart.options.plugins.tooltip.callbacks.label = (ctx) =>
-            ` ${ctx.label}: ${ctx.parsed.toFixed(1)} GB`;
           chart.update();
         };
 
@@ -2072,8 +2135,8 @@ function updateMonitoringInPlace(newData) {
           .join("");
         return `<tr>
                 <td style="font-size:13px;">${esc(g.ns)}</td>
-                <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${g.pvcs.length}</td>
-                <td style="text-align:right; font-family:var(--font-mono);">${g.total_gb?.toFixed(1) ?? "-"} GB</td>
+                <td style="text-align:right; font-family:var(--font-mono); font-weight:600;">${_pvcCountCell(g)}</td>
+                <td style="text-align:right; font-family:var(--font-mono);">${_pvcStorageCell(g)}</td>
                 <td>${badges || '<span style="color:#d1d5db;">-</span>'}</td>
             </tr>`;
       })
@@ -2096,6 +2159,13 @@ function updateMonitoringInPlace(newData) {
             )
             .join("");
   }
+  const pvcQuotaBadge = document.getElementById("pvc-quota-badge");
+  if (pvcQuotaBadge) {
+    pvcQuotaBadge.innerHTML = _pvcQuotaBadge(
+      pvcGroupsNew.find((g) => g.ns === currentNs),
+    );
+  }
+
   const tbodyPvcUser = document.getElementById("tbody-pvc-user");
   if (tbodyPvcUser) {
     const pvcs = pvcGroupsNew.flatMap((g) => g.pvcs);
@@ -2117,41 +2187,20 @@ function updateMonitoringInPlace(newData) {
   const pvcGroups = pvcGroupsNew;
   const pvcChart = _charts["chart-pvc-donut"];
   if (pvcChart && pvcGroups.length) {
-    const CHART_COLORS = [
-      "#3b82f6",
-      "#10b981",
-      "#f59e0b",
-      "#ef4444",
-      "#8b5cf6",
-      "#ec4899",
-      "#14b8a6",
-      "#f97316",
-    ];
-    const PHASE_COLORS = {
-      Bound: "#3b82f6",
-      Pending: "#f59e0b",
-      Lost: "#ef4444",
-    };
     const isMineView =
       document.getElementById("pvc-view-mine")?.style.display === "";
 
     let newLabels, newValues, newColors;
     if (isAdminView && !isMineView) {
-      newLabels = pvcGroups.map((g) => g.ns);
-      newValues = pvcGroups.map((g) => g.total_gb ?? 0);
-      newColors = CHART_COLORS.slice(0, newLabels.length);
+      const namespaceUsage = _pvcNamespaceSlices(pvcGroups);
+      newLabels = namespaceUsage.labels;
+      newValues = namespaceUsage.values;
+      newColors = namespaceUsage.colors;
     } else {
-      const myGroup = pvcGroups.find((g) => g.ns === currentNs);
-      const gbByPhase = { Bound: 0, Pending: 0, Lost: 0 };
-      (myGroup?.pvcs ?? []).forEach((p) => {
-        if (p.phase in gbByPhase) gbByPhase[p.phase] += p.allocated_gb ?? 0;
-      });
-      const phases = ["Bound", "Pending", "Lost"].filter(
-        (k) => gbByPhase[k] > 0,
-      );
-      newLabels = phases;
-      newValues = phases.map((k) => gbByPhase[k]);
-      newColors = phases.map((k) => PHASE_COLORS[k]);
+      const myUsage = _pvcPodSlices(pvcGroups.find((g) => g.ns === currentNs));
+      newLabels = myUsage.labels;
+      newValues = myUsage.values;
+      newColors = myUsage.colors;
     }
     if (newValues.length && !newValues.every((v) => v === 0)) {
       pvcChart.data.labels = newLabels;
