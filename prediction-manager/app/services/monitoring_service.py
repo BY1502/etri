@@ -492,10 +492,11 @@ async def get_mlflow_model_versions(namespace: str | None = None) -> dict:
     return {"status": "ok", "models": models}
 
 
-async def get_ray_status(namespace: str) -> dict:
+async def get_ray_status(namespace: str | None = None) -> dict:
+    ns_filter = f'{{namespace="{namespace}"}}' if namespace else ""
     nodes, finished = await asyncio.gather(
-        _query("count(ray_node_cpu_count)"),
-        _query("sum(ray_finished_jobs_total)"),
+        _query(f"count(ray_node_cpu_count{ns_filter})"),
+        _query(f"sum(ray_finished_jobs_total{ns_filter})"),
     )
     status = _prom_status(nodes, finished)
     return {
@@ -505,16 +506,17 @@ async def get_ray_status(namespace: str) -> dict:
     }
 
 
-async def get_ray_trend(window_minutes: int = 60, step: str = "1m") -> dict:
+async def get_ray_trend(namespace: str | None = None, window_minutes: int = 60, step: str = "1m") -> dict:
     now = time.time()
+    ns_filter = f'{{namespace="{namespace}"}}' if namespace else ""
     nodes_data, nodes_status = await _query_range(
-        "count(ray_node_cpu_count)",
+        f"count(ray_node_cpu_count{ns_filter})",
         start=now - window_minutes * 60,
         end=now,
         step=step,
     )
     jobs_data, jobs_status = await _query_range(
-        "sum(ray_finished_jobs_total)",
+        f"sum(ray_finished_jobs_total{ns_filter})",
         start=now - window_minutes * 60,
         end=now,
         step=step,
@@ -523,17 +525,18 @@ async def get_ray_trend(window_minutes: int = 60, step: str = "1m") -> dict:
     return {"status": status, "nodes": nodes_data, "jobs": jobs_data}
 
 
-async def get_ray_cluster_util_trend(window_minutes: int = 60, step: str = "1m") -> dict:
+async def get_ray_cluster_util_trend(namespace: str | None = None, window_minutes: int = 60, step: str = "1m") -> dict:
     now = time.time()
     start = now - window_minutes * 60
+    ns_filter = f'{{namespace="{namespace}"}}' if namespace else ""
     (cpu_data, cpu_st), (mem_data, mem_st), (disk_data, disk_st) = await asyncio.gather(
-        _query_range("avg(ray_node_cpu_utilization)", start=start, end=now, step=step),
+        _query_range(f"avg(ray_node_cpu_utilization{ns_filter})", start=start, end=now, step=step),
         _query_range(
-            "sum(ray_node_mem_used) / sum(ray_node_mem_total) * 100",
+            f"sum(ray_node_mem_used{ns_filter}) / sum(ray_node_mem_total{ns_filter}) * 100",
             start=start, end=now, step=step,
         ),
         _query_range(
-            "sum(ray_node_disk_usage) / (sum(ray_node_disk_usage) + sum(ray_node_disk_avail)) * 100",
+            f"sum(ray_node_disk_usage{ns_filter}) / (sum(ray_node_disk_usage{ns_filter}) + sum(ray_node_disk_free{ns_filter})) * 100",
             start=start, end=now, step=step,
         ),
     )
@@ -541,15 +544,16 @@ async def get_ray_cluster_util_trend(window_minutes: int = 60, step: str = "1m")
     return {"status": status, "cpu": cpu_data, "mem": mem_data, "disk": disk_data}
 
 
-async def get_ray_node_count_trend(window_minutes: int = 60, step: str = "1m") -> dict:
+async def get_ray_node_count_trend(namespace: str | None = None, window_minutes: int = 60, step: str = "1m") -> dict:
     now = time.time()
     start = now - window_minutes * 60
+    ns_filter = f'{{namespace="{namespace}"}}' if namespace else ""
     (series, series_st), finished = await asyncio.gather(
         _query_range_multi(
-            "count by (NodeType) (ray_node_cpu_count)",
+            f"count by (NodeType) (ray_node_cpu_count{ns_filter})",
             start=start, end=now, step=step,
         ),
-        _query("sum(ray_finished_jobs_total)"),
+        _query(f"sum(ray_finished_jobs_total{ns_filter})"),
     )
     types = [
         {"name": s["labels"].get("NodeType", "unknown"), "data": s["data"]}

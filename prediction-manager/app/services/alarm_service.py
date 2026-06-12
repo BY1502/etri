@@ -109,12 +109,16 @@ def eval_alarms(data: dict) -> list[dict]:
     system = data.get("system", {})
     if system.get("status") == "ok":
         cpu = system.get("cpu_pct", 0)
-        if cpu > ZONES["chart-cpu"]["warn"]:
+        if cpu > ZONES["chart-cpu"]["danger"]:
+            _add("system", "critical", f"CPU 사용률이 너무 높습니다 ({cpu}%)")
+        elif cpu > ZONES["chart-cpu"]["warn"]:
             _add("system", "warning", f"CPU 사용률이 높습니다 ({cpu}%)")
 
         mem = system.get("mem_pct", 0)
-        if mem > ZONES["chart-mem"]["warn"]:
-            _add("system", "warning", f"시스템 메모리 부족 ({mem}%)")
+        if mem > ZONES["chart-mem"]["danger"]:
+            _add("system", "critical", f"시스템 메모리가 부족합니다 ({mem}%)")
+        elif mem > ZONES["chart-mem"]["warn"]:
+            _add("system", "warning", f"시스템 메모리 사용량이 높습니다 ({mem}%)")
 
     # KServe 엔드포인트
     kserve = data.get("kserve", {})
