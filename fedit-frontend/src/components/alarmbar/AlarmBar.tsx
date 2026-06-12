@@ -4,68 +4,87 @@ import { useNavigate } from 'react-router-dom';
 import './AlarmBar.scss';
 
 interface Alarm {
+  id: string;
   level: 'critical' | 'warning';
   msg: string;
   targetPath: string;
   sectionId: string;
+  dismissed: boolean;
+  seen: boolean;
+  visited: boolean;
+  toasted: boolean;
 }
 
-interface Toast extends Alarm {
-  id: string;
+interface Toast {
+  toastId: string;
+  alarm: Alarm;
 }
 
 function alarmKey(a: Alarm) {
-  return a.msg;
+  return a.id;
 }
 
 // 컴포넌트 언마운트(페이지 이동)해도 유지되는 모듈 레벨 캐시
 let _cachedAlarms: Alarm[] = [];
 
-const DISMISSED_KEY = 'alarmbar-dismissed';
-const VISITED_KEY = 'alarmbar-visited';
-const SEEN_MSGS_KEY = 'alarmbar-seen-msgs';
-const SEEN_KEYS_KEY = 'alarmbar-seen-keys';
-
-function loadSet(key: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
-  } catch {
-    return new Set();
-  }
+function postAlarmState(
+  alarmIds: string[],
+  action: 'dismiss' | 'seen' | 'visit' | 'toast',
+) {
+  if (alarmIds.length === 0) return;
+  fetch('/prediction-manager/api/monitoring/alarms/state', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ alarm_ids: alarmIds, action }),
+  }).catch(() => {});
 }
-
-function saveSet(key: string, set: Set<string>) {
-  try {
-    localStorage.setItem(key, JSON.stringify(Array.from(set)));
-  } catch {
-    // localStorage 비활성화 환경에서 무시
-  }
-}
-
-// 사용자가 닫은 알람 키 - 해당 이슈가 해소됐다가 재발하면 다시 표시됨
-const _dismissedKeys = loadSet(DISMISSED_KEY);
-
-// 종 아이콘 열어서 본 알람 키 - 배지 0 처리 전용 (새로고침에도 유지)
-const _seenKeys = loadSet(SEEN_KEYS_KEY);
-
-// 알람 클릭해서 섹션 이동한 알람 키 - fade 스타일 전용 (새로고침에도 유지)
-const _visitedKeys = loadSet(VISITED_KEY);
-
-// 이미 토스트를 띄운 알람 키 - 새로고침 후 재발화 방지
-const _seenMsgs = loadSet(SEEN_MSGS_KEY);
 
 export default function AlarmBar() {
   const [alarms, setAlarms] = useState<Alarm[]>(_cachedAlarms);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [open, setOpen] = useState(false);
-  const [, setVersion] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const prevMsgsRef = useRef<Set<string>>(_seenMsgs);
   const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
   const navigate = useNavigate();
+
+  const dismissToast = useCallback((toastId: string) => {
+    const timer = toastTimersRef.current.get(toastId);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(toastId);
+    }
+    setToasts((prev) => prev.filter((t) => t.toastId !== toastId));
+  }, []);
+
+  const scheduleToasts = useCallback(
+    (newAlarms: Alarm[]) => {
+      const next: Toast[] = newAlarms.map((alarm) => ({
+        toastId: `${Date.now()}-${alarm.id}`,
+        alarm,
+      }));
+      setToasts((prev) => {
+        const combined = [...next, ...prev];
+        // 5개 초과로 밀려난 토스트의 타이머 즉시 취소
+        combined.slice(5).forEach((t) => {
+          const existingTimer = toastTimersRef.current.get(t.toastId);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+            toastTimersRef.current.delete(t.toastId);
+          }
+        });
+        return combined.slice(0, 5);
+      });
+      // next가 5개를 초과하더라도 실제 표시된 것만 타이머 등록
+      next.slice(0, 5).forEach((t) => {
+        const timer = setTimeout(() => dismissToast(t.toastId), 4300);
+        toastTimersRef.current.set(t.toastId, timer);
+      });
+    },
+    [dismissToast],
+  );
 
   useEffect(() => {
     const poll = async () => {
@@ -76,37 +95,22 @@ export default function AlarmBar() {
         if (!resp.ok) return;
         const data = await resp.json();
         const next = (data.alarms ?? []) as Alarm[];
-        _cachedAlarms = next;
 
-        // 해소된 알람은 dismissed·seen 목록에서 제거 (재발 시 다시 표시되도록)
-        const activeKeys = new Set(next.map(alarmKey));
-        Array.from(_dismissedKeys).forEach((k) => {
-          if (!activeKeys.has(k)) _dismissedKeys.delete(k);
-        });
-        Array.from(_seenKeys).forEach((k) => {
-          if (!activeKeys.has(k)) _seenKeys.delete(k);
-        });
-        saveSet(SEEN_KEYS_KEY, _seenKeys);
-        Array.from(_visitedKeys).forEach((k) => {
-          if (!activeKeys.has(k)) _visitedKeys.delete(k);
-        });
-        saveSet(DISMISSED_KEY, _dismissedKeys);
-        saveSet(VISITED_KEY, _visitedKeys);
-
-        setAlarms(next);
-
-        const newToasts = next
-          .filter((a) => !prevMsgsRef.current.has(`${a.sectionId}-${a.level}`))
-          .map((a) => ({ ...a, id: `${Date.now()}-${a.msg}` }));
-
+        // 아직 토스트를 띄우지 않은(서버에 toasted=false) 활성 알람 → 토스트 표시
+        const newToasts = next.filter((a) => !a.toasted && !a.dismissed);
         if (newToasts.length > 0) {
+          newToasts.forEach((a) => {
+            a.toasted = true;
+          });
+          postAlarmState(
+            newToasts.map((a) => a.id),
+            'toast',
+          );
           scheduleToasts(newToasts);
         }
-        prevMsgsRef.current.clear();
-        next.forEach((a) =>
-          prevMsgsRef.current.add(`${a.sectionId}-${a.level}`),
-        );
-        saveSet(SEEN_MSGS_KEY, prevMsgsRef.current);
+
+        _cachedAlarms = next;
+        setAlarms(next);
       } catch {
         // 네트워크 오류 시 기존 상태 유지
       }
@@ -117,7 +121,7 @@ export default function AlarmBar() {
       clearInterval(timer);
       toastTimersRef.current.forEach(clearTimeout);
     };
-  }, []);
+  }, [scheduleToasts]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -132,11 +136,18 @@ export default function AlarmBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
-  const visibleAlarms = alarms.filter((a) => !_dismissedKeys.has(alarmKey(a)));
-  const hiddenCount = alarms.filter((a) =>
-    _dismissedKeys.has(alarmKey(a)),
-  ).length;
-  const unreadAlarms = visibleAlarms.filter((a) => !_seenKeys.has(alarmKey(a)));
+  // alarms state와 모듈 캐시(_cachedAlarms)를 함께 갱신하는 낙관적 업데이트 헬퍼
+  const updateAlarms = (updater: (prev: Alarm[]) => Alarm[]) => {
+    setAlarms((prev) => {
+      const next = updater(prev);
+      _cachedAlarms = next;
+      return next;
+    });
+  };
+
+  const visibleAlarms = alarms.filter((a) => !a.dismissed);
+  const hiddenCount = alarms.filter((a) => a.dismissed).length;
+  const unreadAlarms = visibleAlarms.filter((a) => !a.seen);
   const criticalUnread = unreadAlarms.filter(
     (a) => a.level === 'critical',
   ).length;
@@ -144,70 +155,49 @@ export default function AlarmBar() {
   const handleBellClick = () => {
     const willOpen = !open;
     if (willOpen) {
-      // 드롭다운 열릴 때 현재 visibleAlarms 전부 확인됨 처리
-      visibleAlarms.forEach((a) => _seenKeys.add(alarmKey(a)));
-      saveSet(SEEN_KEYS_KEY, _seenKeys);
-      setVersion((n) => n + 1);
+      // 드롭다운 열릴 때 현재 unreadAlarms 전부 확인됨 처리
+      const ids = unreadAlarms.map((a) => a.id);
+      if (ids.length > 0) {
+        updateAlarms((prev) =>
+          prev.map((a) => (ids.includes(a.id) ? { ...a, seen: true } : a)),
+        );
+        postAlarmState(ids, 'seen');
+      }
     }
     setOpen(willOpen);
   };
 
   const dismissAlarm = (alarm: Alarm) => {
-    _dismissedKeys.add(alarmKey(alarm));
-    _seenKeys.delete(alarmKey(alarm));
-    saveSet(DISMISSED_KEY, _dismissedKeys);
-    setVersion((n) => n + 1);
+    updateAlarms((prev) =>
+      prev.map((a) => (a.id === alarm.id ? { ...a, dismissed: true } : a)),
+    );
+    postAlarmState([alarm.id], 'dismiss');
   };
 
   const dismissAll = () => {
-    visibleAlarms.forEach((a) => {
-      _dismissedKeys.add(alarmKey(a));
-      _seenKeys.delete(alarmKey(a));
-    });
-    saveSet(DISMISSED_KEY, _dismissedKeys);
-    setVersion((n) => n + 1);
+    const ids = visibleAlarms.map((a) => a.id);
+    updateAlarms((prev) =>
+      prev.map((a) => (ids.includes(a.id) ? { ...a, dismissed: true } : a)),
+    );
+    postAlarmState(ids, 'dismiss');
   };
 
-  const dismissToast = useCallback((id: string) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      toastTimersRef.current.delete(id);
-    }
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  const scheduleToasts = useCallback(
-    (next: Toast[]) => {
-      setToasts((prev) => {
-        const combined = [...next, ...prev];
-        // 5개 초과로 밀려난 토스트의 타이머 즉시 취소
-        combined.slice(5).forEach((t) => {
-          const existingTimer = toastTimersRef.current.get(t.id);
-          if (existingTimer) {
-            clearTimeout(existingTimer);
-            toastTimersRef.current.delete(t.id);
-          }
-        });
-        return combined.slice(0, 5);
-      });
-      // next가 5개를 초과하더라도 실제 표시된 것만 타이머 등록
-      next.slice(0, 5).forEach((t) => {
-        const timer = setTimeout(() => dismissToast(t.id), 4300);
-        toastTimersRef.current.set(t.id, timer);
-      });
-    },
-    [dismissToast],
-  );
-
-  const handleToastClick = (toast: Toast) => {
-    dismissToast(toast.id);
-    navigate(`/predictor-creator-tool${toast.targetPath}`, {
+  const visitAlarm = (alarm: Alarm) => {
+    updateAlarms((prev) =>
+      prev.map((a) => (a.id === alarm.id ? { ...a, visited: true } : a)),
+    );
+    postAlarmState([alarm.id], 'visit');
+    navigate(`/predictor-creator-tool${alarm.targetPath}`, {
       state: {
-        scrollTo: toast.sectionId,
-        alarmFilter: toast.sectionId.replace(/^section-/, ''),
+        scrollTo: alarm.sectionId,
+        alarmFilter: alarm.sectionId.replace(/^section-/, ''),
       },
     });
+  };
+
+  const handleToastClick = (toast: Toast) => {
+    dismissToast(toast.toastId);
+    visitAlarm(toast.alarm);
   };
 
   return (
@@ -251,51 +241,22 @@ export default function AlarmBar() {
             ) : (
               <ul className="alarmbar__list">
                 {visibleAlarms.map((alarm) => (
-                  <li key={alarm.msg}>
+                  <li key={alarmKey(alarm)}>
                     <div
                       role="button"
                       tabIndex={0}
                       className={[
                         'alarmbar__item',
                         `alarmbar__item--${alarm.level}`,
-                        _visitedKeys.has(alarmKey(alarm))
-                          ? 'alarmbar__item--confirmed'
-                          : '',
+                        alarm.visited ? 'alarmbar__item--confirmed' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
-                      onClick={() => {
-                        _visitedKeys.add(alarmKey(alarm));
-                        saveSet(VISITED_KEY, _visitedKeys);
-                        setVersion((n) => n + 1);
-                        navigate(`/predictor-creator-tool${alarm.targetPath}`, {
-                          state: {
-                            scrollTo: alarm.sectionId,
-                            alarmFilter: alarm.sectionId.replace(
-                              /^section-/,
-                              '',
-                            ),
-                          },
-                        });
-                      }}
+                      onClick={() => visitAlarm(alarm)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          _visitedKeys.add(alarmKey(alarm));
-                          saveSet(VISITED_KEY, _visitedKeys);
-                          setVersion((n) => n + 1);
-                          navigate(
-                            `/predictor-creator-tool${alarm.targetPath}`,
-                            {
-                              state: {
-                                scrollTo: alarm.sectionId,
-                                alarmFilter: alarm.sectionId.replace(
-                                  /^section-/,
-                                  '',
-                                ),
-                              },
-                            },
-                          );
+                          visitAlarm(alarm);
                         }
                       }}
                     >
@@ -331,26 +292,26 @@ export default function AlarmBar() {
       <div className="alarmbar__toasts">
         {toasts.map((toast) => (
           <div
-            key={toast.id}
-            className={`alarmbar__toast alarmbar__toast--${toast.level}`}
+            key={toast.toastId}
+            className={`alarmbar__toast alarmbar__toast--${toast.alarm.level}`}
             role="alert"
             onClick={() => handleToastClick(toast)}
           >
             <div className="alarmbar__toast-header">
               <span className="alarmbar__toast-title">
-                {toast.level === 'critical' ? '🔴 긴급 알람' : '🟡 경고'}
+                {toast.alarm.level === 'critical' ? '🔴 긴급 알람' : '🟡 경고'}
               </span>
               <button
                 className="alarmbar__toast-close"
                 onClick={(e) => {
                   e.stopPropagation();
-                  dismissToast(toast.id);
+                  dismissToast(toast.toastId);
                 }}
               >
                 ✕
               </button>
             </div>
-            <p className="alarmbar__toast-msg">{toast.msg}</p>
+            <p className="alarmbar__toast-msg">{toast.alarm.msg}</p>
             <span className="alarmbar__toast-hint">
               클릭하여 해당 섹션으로 이동 →
             </span>

@@ -1,11 +1,18 @@
 import asyncio
 import math
 import time
+from typing import Literal
 from fastapi import APIRouter, Request, Query
+from pydantic import BaseModel
 from app.auth import get_user_namespace, get_owner_namespace, is_admin, get_user_email
 from app.services import monitoring_service, alarm_service
 
 router = APIRouter()
+
+
+class AlarmStateRequest(BaseModel):
+    alarm_ids: list[str]
+    action: Literal["dismiss", "seen", "visit", "toast"]
 
 @router.get("/gpu-trend")
 async def gpu_trend(window_minutes: int = 60, step: str = "1m"):
@@ -70,8 +77,9 @@ async def summary(request: Request, ns: str | None = None):
         "running_notebooks": running_notebooks,
         "pvc": pvc,
     }
-    await alarm_service.update_alarms_async(result)
-    result["alarms"] = await alarm_service.get_active_async()
+    email = get_user_email(request)
+    await alarm_service.update_alarms_async(result, filter_ns)
+    result["alarms"] = await alarm_service.get_active_async(filter_ns, email)
     result["zones"] = alarm_service.ZONES
     return result
 
@@ -79,3 +87,9 @@ async def summary(request: Request, ns: str | None = None):
 @router.get("/alarms/history")
 async def alarm_history(limit: int = Query(default=500, ge=1, le=1000)):
     return await alarm_service.get_history_async(limit=limit)
+
+
+@router.post("/alarms/state")
+async def set_alarm_state(req: AlarmStateRequest, request: Request):
+    await alarm_service.set_alarm_state_async(get_user_email(request), req.alarm_ids, req.action)
+    return {"status": "ok"}

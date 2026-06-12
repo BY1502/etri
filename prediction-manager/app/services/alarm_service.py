@@ -6,6 +6,7 @@ import threading
 import random
 import string
 from datetime import datetime, timezone
+from typing import Literal
 
 _DB_PATH = os.environ.get("ALARMS_DB_PATH", "/data/alarms.db")
 _lock = threading.Lock()
@@ -43,6 +44,22 @@ def init_db():
                 resolved_ts  INTEGER
             )
         """)
+        try:
+            conn.execute("ALTER TABLE alarms ADD COLUMN namespace TEXT")
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e).lower():
+                raise
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS alarm_user_state (
+                user_email   TEXT NOT NULL,
+                alarm_id     TEXT NOT NULL,
+                dismissed_at TEXT,
+                seen_at      TEXT,
+                visited_at   TEXT,
+                toasted_at   TEXT,
+                PRIMARY KEY (user_email, alarm_id)
+            )
+        """)
         conn.commit()
         conn.close()
 
@@ -78,9 +95,15 @@ def eval_alarms(data: dict) -> list[dict]:
     """summary 데이터에서 현재 활성 알람 목록 계산."""
     alarms = []
 
-    def _add(key, level, msg):
+    def _add(key, level, msg, namespace=None):
         _, section_id = _KEY_META[key]
-        alarms.append({"key": key, "level": level, "msg": msg, "section_id": section_id})
+        alarms.append({
+            "key": key,
+            "level": level,
+            "msg": msg,
+            "section_id": section_id,
+            "namespace": namespace,
+        })
 
     # 수집 오류
     if data.get("gpu", {}).get("status") == "error" or data.get("system", {}).get("status") == "error":
@@ -125,7 +148,8 @@ def eval_alarms(data: dict) -> list[dict]:
     if not kserve.get("error"):
         for ep in kserve.get("endpoints", []):
             if not ep.get("ready"):
-                _add("kserve", "warning", f"엔드포인트 비정상: {ep['name']}")
+                _add("kserve", "warning", f"엔드포인트 비정상: {ep['name']}",
+                     namespace=ep.get("namespace"))
 
     # KServe 에러율
     kserve_err = data.get("kserve_error_rate", {})
@@ -133,7 +157,8 @@ def eval_alarms(data: dict) -> list[dict]:
         for m in kserve_err.get("models", []):
             if m.get("error_rate", 0) > 5:
                 _add("kserve-error", "critical",
-                     f"KServe 에러율 높음: {m['name']} ({m['error_rate']:.1f}%)")
+                     f"KServe 에러율 높음: {m['name']} ({m['error_rate']:.1f}%)",
+                     namespace=m.get("namespace"))
 
     # KServe latency
     kserve_lat = data.get("kserve_top5_latency", {})
@@ -141,30 +166,38 @@ def eval_alarms(data: dict) -> list[dict]:
         for m in kserve_lat.get("models", []):
             if m.get("latency_ms", 0) > 1000:
                 _add("kserve-latency", "warning",
-                     f"응답 지연 감지: {m['name']} ({round(m['latency_ms'])}ms)")
+                     f"응답 지연 감지: {m['name']} ({round(m['latency_ms'])}ms)",
+                     namespace=m.get("namespace"))
 
     # AutoML 실패
     automl = data.get("automl", {})
     if not automl.get("error"):
         for job in automl.get("jobs", []):
             if job.get("status") == "FAILED":
-                _add("automl", "warning", f"AutoML 작업 실패: {job['name']}")
+                _add("automl", "warning", f"AutoML 작업 실패: {job['name']}",
+                     namespace=job.get("namespace"))
 
     # PVC Lost
     pvc = data.get("pvc", {})
     if pvc.get("status") == "ok":
         for g in pvc.get("groups", []):
             if g.get("phase_counts", {}).get("Lost", 0) > 0:
-                _add("pvc", "critical", f"PVC 볼륨 손상 감지: {g['ns']}")
+                _add("pvc", "critical", f"PVC 볼륨 손상 감지: {g['ns']}",
+                     namespace=g.get("ns"))
 
     return alarms
 
 
-def update_alarms(data: dict):
-    """summary 데이터로 DB 이력 갱신 (신규 발생 INSERT, 해소된 건 UPDATE)."""
+def update_alarms(data: dict, filter_ns: str | None = None):
+    """summary 데이터로 DB 이력 갱신 (신규 발생 INSERT, 해소된 건 UPDATE).
+
+    filter_ns: 이번 호출의 data가 다루는 namespace 범위.
+    None이면 admin 전체뷰(모든 namespace 포함) 호출.
+    """
     current = eval_alarms(data)
-    # 핑거프린트(숫자 제거) 기준으로 동일 알람 식별 → 값이 86%→88%로 바뀌어도 같은 알람 취급
-    current_fps = {(a["key"], _msg_fingerprint(a["msg"])): a for a in current}
+    # (key, namespace, 핑거프린트) 기준으로 동일 알람 식별 → 값이 86%→88%로 바뀌어도 같은 알람 취급,
+    # 서로 다른 namespace의 동일 메시지는 별개 알람으로 구분
+    current_fps = {(a["key"], a["namespace"], _msg_fingerprint(a["msg"])): a for a in current}
     now_ms = _now_ms()
     now_str = _fmt_now()
 
@@ -173,27 +206,32 @@ def update_alarms(data: dict):
         try:
             # 현재 active 이력 조회
             rows = conn.execute(
-                "SELECT id, key, msg FROM alarms WHERE resolved_at IS NULL"
+                "SELECT id, key, namespace, msg FROM alarms WHERE resolved_at IS NULL"
             ).fetchall()
 
-            active_fps: dict[tuple, str] = {}  # (key, fp) → row_id
-            for row_id, key, msg in rows:
+            active_fps: dict[tuple, str] = {}  # (key, namespace, fp) → row_id
+            for row_id, key, row_ns, msg in rows:
                 fp = _msg_fingerprint(msg)
-                active_fps[(key, fp)] = row_id
+                active_fps[(key, row_ns, fp)] = row_id
 
             # 해소 처리: 핑거프린트가 현재 알람에 없으면 resolved
-            for (key, fp), row_id in active_fps.items():
-                if (key, fp) not in current_fps:
+            # 단, 이번 호출의 data가 다루지 않는 namespace의 행은 건드리지 않음
+            # (다른 테넌트의 활성 알람을 잘못 해소시키는 churn 방지)
+            for (key, row_ns, fp), row_id in active_fps.items():
+                in_scope = (row_ns is None) or (filter_ns is None) or (row_ns == filter_ns)
+                if not in_scope:
+                    continue
+                if (key, row_ns, fp) not in current_fps:
                     conn.execute(
                         "UPDATE alarms SET resolved_at=?, resolved_ts=? WHERE id=?",
                         (now_str, now_ms, row_id),
                     )
 
             # 신규/갱신 처리
-            for (key, fp), a in current_fps.items():
-                if (key, fp) in active_fps:
+            for (key, row_ns, fp), a in current_fps.items():
+                if (key, row_ns, fp) in active_fps:
                     # 이미 active인 알람 — 메시지(값)만 갱신
-                    row_id = active_fps[(key, fp)]
+                    row_id = active_fps[(key, row_ns, fp)]
                     conn.execute(
                         "UPDATE alarms SET msg=?, level=? WHERE id=?",
                         (a["msg"], a["level"], row_id),
@@ -204,10 +242,10 @@ def update_alarms(data: dict):
                     conn.execute(
                         """INSERT INTO alarms
                            (id, key, level, msg, section_id, triggered_at, triggered_ts,
-                            resolved_at, resolved_ts)
-                           VALUES (?,?,?,?,?,?,?,NULL,NULL)""",
+                            resolved_at, resolved_ts, namespace)
+                           VALUES (?,?,?,?,?,?,?,NULL,NULL,?)""",
                         (new_id, a["key"], a["level"], a["msg"], a["section_id"],
-                         now_str, now_ms),
+                         now_str, now_ms, a["namespace"]),
                     )
 
             # key당 MAX_PER_KEY 초과분 삭제 (활성 여부와 관계없이 전체 key 대상)
@@ -220,42 +258,94 @@ def update_alarms(data: dict):
                 ).fetchall()
                 for (eid,) in excess:
                     conn.execute("DELETE FROM alarms WHERE id=?", (eid,))
+                    conn.execute("DELETE FROM alarm_user_state WHERE alarm_id=?", (eid,))
 
             conn.commit()
         finally:
             conn.close()
 
 
-def get_active() -> list[dict]:
-    """현재 활성 알람 반환 (summary alarms 필드 / AlarmBar용)."""
+def get_active(filter_ns: str | None = None, user_email: str | None = None) -> list[dict]:
+    """현재 활성 알람 반환 (summary alarms 필드 / AlarmBar용).
+
+    filter_ns: None이면 admin 전체뷰(모든 namespace), 아니면 해당 namespace +
+    전역(namespace IS NULL) 알람만 반환.
+    user_email: alarm_user_state 조인 기준 - 사용자별 dismissed/seen/visited/toasted 상태.
+    """
     with _lock:
         conn = sqlite3.connect(_DB_PATH)
         try:
-            rows = conn.execute(
-                "SELECT key, level, msg, section_id FROM alarms WHERE resolved_at IS NULL"
-            ).fetchall()
+            query = """
+                SELECT a.id, a.key, a.level, a.msg, a.section_id, a.namespace,
+                       s.dismissed_at, s.seen_at, s.visited_at, s.toasted_at
+                FROM alarms a
+                LEFT JOIN alarm_user_state s
+                    ON s.alarm_id = a.id AND s.user_email = ?
+                WHERE a.resolved_at IS NULL
+            """
+            params: list = [user_email]
+            if filter_ns is not None:
+                query += " AND (a.namespace IS NULL OR a.namespace = ?)"
+                params.append(filter_ns)
+            rows = conn.execute(query, params).fetchall()
         finally:
             conn.close()
 
     result = []
-    for key, level, msg, section_id in rows:
+    for row_id, key, level, msg, section_id, namespace, dismissed_at, seen_at, visited_at, toasted_at in rows:
         target_path, _ = _KEY_META.get(key, ("/monitoring", section_id))
         result.append({
+            "id": row_id,
             "key": key,
             "level": level,
             "msg": msg,
             "targetPath": target_path,
             "sectionId": section_id,
+            "dismissed": dismissed_at is not None,
+            "seen": seen_at is not None,
+            "visited": visited_at is not None,
+            "toasted": toasted_at is not None,
         })
     return result
 
 
-async def update_alarms_async(data: dict):
-    return await asyncio.to_thread(update_alarms, data)
+_STATE_COLUMNS = {
+    "dismiss": "dismissed_at",
+    "seen": "seen_at",
+    "visit": "visited_at",
+    "toast": "toasted_at",
+}
 
 
-async def get_active_async() -> list[dict]:
-    return await asyncio.to_thread(get_active)
+def set_alarm_state(user_email: str, alarm_ids: list[str], action: Literal["dismiss", "seen", "visit", "toast"]):
+    """사용자별 알람 UI 상태 갱신 (dismiss/seen/visit/toast)."""
+    col = _STATE_COLUMNS[action]
+    now_str = _fmt_now()
+    with _lock:
+        conn = sqlite3.connect(_DB_PATH)
+        try:
+            for alarm_id in alarm_ids:
+                conn.execute(
+                    f"""INSERT INTO alarm_user_state (user_email, alarm_id, {col})
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(user_email, alarm_id) DO UPDATE SET {col}=excluded.{col}""",
+                    (user_email, alarm_id, now_str),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+async def update_alarms_async(data: dict, filter_ns: str | None = None):
+    return await asyncio.to_thread(update_alarms, data, filter_ns)
+
+
+async def get_active_async(filter_ns: str | None = None, user_email: str | None = None) -> list[dict]:
+    return await asyncio.to_thread(get_active, filter_ns, user_email)
+
+
+async def set_alarm_state_async(user_email: str, alarm_ids: list[str], action: Literal["dismiss", "seen", "visit", "toast"]):
+    return await asyncio.to_thread(set_alarm_state, user_email, alarm_ids, action)
 
 
 async def get_history_async(limit: int = 500) -> list[dict]:

@@ -213,6 +213,7 @@ async def get_kserve_top5_latency(namespace: str | None = None) -> dict:
     models = [
         {
             "name": f"{r['labels'].get('configuration_name', '?')} ({r['labels'].get('namespace_name', '?')})",
+            "namespace": r["labels"].get("namespace_name", ""),
             "latency_ms": round(r["value"], 2),
         }
         for r in rows
@@ -237,6 +238,7 @@ async def get_kserve_error_rate(namespace: str | None = None) -> dict:
     models = [
         {
             "name": f"{r['labels'].get('configuration_name', '?')} ({r['labels'].get('namespace_name', '?')})",
+            "namespace": r["labels"].get("namespace_name", ""),
             "error_rate": round(r["value"], 4) if not (r["value"] != r["value"]) else 0.0,
         }
         for r in rows
@@ -339,6 +341,7 @@ def get_automl_jobs(namespace: str | None = None, is_admin: bool = False) -> dic
                 {
                     "name": j.get("experiment_name", j.get("job_id", ""))
                             .replace("automl-", "")[:40],
+                    "namespace": j.get("namespace", ""),
                     "status": j.get("status", ""),
                     "submitted_by": j.get("submitted_by", "-"),
                     "submitted_at": j.get("submitted_at", ""),
