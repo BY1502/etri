@@ -218,7 +218,18 @@ def update_alarms(data: dict, filter_ns: str | None = None):
             # 단, 이번 호출의 data가 다루지 않는 namespace의 행은 건드리지 않음
             # (다른 테넌트의 활성 알람을 잘못 해소시키는 churn 방지)
             for (key, row_ns, fp), row_id in active_fps.items():
-                in_scope = (row_ns is None) or (filter_ns is None) or (row_ns == filter_ns)
+                if key == "automl":
+                    # 실패한 AutoML job은 "해소"되는 개념이 없음(영원히 실패 상태) —
+                    # resolved_at을 설정하지 않고 MAX_PER_KEY eviction으로만 정리
+                    continue
+                if key == "kserve-latency":
+                    # get_kserve_top5_latency는 admin 전체뷰에서 전 테넌트 합산 top5만
+                    # 반환(per-tenant superset이 아님) — admin 폴링이 다른 테넌트의
+                    # 알람을 top5 밖으로 밀려났다는 이유만으로 잘못 해소시키지 않도록
+                    # 같은 테넌트의 폴링에서만 해소 판정
+                    in_scope = row_ns == filter_ns
+                else:
+                    in_scope = (row_ns is None) or (filter_ns is None) or (row_ns == filter_ns)
                 if not in_scope:
                     continue
                 if (key, row_ns, fp) not in current_fps:
@@ -248,13 +259,19 @@ def update_alarms(data: dict, filter_ns: str | None = None):
                          now_str, now_ms, a["namespace"]),
                     )
 
-            # key당 MAX_PER_KEY 초과분 삭제 (활성 여부와 관계없이 전체 key 대상)
-            all_keys = conn.execute("SELECT DISTINCT key FROM alarms").fetchall()
-            for (key,) in all_keys:
+            # (key, namespace)당 MAX_PER_KEY 초과분 삭제 (활성 여부와 관계없이 전체 대상)
+            # namespace 단위로 스코프해야 한 테넌트의 알람 churn이 다른 테넌트의
+            # 오래된 행(과 그에 연결된 alarm_user_state)을 밀어내지 않음
+            all_groups = conn.execute("SELECT DISTINCT key, namespace FROM alarms").fetchall()
+            for key, ns in all_groups:
+                if ns is None:
+                    cond, params = "key=? AND namespace IS NULL", (key,)
+                else:
+                    cond, params = "key=? AND namespace=?", (key, ns)
                 excess = conn.execute(
-                    """SELECT id FROM alarms WHERE key=?
+                    f"""SELECT id FROM alarms WHERE {cond}
                        ORDER BY triggered_ts DESC LIMIT -1 OFFSET ?""",
-                    (key, MAX_PER_KEY),
+                    params + (MAX_PER_KEY,),
                 ).fetchall()
                 for (eid,) in excess:
                     conn.execute("DELETE FROM alarms WHERE id=?", (eid,))

@@ -127,10 +127,17 @@ function _renderAlarmSidebar(historyData) {
                 <div class="pm-alarm-chips pm-alarm-chips--status">
                     <button class="pm-alarm-chip pm-alarm-chip--status${_activeStatus === "all" ? " active" : ""}"
                         onclick="window._setAlarmStatus('all')">전체</button>
+                    ${
+                      // AutoML 실패 job은 진행중/해소 개념이 없어 "전체"만 의미가 있음
+                      _activeFilter === "automl"
+                        ? ""
+                        : `
                     <button class="pm-alarm-chip pm-alarm-chip--status${_activeStatus === "active" ? " active" : ""}"
                         onclick="window._setAlarmStatus('active')">진행중</button>
                     <button class="pm-alarm-chip pm-alarm-chip--status${_activeStatus === "resolved" ? " active" : ""}"
                         onclick="window._setAlarmStatus('resolved')">해소됨</button>
+                    `
+                    }
                 </div>
             </div>
         </div>`;
@@ -146,12 +153,19 @@ function _renderAlarmSidebar(historyData) {
     .map(({ key, label }) => {
       const history = historyData.filter((h) => {
         if (h.key !== key) return false;
+        // AutoML 실패 job은 "진행중/해소" 구분이 없음 — 상태 필터를 걸면 항상 제외
+        if (key === "automl") return _activeStatus === "all";
         if (_activeStatus === "active") return !h.resolved_at;
         if (_activeStatus === "resolved") return !!h.resolved_at;
         return true;
       });
       if (_activeFilter === "all" && history.length === 0) return "";
-      const active = history.filter((h) => !h.resolved_at).length;
+      // automl은 history.resolved_at이 항상 null이므로, 섹션 점은 history가 아니라
+      // 현재 활성 알람(_activeAlarms) 기준으로 "지금 실패한 job이 있는지"를 표시
+      const active =
+        key === "automl"
+          ? _activeAlarms.filter((a) => a.key === "automl").length
+          : history.filter((h) => !h.resolved_at).length;
       const sectionLevel = _activeAlarms.some((a) => a.key === key && a.level === "critical")
         ? "critical"
         : "warning";
@@ -182,12 +196,17 @@ function _renderAlarmSidebar(historyData) {
                   .replace(/&/g, "&amp;")
                   .replace(/</g, "&lt;")
                   .replace(/>/g, "&gt;");
-                return `
-                <div class="pm-alarm-item${h.resolved_at ? "" : " clickable"}"${h.resolved_at ? "" : ` onclick="window._navToSection('${h.section_id}')"`} title="${fullTime}">
-                    <div class="pm-alarm-item-status ${h.resolved_at ? "resolved" : `active ${h.level}`}">
+                // AutoML 실패 job은 진행중/해소 배지를 표시하지 않음
+                const statusBadge =
+                  h.key === "automl"
+                    ? ""
+                    : `<div class="pm-alarm-item-status ${h.resolved_at ? "resolved" : `active ${h.level}`}">
                         <span class="pm-alarm-status-dot"></span>
                         ${h.resolved_at ? "해소됨" : "진행중"}
-                    </div>
+                    </div>`;
+                return `
+                <div class="pm-alarm-item${h.resolved_at ? "" : " clickable"}"${h.resolved_at ? "" : ` onclick="window._navToSection('${h.section_id}')"`} title="${fullTime}">
+                    ${statusBadge}
                     <div class="pm-alarm-item-msg">${safeMsg}</div>
                     <div class="pm-alarm-item-time">${timeline}</div>
                     ${h.resolved_at ? "" : `<div class="pm-alarm-item-nav-hint">클릭하여 해당 섹션으로 이동 →</div>`}
@@ -298,6 +317,8 @@ window._closeAlarmSidebar = function () {
 
 window._setAlarmFilter = function (key) {
   _activeFilter = key;
+  // automl은 상태 필터(진행중/해소됨)가 의미 없으므로 "전체"로 고정
+  if (key === "automl") _activeStatus = "all";
   _renderOrFetch();
 };
 
