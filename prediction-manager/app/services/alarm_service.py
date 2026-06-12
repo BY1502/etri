@@ -177,12 +177,27 @@ def eval_alarms(data: dict) -> list[dict]:
                 _add("automl", "warning", f"AutoML 작업 실패: {job['name']}",
                      namespace=job.get("namespace"))
 
-    # PVC Lost
+    # PVC
     pvc = data.get("pvc", {})
     if pvc.get("status") == "ok":
         for g in pvc.get("groups", []):
             if g.get("phase_counts", {}).get("Lost", 0) > 0:
                 _add("pvc", "critical", f"PVC 볼륨 손상 감지: {g['ns']}",
+                     namespace=g.get("ns"))
+
+            # PVC 개수 할당량 - 다 찼을 때만 경고 (더 이상 생성 불가)
+            quota = g.get("quota") or {}
+            pvc_used, pvc_limit = quota.get("pvc_used"), quota.get("pvc_limit")
+            if pvc_limit and pvc_used >= pvc_limit:
+                _add("pvc", "warning",
+                     f"PVC 개수 할당량 도달: {g['ns']} ({pvc_used}/{pvc_limit}개)",
+                     namespace=g.get("ns"))
+
+            # PVC 용량 할당량 - 90% 이상 사용 시 경고
+            st_used, st_limit = quota.get("storage_used_gb"), quota.get("storage_limit_gb")
+            if st_limit and st_used / st_limit >= 0.9:
+                _add("pvc", "warning",
+                     f"PVC 용량 할당량 임박: {g['ns']} ({st_used:.1f}/{st_limit:.0f}GB)",
                      namespace=g.get("ns"))
 
     return alarms
@@ -365,21 +380,29 @@ async def set_alarm_state_async(user_email: str, alarm_ids: list[str], action: L
     return await asyncio.to_thread(set_alarm_state, user_email, alarm_ids, action)
 
 
-async def get_history_async(limit: int = 500) -> list[dict]:
-    return await asyncio.to_thread(get_history, limit)
+async def get_history_async(limit: int = 500, filter_ns: str | None = None) -> list[dict]:
+    return await asyncio.to_thread(get_history, limit, filter_ns)
 
 
-def get_history(limit: int = 500) -> list[dict]:
-    """알람 이력 반환 (monitoring-alarm.js 사이드바용)."""
+def get_history(limit: int = 500, filter_ns: str | None = None) -> list[dict]:
+    """알람 이력 반환 (monitoring-alarm.js 사이드바용).
+
+    filter_ns: None이면 admin 전체뷰(모든 namespace), 아니면 해당 namespace +
+    전역(namespace IS NULL) 알람만 반환.
+    """
     with _lock:
         conn = sqlite3.connect(_DB_PATH)
         try:
-            rows = conn.execute(
-                """SELECT id, key, level, msg, section_id,
-                          triggered_at, triggered_ts, resolved_at, resolved_ts
-                   FROM alarms ORDER BY triggered_ts DESC LIMIT ?""",
-                (limit,),
-            ).fetchall()
+            query = """SELECT id, key, level, msg, section_id, namespace,
+                              triggered_at, triggered_ts, resolved_at, resolved_ts
+                       FROM alarms"""
+            params: list = []
+            if filter_ns is not None:
+                query += " WHERE (namespace IS NULL OR namespace = ?)"
+                params.append(filter_ns)
+            query += " ORDER BY triggered_ts DESC LIMIT ?"
+            params.append(limit)
+            rows = conn.execute(query, params).fetchall()
         finally:
             conn.close()
 
@@ -390,10 +413,11 @@ def get_history(limit: int = 500) -> list[dict]:
             "level":        r[2],
             "msg":          r[3],
             "section_id":   r[4],
-            "triggered_at": r[5],
-            "triggered_ts": r[6],
-            "resolved_at":  r[7],
-            "resolved_ts":  r[8],
+            "namespace":    r[5],
+            "triggered_at": r[6],
+            "triggered_ts": r[7],
+            "resolved_at":  r[8],
+            "resolved_ts":  r[9],
         }
         for r in rows
     ]

@@ -596,6 +596,49 @@ async def get_running_notebooks(namespace: str | None = None) -> dict:
     return {"status": "ok", "notebooks": notebooks}
 
 
+def _parse_storage_gb(v) -> float:
+    """'100Gi' 같은 쿠버네티스 용량 문자열을 GiB(=total_gb와 동일 단위) 숫자로 변환."""
+    s = str(v or "0").strip()
+    units = {"Ki": 1 / 1024**2, "Mi": 1 / 1024, "Gi": 1, "Ti": 1024}
+    for suf, mul in units.items():
+        if s.endswith(suf):
+            try:
+                return float(s[:-len(suf)]) * mul
+            except ValueError:
+                return 0.0
+    try:
+        return float(s) / 1024**3
+    except ValueError:
+        return 0.0
+
+
+def _get_pvc_quota(namespace: str | None) -> dict:
+    """namespace별 PVC 개수/용량 ResourceQuota (hard 한도 + 현재 사용량). 키: namespace."""
+    from kubernetes import client as k8s_client
+    core = k8s_client.CoreV1Api()
+    try:
+        if namespace:
+            quotas = core.list_namespaced_resource_quota(namespace).items
+        else:
+            quotas = core.list_resource_quota_for_all_namespaces().items
+    except Exception:
+        return {}
+
+    result = {}
+    for q in quotas:
+        hard = q.spec.hard or {}
+        used = q.status.used or {}
+        if "persistentvolumeclaims" not in hard and "requests.storage" not in hard:
+            continue
+        result[q.metadata.namespace] = {
+            "pvc_used": int(used.get("persistentvolumeclaims", 0)),
+            "pvc_limit": int(hard["persistentvolumeclaims"]) if "persistentvolumeclaims" in hard else None,
+            "storage_used_gb": round(_parse_storage_gb(used.get("requests.storage")), 2),
+            "storage_limit_gb": round(_parse_storage_gb(hard["requests.storage"]), 2) if "requests.storage" in hard else None,
+        }
+    return result
+
+
 async def get_pvc_storage(namespace: str | None = None) -> dict:
     ns_filter = f'namespace="{namespace}"' if namespace else 'namespace=~"kubeflow-.*"'
 
@@ -630,6 +673,8 @@ async def get_pvc_storage(namespace: str | None = None) -> dict:
             "phase": phase_map.get((ns, pvc), "Unknown"),
         })
 
+    quota_map = _get_pvc_quota(namespace)
+
     groups = []
     for ns, pvcs in sorted(ns_map.items()):
         pvcs_sorted = sorted(pvcs, key=lambda p: p["name"])
@@ -643,6 +688,7 @@ async def get_pvc_storage(namespace: str | None = None) -> dict:
             "pvcs": pvcs_sorted,
             "total_gb": total_gb,
             "phase_counts": phase_counts,
+            "quota": quota_map.get(ns),
         })
     return {"status": "ok", "groups": groups}
 

@@ -85,8 +85,12 @@ async def summary(request: Request, ns: str | None = None):
 
 
 @router.get("/alarms/history")
-async def alarm_history(limit: int = Query(default=500, ge=1, le=1000)):
-    return await alarm_service.get_history_async(limit=limit)
+async def alarm_history(request: Request, ns: str | None = None, limit: int = Query(default=500, ge=1, le=1000)):
+    namespace = ns or get_user_namespace(request)
+    admin = is_admin(request)
+    is_admin_view = admin and (ns is None or namespace == get_owner_namespace(request))
+    filter_ns = None if is_admin_view else namespace
+    return await alarm_service.get_history_async(limit=limit, filter_ns=filter_ns)
 
 
 @router.post("/alarms/state")
